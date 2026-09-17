@@ -22,9 +22,7 @@ def _background_css() -> str:
     encoded = base64.b64encode(BACKGROUND_PATH.read_bytes()).decode("ascii")
     return f"""
     [data-testid="stAppViewContainer"] {{
-        background-image:
-            linear-gradient(100deg, rgba(3, 8, 20, 0.88) 0%, rgba(3, 8, 20, 0.75) 44%, rgba(3, 8, 20, 0.44) 100%),
-            url("data:image/png;base64,{encoded}");
+        background-image: url("data:image/png;base64,{encoded}");
         background-size: cover;
         background-position: center;
         background-attachment: fixed;
@@ -273,7 +271,7 @@ def _section_header(title: str, subtitle: str = "") -> None:
 
 def _empty_map() -> go.Figure:
     fig = go.Figure(
-        go.Scattermapbox(
+        go.Scattermap(
             lat=[-18.9, -19.92, -21.76],
             lon=[-44.0, -43.94, -43.35],
             mode="markers",
@@ -283,7 +281,7 @@ def _empty_map() -> go.Figure:
         )
     )
     fig.update_layout(
-        mapbox={"style": "carto-darkmatter", "center": {"lat": -19.3, "lon": -44.2}, "zoom": 5.2},
+        map={"style": "carto-darkmatter", "center": {"lat": -19.3, "lon": -44.2}, "zoom": 5.2},
         height=520,
         margin={"l": 0, "r": 0, "t": 18, "b": 0},
         paper_bgcolor="rgba(0,0,0,0)",
@@ -415,7 +413,7 @@ def _territorial_map(df: pd.DataFrame | None) -> go.Figure:
     center = {"lat": float(map_df["nr_latitude"].mean()), "lon": float(map_df["nr_longitude"].mean())}
 
     fig = go.Figure(
-        go.Scattermapbox(
+        go.Scattermap(
             lat=map_df["nr_latitude"],
             lon=map_df["nr_longitude"],
             mode="markers",
@@ -432,7 +430,7 @@ def _territorial_map(df: pd.DataFrame | None) -> go.Figure:
         )
     )
     fig.update_layout(
-        mapbox={"style": "carto-darkmatter", "center": center, "zoom": 5.5},
+        map={"style": "carto-darkmatter", "center": center, "zoom": 5.5},
         height=520,
         margin={"l": 0, "r": 0, "t": 18, "b": 0},
         paper_bgcolor="rgba(0,0,0,0)",
