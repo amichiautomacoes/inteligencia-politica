@@ -231,6 +231,18 @@ def _apply_visual_model() -> None:
             padding: 0.56rem 0.66rem 0.3rem 0.66rem;
             box-shadow: 0 18px 40px rgba(2, 9, 24, 0.42);
         }}
+        .raiox-bar-title {{
+            color: #eaf2ff;
+            font-size: 1.34rem;
+            font-weight: 800;
+            line-height: 1.12;
+            margin-top: 0.58rem;
+            padding-left: 0.08rem;
+        }}
+        .raiox-bar-filter [data-testid="stSelectbox"] {{
+            max-width: 16rem;
+            margin-left: auto;
+        }}
         @media (max-width: 900px) {{
             .mapa-kpi-grid,
             .raiox-kpi-grid,
@@ -754,7 +766,7 @@ def _territorial_map(df: pd.DataFrame | None) -> go.Figure:
                     lon=boundary_lon,
                     lat=boundary_lat,
                     mode="lines",
-                    line={"color": "rgba(255,255,255,0.96)", "width": 2.6},
+                    line={"color": "rgba(0,0,0,0.92)", "width": 2.6},
                     hoverinfo="skip",
                     showlegend=False,
                     name="Fronteiras das mesorregioes",
@@ -967,17 +979,15 @@ def _demographic_bar(kind: str, context: dict[str, str], mesorregiao: str) -> go
         x="categoria",
         y="votos",
         text="votos",
-        title="Distribuicao por perfil no recorte selecionado",
         color="votos",
         color_continuous_scale="Blues",
     )
     fig.update_layout(
         height=500,
-        margin={"l": 10, "r": 20, "t": 46, "b": 24},
+        margin={"l": 10, "r": 20, "t": 18, "b": 24},
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font={"color": "#eaf2ff"},
-        title={"font": {"size": 18, "color": "#eaf2ff"}},
         xaxis={"title": "", "tickangle": -20},
         yaxis={"title": "Votos", "gridcolor": "rgba(255,255,255,0.12)"},
         coloraxis_showscale=False,
@@ -1020,12 +1030,21 @@ with col_left:
     )
     territorial_context = _treemap_selection(treemap_event)
 with col_right:
-    perfil_kind = st.selectbox(
-        "Filtrar barras por",
-        ["genero", "idade", "escolaridade", "estado_civil"],
-        format_func=lambda value: value.replace("_", " ").title(),
-        key="pagina1_bar_profile_kind",
-    )
+    bar_title_col, bar_filter_col = st.columns([0.58, 0.42], gap="medium")
+    with bar_title_col:
+        st.markdown(
+            "<div class='raiox-bar-title'>Distribuicao por perfil no recorte selecionado</div>",
+            unsafe_allow_html=True,
+        )
+    with bar_filter_col:
+        st.markdown("<div class='raiox-bar-filter'>", unsafe_allow_html=True)
+        perfil_kind = st.selectbox(
+            "Filtrar barras por",
+            ["genero", "idade", "escolaridade", "estado_civil"],
+            format_func=lambda value: value.replace("_", " ").title(),
+            key="pagina1_bar_profile_kind",
+        )
+        st.markdown("</div>", unsafe_allow_html=True)
     st.plotly_chart(_demographic_bar(perfil_kind, territorial_context, mesorregiao), use_container_width=True)
     if territorial_context:
         label = territorial_context.get("nm_bairro") or territorial_context.get("nm_municipio")
