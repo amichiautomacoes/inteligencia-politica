@@ -713,11 +713,6 @@ def _territorial_treemap(df: pd.DataFrame | None) -> tuple[go.Figure, pd.DataFra
     if df is None or df.empty or "qt_votos" not in df.columns:
         return _empty_treemap("Votacao territorial"), pd.DataFrame()
 
-    if "nivel_territorial" in df.columns:
-        df = df[df["nivel_territorial"].astype(str).str.strip().str.lower() == "bairro"].copy()
-        if df.empty:
-            return _empty_treemap("Votacao territorial"), pd.DataFrame()
-
     group_cols = [col for col in ("nm_municipio", "nm_bairro") if col in df.columns]
     if not group_cols:
         return _empty_treemap("Votacao territorial"), pd.DataFrame()
@@ -727,9 +722,12 @@ def _territorial_treemap(df: pd.DataFrame | None) -> tuple[go.Figure, pd.DataFra
     for col in group_cols:
         tree_df[col] = tree_df[col].fillna("Nao informado").astype(str).str.strip()
         tree_df.loc[tree_df[col].eq(""), col] = "Nao informado"
+
+    code_cols = [col for col in ("cd_municipio", "cd_bairro") if col in tree_df.columns]
+    agg_map = {"qt_votos": "sum", **{col: "first" for col in code_cols}}
     tree_df = (
-        tree_df.groupby(group_cols, as_index=False)["qt_votos"]
-        .sum()
+        tree_df.groupby(group_cols, as_index=False)
+        .agg(agg_map)
         .sort_values("qt_votos", ascending=False)
         .head(500)
     )
@@ -737,14 +735,33 @@ def _territorial_treemap(df: pd.DataFrame | None) -> tuple[go.Figure, pd.DataFra
         return _empty_treemap("Votacao territorial"), pd.DataFrame()
 
     fig = px.treemap(tree_df, path=group_cols, values="qt_votos", title="Votacao por Municipio e Bairro")
+    code_lookup: dict[tuple[str, str], dict[str, str]] = {}
+    for row in tree_df.to_dict("records"):
+        municipio = str(row.get("nm_municipio") or "")
+        bairro = str(row.get("nm_bairro") or "")
+        code_lookup[(municipio, bairro)] = {
+            col: str(row.get(col) or "")
+            for col in code_cols
+        }
+
     customdata = []
     ids = []
     for trace_id, label, parent in zip(fig.data[0].ids, fig.data[0].labels, fig.data[0].parents):
         parts = str(trace_id).split("/")
         municipio = parts[0] if parts else ""
         bairro = parts[1] if len(parts) > 1 else ""
+        codes = code_lookup.get((municipio, bairro), {})
         ids.append(str(trace_id))
-        customdata.append([municipio, bairro, str(label), str(parent)])
+        customdata.append(
+            [
+                municipio,
+                bairro,
+                codes.get("cd_municipio", ""),
+                codes.get("cd_bairro", ""),
+                str(label),
+                str(parent),
+            ]
+        )
     fig.update_traces(
         ids=ids,
         customdata=customdata,
@@ -812,14 +829,22 @@ def _treemap_selection(event: object | None) -> dict[str, str]:
         customdata = getattr(point, "customdata", []) or []
         label = str(getattr(point, "label", "") or "")
         parent = str(getattr(point, "parent", "") or "")
-    if len(customdata) >= 2:
+    if len(customdata) >= 4:
         municipio = str(customdata[0] or "")
         bairro = str(customdata[1] or "")
+        cd_municipio = str(customdata[2] or "")
+        cd_bairro = str(customdata[3] or "")
     else:
         municipio = parent or label
         bairro = "" if not parent else label
+        cd_municipio = ""
+        cd_bairro = ""
 
     selection: dict[str, str] = {}
+    if cd_municipio:
+        selection["cd_municipio"] = cd_municipio
+    if cd_bairro:
+        selection["cd_bairro"] = cd_bairro
     if municipio:
         selection["nm_municipio"] = municipio
     if bairro:
@@ -831,7 +856,8 @@ def _apply_territorial_context(df: pd.DataFrame, context: dict[str, str], mesorr
     result = df.copy()
     if mesorregiao != "Todas" and "nm_mesorregiao" in result.columns:
         result = result[result["nm_mesorregiao"].astype(str).str.strip() == mesorregiao]
-    for column, value in context.items():
+    for column in ("cd_municipio", "cd_bairro", "nm_municipio", "nm_bairro"):
+        value = context.get(column)
         if column in result.columns and value:
             result = result[result[column].astype(str).str.strip() == value]
     return result
@@ -858,15 +884,14 @@ def _demographic_bar(kind: str, context: dict[str, str], mesorregiao: str) -> go
                     "categoria": [_demographic_label(col, prefix) for col in value_cols],
                     "votos": [pd.to_numeric(df[col], errors="coerce").fillna(0).sum() for col in value_cols],
                 }
-            ).sort_values("votos", ascending=True)
+            ).sort_values("votos", ascending=False)
         else:
             bar_df = pd.DataFrame({"categoria": ["Colunas nao encontradas"], "votos": [0]})
 
     fig = px.bar(
         bar_df,
-        x="votos",
-        y="categoria",
-        orientation="h",
+        x="categoria",
+        y="votos",
         text="votos",
         title="Distribuicao por perfil no recorte selecionado",
         color="votos",
@@ -879,8 +904,8 @@ def _demographic_bar(kind: str, context: dict[str, str], mesorregiao: str) -> go
         plot_bgcolor="rgba(0,0,0,0)",
         font={"color": "#eaf2ff"},
         title={"font": {"size": 18, "color": "#eaf2ff"}},
-        xaxis={"title": "Votos", "gridcolor": "rgba(255,255,255,0.12)"},
-        yaxis={"title": ""},
+        xaxis={"title": "", "tickangle": -20},
+        yaxis={"title": "Votos", "gridcolor": "rgba(255,255,255,0.12)"},
         coloraxis_showscale=False,
     )
     fig.update_traces(texttemplate="%{text:,.0f}", textposition="outside", cliponaxis=False)
@@ -908,12 +933,6 @@ _section_header(
     "Treemap territorial e distribuicao demografica conforme parquet selecionado.",
 )
 treemap_df, mesorregiao = _mesorregiao_filter(votos_municipio_df)
-perfil_kind = st.selectbox(
-    "Filtrar barras por",
-    ["genero", "idade", "escolaridade", "estado_civil"],
-    format_func=lambda value: value.replace("_", " ").title(),
-    key="pagina1_bar_profile_kind",
-)
 col_left, col_right = st.columns(2, gap="large")
 with col_left:
     treemap_fig, _ = _territorial_treemap(treemap_df)
@@ -926,6 +945,19 @@ with col_left:
     )
     territorial_context = _treemap_selection(treemap_event)
 with col_right:
+    title_col, select_col = st.columns([0.54, 0.46], gap="medium")
+    with title_col:
+        st.markdown(
+            "<div class='mapa-section-title' style='font-size:1.1rem;margin-top:0.55rem;'>Perfil no recorte</div>",
+            unsafe_allow_html=True,
+        )
+    with select_col:
+        perfil_kind = st.selectbox(
+            "Filtrar barras por",
+            ["genero", "idade", "escolaridade", "estado_civil"],
+            format_func=lambda value: value.replace("_", " ").title(),
+            key="pagina1_bar_profile_kind",
+        )
     st.plotly_chart(_demographic_bar(perfil_kind, territorial_context, mesorregiao), use_container_width=True)
     if territorial_context:
         label = territorial_context.get("nm_bairro") or territorial_context.get("nm_municipio")
