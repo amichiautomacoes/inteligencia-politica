@@ -6,15 +6,15 @@ from hf_sync import data_files, path_filter_options
 
 
 st.set_page_config(
-    page_title="Raio X da Vota\u00e7\u00e3o",
+    page_title="Raio X do voto",
     layout="wide",
 )
 
 
 pages = [
     st.Page(
-        "pages/pagina_1.py",
-        title="Raio X da Vota\u00e7\u00e3o",
+        "pages/raio_x_do_voto.py",
+        title="Raio X do voto",
         default=True,
     ),
 ]

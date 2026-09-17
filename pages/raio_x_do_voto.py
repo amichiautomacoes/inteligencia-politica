@@ -401,6 +401,60 @@ def _build_log_colorbar_ticks(max_votes: float) -> tuple[list[float], list[str]]
     return tickvals, ticktext
 
 
+def _iter_geojson_rings(geometry: dict) -> list[list[list[float]]]:
+    geometry_type = geometry.get("type")
+    coordinates = geometry.get("coordinates", [])
+    if geometry_type == "Polygon":
+        return coordinates
+    if geometry_type == "MultiPolygon":
+        return [ring for polygon in coordinates for ring in polygon]
+    return []
+
+
+def _mesorregiao_boundary_lines(
+    geojson_mg: dict,
+    df_regioes_ref: pd.DataFrame | None,
+) -> tuple[list[float], list[float]]:
+    if df_regioes_ref is None or df_regioes_ref.empty:
+        return [], []
+
+    regioes = df_regioes_ref[["codigo_ibge", "mesorregiao_nome"]].copy()
+    regioes["codigo_ibge_str"] = pd.to_numeric(
+        regioes["codigo_ibge"], errors="coerce"
+    ).astype("Int64").astype(str).str.zfill(7)
+    meso_by_city = dict(zip(regioes["codigo_ibge_str"], regioes["mesorregiao_nome"].astype(str).str.strip()))
+
+    segments: dict[tuple[tuple[float, float], tuple[float, float]], list[str]] = {}
+    segment_points: dict[tuple[tuple[float, float], tuple[float, float]], tuple[tuple[float, float], tuple[float, float]]] = {}
+
+    for feature in geojson_mg.get("features", []):
+        city_id = str(feature.get("properties", {}).get("id", "")).strip().zfill(7)
+        mesorregiao = meso_by_city.get(city_id, "")
+        if not mesorregiao:
+            continue
+
+        for ring in _iter_geojson_rings(feature.get("geometry", {})):
+            if len(ring) < 2:
+                continue
+            for start, end in zip(ring, ring[1:]):
+                point_a = (round(float(start[0]), 6), round(float(start[1]), 6))
+                point_b = (round(float(end[0]), 6), round(float(end[1]), 6))
+                if point_a == point_b:
+                    continue
+                key = tuple(sorted((point_a, point_b)))
+                segments.setdefault(key, []).append(mesorregiao)
+                segment_points.setdefault(key, (point_a, point_b))
+
+    lon: list[float] = []
+    lat: list[float] = []
+    for key, mesorregioes in segments.items():
+        if len(mesorregioes) == 1 or len(set(mesorregioes)) > 1:
+            point_a, point_b = segment_points[key]
+            lon.extend([point_a[0], point_b[0], None])
+            lat.extend([point_a[1], point_b[1], None])
+    return lon, lat
+
+
 def _format_number(value: float | int) -> str:
     return f"{float(value):,.0f}".replace(",", ".")
 
@@ -692,6 +746,20 @@ def _territorial_map(df: pd.DataFrame | None) -> go.Figure:
             "bordercolor": "rgba(147,197,253,0.55)",
         },
     )
+    if is_mesorregiao_df:
+        boundary_lon, boundary_lat = _mesorregiao_boundary_lines(geojson_mg, df_regioes_ref)
+        if boundary_lon and boundary_lat:
+            fig.add_trace(
+                go.Scattergeo(
+                    lon=boundary_lon,
+                    lat=boundary_lat,
+                    mode="lines",
+                    line={"color": "rgba(255,255,255,0.96)", "width": 2.6},
+                    hoverinfo="skip",
+                    showlegend=False,
+                    name="Fronteiras das mesorregioes",
+                )
+            )
     fig.update_geos(fitbounds="locations", visible=False, bgcolor="rgba(0,0,0,0)")
     fig.update_layout(
         margin={"l": 6, "r": 36, "t": 52, "b": 6},
@@ -920,7 +988,7 @@ def _demographic_bar(kind: str, context: dict[str, str], mesorregiao: str) -> go
 
 _apply_visual_model()
 
-st.title("RaioX Votacao")
+st.title("Raio X do voto")
 st.caption("Visualizacao conectada aos parquets de 2022 selecionados por cargo e candidato.")
 
 _major_section_header("Mapa de Votacao", "Leitura territorial do desempenho eleitoral no recorte ativo.")
@@ -952,19 +1020,12 @@ with col_left:
     )
     territorial_context = _treemap_selection(treemap_event)
 with col_right:
-    title_col, select_col = st.columns([0.54, 0.46], gap="medium")
-    with title_col:
-        st.markdown(
-            "<div class='mapa-section-title' style='font-size:1.1rem;margin-top:0.55rem;'>Perfil no recorte</div>",
-            unsafe_allow_html=True,
-        )
-    with select_col:
-        perfil_kind = st.selectbox(
-            "Filtrar barras por",
-            ["genero", "idade", "escolaridade", "estado_civil"],
-            format_func=lambda value: value.replace("_", " ").title(),
-            key="pagina1_bar_profile_kind",
-        )
+    perfil_kind = st.selectbox(
+        "Filtrar barras por",
+        ["genero", "idade", "escolaridade", "estado_civil"],
+        format_func=lambda value: value.replace("_", " ").title(),
+        key="pagina1_bar_profile_kind",
+    )
     st.plotly_chart(_demographic_bar(perfil_kind, territorial_context, mesorregiao), use_container_width=True)
     if territorial_context:
         label = territorial_context.get("nm_bairro") or territorial_context.get("nm_municipio")
