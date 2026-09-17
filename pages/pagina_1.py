@@ -540,6 +540,12 @@ def _territorial_map(df: pd.DataFrame | None) -> go.Figure:
 
     city_col = "nm_municipio" if "nm_municipio" in df.columns else None
     meso_col = "nm_mesorregiao" if "nm_mesorregiao" in df.columns else None
+    level_values = (
+        df["nivel_territorial"].dropna().astype(str).str.strip().str.lower()
+        if "nivel_territorial" in df.columns
+        else pd.Series(dtype=str)
+    )
+    is_mesorregiao_df = bool(meso_col and not level_values.empty and level_values.eq("mesorregiao").all())
     code_col = next(
         (
             col
@@ -555,7 +561,23 @@ def _territorial_map(df: pd.DataFrame | None) -> go.Figure:
         None,
     )
 
-    if code_col:
+    if is_mesorregiao_df and df_regioes_ref is not None and not df_regioes_ref.empty:
+        mapa_base = df[[meso_col, "qt_votos"]].copy().rename(columns={meso_col: "mesorregiao_nome"})
+        mapa_base["mesorregiao_nome"] = mapa_base["mesorregiao_nome"].astype(str).str.strip()
+        mapa_base = mapa_base.groupby("mesorregiao_nome", as_index=False)["qt_votos"].sum()
+        mapa_df = df_regioes_ref[["codigo_ibge", "mesorregiao_nome"]].merge(
+            mapa_base,
+            on="mesorregiao_nome",
+            how="left",
+        )
+        mapa_df = mapa_df.merge(
+            df_tse_ref[["codigo_tse", "codigo_ibge", "nome_municipio"]],
+            on="codigo_ibge",
+            how="left",
+        )
+        mapa_df["CD_MUNICIPIO"] = mapa_df["codigo_tse"]
+        mapa_df["municipio"] = mapa_df["nome_municipio"]
+    elif code_col:
         mapa_base = df[[code_col, "qt_votos"] + ([city_col] if city_col else [])].copy()
         rename_cols = {code_col: "CD_MUNICIPIO"}
         if city_col:
@@ -583,22 +605,6 @@ def _territorial_map(df: pd.DataFrame | None) -> go.Figure:
             how="left",
         )
         mapa_df["CD_MUNICIPIO"] = mapa_df["codigo_tse"]
-    elif meso_col and df_regioes_ref is not None and not df_regioes_ref.empty:
-        mapa_base = df[[meso_col, "qt_votos"]].copy().rename(columns={meso_col: "mesorregiao_nome"})
-        mapa_base["mesorregiao_nome"] = mapa_base["mesorregiao_nome"].astype(str).str.strip()
-        mapa_base = mapa_base.groupby("mesorregiao_nome", as_index=False)["qt_votos"].sum()
-        mapa_df = df_regioes_ref[["codigo_ibge", "mesorregiao_nome"]].merge(
-            mapa_base,
-            on="mesorregiao_nome",
-            how="left",
-        )
-        mapa_df = mapa_df.merge(
-            df_tse_ref[["codigo_tse", "codigo_ibge", "nome_municipio"]],
-            on="codigo_ibge",
-            how="left",
-        )
-        mapa_df["CD_MUNICIPIO"] = mapa_df["codigo_tse"]
-        mapa_df["municipio"] = mapa_df["nome_municipio"]
     else:
         return _empty_map()
 
@@ -919,6 +925,7 @@ st.caption("Visualizacao conectada aos parquets de 2022 selecionados por cargo e
 
 _major_section_header("Mapa de Votacao", "Leitura territorial do desempenho eleitoral no recorte ativo.")
 votos_municipio_df = _read_selected_parquet("votos_municipio")
+votos_bairro_df = _read_selected_parquet("votos_bairro")
 _render_kpis(votos_municipio_df)
 header_col, filter_col = st.columns([0.72, 0.28], gap="large")
 with header_col:
@@ -932,7 +939,7 @@ _section_header(
     "Votacao por Municipio e Perfil",
     "Treemap territorial e distribuicao demografica conforme parquet selecionado.",
 )
-treemap_df, mesorregiao = _mesorregiao_filter(votos_municipio_df)
+treemap_df, mesorregiao = _mesorregiao_filter(votos_bairro_df)
 col_left, col_right = st.columns(2, gap="large")
 with col_left:
     treemap_fig, _ = _territorial_treemap(treemap_df)
