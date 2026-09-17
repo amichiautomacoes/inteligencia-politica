@@ -436,6 +436,19 @@ def _read_selected_parquet(kind: str) -> pd.DataFrame | None:
         return None
 
 
+def _territorial_kind_select() -> str:
+    options = {
+        "Mesorregiao": "votos_mesorregiao",
+        "Municipio": "votos_municipio",
+    }
+    selected = st.selectbox(
+        "Filtro territorial",
+        list(options.keys()),
+        key="pagina1_territorial_kind",
+    )
+    return options[selected]
+
+
 def _render_kpis(df: pd.DataFrame | None) -> None:
     total_votos = "--"
     municipios = "--"
@@ -526,6 +539,7 @@ def _territorial_map(df: pd.DataFrame | None) -> go.Figure:
         return _empty_map()
 
     city_col = "nm_municipio" if "nm_municipio" in df.columns else None
+    meso_col = "nm_mesorregiao" if "nm_mesorregiao" in df.columns else None
     code_col = next(
         (
             col
@@ -569,6 +583,22 @@ def _territorial_map(df: pd.DataFrame | None) -> go.Figure:
             how="left",
         )
         mapa_df["CD_MUNICIPIO"] = mapa_df["codigo_tse"]
+    elif meso_col and df_regioes_ref is not None and not df_regioes_ref.empty:
+        mapa_base = df[[meso_col, "qt_votos"]].copy().rename(columns={meso_col: "mesorregiao_nome"})
+        mapa_base["mesorregiao_nome"] = mapa_base["mesorregiao_nome"].astype(str).str.strip()
+        mapa_base = mapa_base.groupby("mesorregiao_nome", as_index=False)["qt_votos"].sum()
+        mapa_df = df_regioes_ref[["codigo_ibge", "mesorregiao_nome"]].merge(
+            mapa_base,
+            on="mesorregiao_nome",
+            how="left",
+        )
+        mapa_df = mapa_df.merge(
+            df_tse_ref[["codigo_tse", "codigo_ibge", "nome_municipio"]],
+            on="codigo_ibge",
+            how="left",
+        )
+        mapa_df["CD_MUNICIPIO"] = mapa_df["codigo_tse"]
+        mapa_df["municipio"] = mapa_df["nome_municipio"]
     else:
         return _empty_map()
 
@@ -860,20 +890,24 @@ def _demographic_bar(kind: str, context: dict[str, str], mesorregiao: str) -> go
 _apply_visual_model()
 
 st.title("RaioX Votacao")
-st.caption("Visualizacao conectada aos parquets selecionados por ano, cargo e deputado.")
-
-votos_df = _read_selected_parquet("votos_territoriais")
+st.caption("Visualizacao conectada aos parquets de 2022 selecionados por cargo e candidato.")
 
 _major_section_header("Mapa de Votacao", "Leitura territorial do desempenho eleitoral no recorte ativo.")
-_render_kpis(votos_df)
-_section_header("Distribuicao territorial dos votos", "Fonte: votos_territoriais.parquet.")
+votos_municipio_df = _read_selected_parquet("votos_municipio")
+_render_kpis(votos_municipio_df)
+header_col, filter_col = st.columns([0.72, 0.28], gap="large")
+with header_col:
+    _section_header("Distribuicao territorial dos votos", "Fonte: parquets de votacao territorial de 2022.")
+with filter_col:
+    territorial_kind = _territorial_kind_select()
+votos_df = _read_selected_parquet(territorial_kind)
 st.plotly_chart(_territorial_map(votos_df), use_container_width=True)
 
 _section_header(
     "Votacao por Municipio e Perfil",
     "Treemap territorial e distribuicao demografica conforme parquet selecionado.",
 )
-treemap_df, mesorregiao = _mesorregiao_filter(votos_df)
+treemap_df, mesorregiao = _mesorregiao_filter(votos_municipio_df)
 perfil_kind = st.selectbox(
     "Filtrar barras por",
     ["genero", "idade", "escolaridade", "estado_civil"],

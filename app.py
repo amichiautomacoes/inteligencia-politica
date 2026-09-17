@@ -29,11 +29,10 @@ with st.sidebar:
 
     options = path_filter_options(files)
 
-    ano = st.selectbox("Ano", ["Todos", *options["anos"]], key="filtro_ano")
-    cargo = st.selectbox("Cargo", ["Todos", *options["cargos"]], key="filtro_cargo")
-    nome = st.selectbox("Nome", ["Todos", *options["nomes"]], key="filtro_nome")
+    cargo = st.selectbox("CARGO", ["Todos", *options["cargos"]], key="filtro_cargo")
+    nome = st.selectbox("CANDIDATO", ["Todos", *options["nomes"]], key="filtro_nome")
 
-    st.session_state["deputados_filters"] = {"ano": ano, "cargo": cargo, "nome": nome}
+    st.session_state["deputados_filters"] = {"ano": "2022", "cargo": cargo, "nome": nome}
     st.session_state["deputados_files"] = files
 
 current_page = st.navigation(pages, position="sidebar")
