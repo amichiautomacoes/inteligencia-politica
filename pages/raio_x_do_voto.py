@@ -423,9 +423,12 @@ def _iter_geojson_rings(geometry: dict) -> list[list[list[float]]]:
     return []
 
 
-def _mesorregiao_boundary_lines(
+def _regional_boundary_lines(
     geojson_mg: dict,
     df_regioes_ref: pd.DataFrame | None,
+    *,
+    include_mesorregiao_boundary: bool,
+    include_state_boundary: bool,
 ) -> tuple[list[float], list[float]]:
     if df_regioes_ref is None or df_regioes_ref.empty:
         return [], []
@@ -460,7 +463,11 @@ def _mesorregiao_boundary_lines(
     lon: list[float] = []
     lat: list[float] = []
     for key, mesorregioes in segments.items():
-        if len(mesorregioes) == 1 or len(set(mesorregioes)) > 1:
+        is_state_boundary = len(mesorregioes) == 1
+        is_mesorregiao_boundary = len(set(mesorregioes)) > 1
+        if (include_state_boundary and is_state_boundary) or (
+            include_mesorregiao_boundary and is_mesorregiao_boundary
+        ):
             point_a, point_b = segment_points[key]
             lon.extend([point_a[0], point_b[0], None])
             lat.extend([point_a[1], point_b[1], None])
@@ -759,7 +766,12 @@ def _territorial_map(df: pd.DataFrame | None) -> go.Figure:
         },
     )
     if is_mesorregiao_df:
-        boundary_lon, boundary_lat = _mesorregiao_boundary_lines(geojson_mg, df_regioes_ref)
+        boundary_lon, boundary_lat = _regional_boundary_lines(
+            geojson_mg,
+            df_regioes_ref,
+            include_mesorregiao_boundary=True,
+            include_state_boundary=False,
+        )
         if boundary_lon and boundary_lat:
             fig.add_trace(
                 go.Scattergeo(
@@ -770,6 +782,24 @@ def _territorial_map(df: pd.DataFrame | None) -> go.Figure:
                     hoverinfo="skip",
                     showlegend=False,
                     name="Fronteiras das mesorregioes",
+                )
+            )
+        state_lon, state_lat = _regional_boundary_lines(
+            geojson_mg,
+            df_regioes_ref,
+            include_mesorregiao_boundary=False,
+            include_state_boundary=True,
+        )
+        if state_lon and state_lat:
+            fig.add_trace(
+                go.Scattergeo(
+                    lon=state_lon,
+                    lat=state_lat,
+                    mode="lines",
+                    line={"color": "rgba(0,0,0,0.96)", "width": 3.2},
+                    hoverinfo="skip",
+                    showlegend=False,
+                    name="Limite de Minas Gerais",
                 )
             )
     fig.update_geos(fitbounds="locations", visible=False, bgcolor="rgba(0,0,0,0)")
