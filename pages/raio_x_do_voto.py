@@ -226,11 +226,11 @@ def _apply_visual_model() -> None:
             font-weight: 800;
         }}
         [data-testid="stPlotlyChart"] {{
-            background: linear-gradient(145deg, rgba(7, 18, 36, 0.72) 0%, rgba(7, 18, 36, 0.54) 100%);
-            border: 1px solid rgba(184, 208, 255, 0.24);
-            border-radius: 18px;
-            padding: 0.56rem 0.66rem 0.3rem 0.66rem;
-            box-shadow: 0 18px 40px rgba(2, 9, 24, 0.42);
+            background: transparent;
+            border: 0;
+            border-radius: 0;
+            padding: 0;
+            box-shadow: none;
         }}
         .raiox-bar-title {{
             color: #eaf2ff;
@@ -1105,13 +1105,15 @@ def _demographic_bar(kind: str, context: dict[str, str], mesorregiao: str) -> go
         color_continuous_scale="Blues",
         orientation="h",
     )
+    max_votes = float(pd.to_numeric(bar_df["votos"], errors="coerce").fillna(0).max() or 0)
+    x_range = [0, max_votes * 1.18] if max_votes > 0 else None
     fig.update_layout(
-        height=500,
-        margin={"l": 10, "r": 20, "t": 18, "b": 24},
+        height=430,
+        margin={"l": 100, "r": 88, "t": 8, "b": 42},
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font={"color": "#eaf2ff"},
-        xaxis={"title": "Votos", "gridcolor": "rgba(255,255,255,0.12)"},
+        xaxis={"title": "Votos", "gridcolor": "rgba(255,255,255,0.12)", "range": x_range},
         yaxis={"title": "", "categoryorder": "total ascending"},
         coloraxis_showscale=False,
     )
@@ -1305,7 +1307,7 @@ with col_left:
 with col_right:
     with st.container(border=True):
         st.markdown(
-            "<div class='raiox-bar-title'>Distribuicao por perfil no recorte selecionado</div>",
+            "<div class='raiox-bar-title'>Distribuição por perfil demográfico</div>",
             unsafe_allow_html=True,
         )
         _, bar_filter_col = st.columns([0.54, 0.46], gap="medium")
@@ -1316,6 +1318,7 @@ with col_right:
                 ["genero", "idade", "escolaridade", "estado_civil"],
                 format_func=lambda value: value.replace("_", " ").title(),
                 key="pagina1_bar_profile_kind",
+                label_visibility="collapsed",
             )
             st.markdown("</div>", unsafe_allow_html=True)
         st.plotly_chart(_demographic_bar(perfil_kind, territorial_context, mesorregiao), use_container_width=True)
