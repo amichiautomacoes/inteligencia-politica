@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import html
 import json
 import unicodedata
 from pathlib import Path
@@ -236,17 +237,109 @@ def _apply_visual_model() -> None:
             font-size: 1.34rem;
             font-weight: 800;
             line-height: 1.12;
-            margin-top: 0.58rem;
-            padding-left: 0.08rem;
+            margin: 0.12rem 0 0.35rem 0;
+            text-align: center;
+        }}
+        .raiox-chart-card-title {{
+            color: #eaf2ff;
+            font-size: 1.34rem;
+            font-weight: 800;
+            line-height: 1.12;
+            margin: 0.12rem 0 0.78rem 0;
+            text-align: center;
         }}
         .raiox-bar-filter [data-testid="stSelectbox"] {{
             max-width: 16rem;
             margin-left: auto;
         }}
+        .raiox-profile-top {{
+            display: flex;
+            justify-content: center;
+            margin: 0.85rem 0 1rem 0;
+        }}
+        .raiox-profile-grid {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }}
+        .raiox-profile-card {{
+            border: 1px solid rgba(184, 208, 255, 0.24);
+            border-radius: 16px;
+            background: linear-gradient(145deg, rgba(7, 18, 36, 0.72) 0%, rgba(7, 18, 36, 0.54) 100%);
+            box-shadow: 0 18px 40px rgba(2, 9, 24, 0.42);
+            padding: 1rem 1.05rem 0.95rem 1.05rem;
+            min-height: 12.4rem;
+        }}
+        .raiox-profile-card--hero {{
+            width: min(100%, 38rem);
+            text-align: center;
+        }}
+        .raiox-profile-label {{
+            color: #b7c7e6;
+            font-size: 0.78rem;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }}
+        .raiox-profile-title {{
+            color: #ffffff;
+            font-size: 1.28rem;
+            font-weight: 850;
+            line-height: 1.16;
+            margin-top: 0.38rem;
+        }}
+        .raiox-profile-persona {{
+            color: #eaf2ff;
+            font-size: 1rem;
+            font-weight: 700;
+            line-height: 1.32;
+            margin-top: 0.6rem;
+        }}
+        .raiox-profile-metrics {{
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.68rem;
+            margin-top: 0.9rem;
+        }}
+        .raiox-profile-metric {{
+            border-radius: 12px;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.16);
+            padding: 0.62rem 0.7rem;
+        }}
+        .raiox-profile-metric-label {{
+            color: #b7c7e6;
+            font-size: 0.72rem;
+            font-weight: 750;
+            text-transform: uppercase;
+        }}
+        .raiox-profile-metric-value {{
+            color: #ffffff;
+            font-size: 1.18rem;
+            font-weight: 850;
+            margin-top: 0.16rem;
+        }}
+        .raiox-profile-breakdown {{
+            color: rgba(234, 242, 255, 0.86);
+            font-size: 0.84rem;
+            line-height: 1.38;
+            margin-top: 0.72rem;
+        }}
+        .raiox-profile-section-title {{
+            color: #eaf2ff;
+            font-size: 1.22rem;
+            font-weight: 850;
+            text-align: center;
+            margin: 0.35rem 0 0.72rem 0;
+            letter-spacing: 0.02em;
+            text-transform: uppercase;
+        }}
         @media (max-width: 900px) {{
             .mapa-kpi-grid,
             .raiox-kpi-grid,
-            .raiox-heatmap-kpi-row {{
+            .raiox-heatmap-kpi-row,
+            .raiox-profile-grid {{
                 grid-template-columns: 1fr;
             }}
             .mapa-major-section-title {{
@@ -850,7 +943,7 @@ def _territorial_treemap(df: pd.DataFrame | None) -> tuple[go.Figure, pd.DataFra
     if tree_df.empty:
         return _empty_treemap("Votacao territorial"), pd.DataFrame()
 
-    fig = px.treemap(tree_df, path=group_cols, values="qt_votos", title="Votacao por Municipio e Bairro")
+    fig = px.treemap(tree_df, path=group_cols, values="qt_votos")
     code_lookup: dict[tuple[str, str], dict[str, str]] = {}
     for row in tree_df.to_dict("records"):
         municipio = str(row.get("nm_municipio") or "")
@@ -885,11 +978,10 @@ def _territorial_treemap(df: pd.DataFrame | None) -> tuple[go.Figure, pd.DataFra
     )
     fig.update_layout(
         height=500,
-        margin={"l": 8, "r": 8, "t": 46, "b": 8},
+        margin={"l": 8, "r": 8, "t": 8, "b": 8},
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font={"color": "#eaf2ff"},
-        title={"font": {"size": 18, "color": "#eaf2ff"}},
     )
     return fig, tree_df
 
@@ -1006,11 +1098,12 @@ def _demographic_bar(kind: str, context: dict[str, str], mesorregiao: str) -> go
 
     fig = px.bar(
         bar_df,
-        x="categoria",
-        y="votos",
+        x="votos",
+        y="categoria",
         text="votos",
         color="votos",
         color_continuous_scale="Blues",
+        orientation="h",
     )
     fig.update_layout(
         height=500,
@@ -1018,12 +1111,157 @@ def _demographic_bar(kind: str, context: dict[str, str], mesorregiao: str) -> go
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font={"color": "#eaf2ff"},
-        xaxis={"title": "", "tickangle": -20},
-        yaxis={"title": "Votos", "gridcolor": "rgba(255,255,255,0.12)"},
+        xaxis={"title": "Votos", "gridcolor": "rgba(255,255,255,0.12)"},
+        yaxis={"title": "", "categoryorder": "total ascending"},
         coloraxis_showscale=False,
     )
     fig.update_traces(texttemplate="%{text:,.0f}", textposition="outside", cliponaxis=False)
     return fig
+
+
+def _format_percent(value: float | int | None) -> str:
+    if value is None or pd.isna(value):
+        return "--"
+    return f"{float(value) * 100:.1f}%".replace(".", ",")
+
+
+def _infer_icp_total_votes(icp_geral_df: pd.DataFrame | None) -> float:
+    if icp_geral_df is None or icp_geral_df.empty or "votos_estimados" not in icp_geral_df.columns:
+        return 0.0
+    totals = (
+        icp_geral_df.assign(votos_estimados=pd.to_numeric(icp_geral_df["votos_estimados"], errors="coerce"))
+        .groupby("dimensao", dropna=True)["votos_estimados"]
+        .sum()
+        .dropna()
+    )
+    if totals.empty:
+        return 0.0
+    return float(totals.median())
+
+
+def _to_float(value: object, default: float = 0.0) -> float:
+    numeric = pd.to_numeric(value, errors="coerce")
+    if pd.isna(numeric):
+        return default
+    return float(numeric)
+
+
+def _ideal_voter_from_icp(icp_geral_df: pd.DataFrame | None) -> dict[str, object] | None:
+    required = {"dimensao", "categoria", "votos_estimados", "pct_votos_estimados"}
+    if icp_geral_df is None or icp_geral_df.empty or not required.issubset(icp_geral_df.columns):
+        return None
+
+    dimensions = ["genero", "idade", "escolaridade", "estado_civil"]
+    selected_rows: list[pd.Series] = []
+    for dimension in dimensions:
+        dim_df = icp_geral_df[icp_geral_df["dimensao"].astype(str).str.strip().eq(dimension)].copy()
+        if dim_df.empty:
+            return None
+        dim_df["votos_estimados"] = pd.to_numeric(dim_df["votos_estimados"], errors="coerce").fillna(0)
+        selected_rows.append(dim_df.loc[dim_df["votos_estimados"].idxmax()])
+
+    total_votes = _infer_icp_total_votes(icp_geral_df)
+    pct_values = [_to_float(row["pct_votos_estimados"]) for row in selected_rows]
+    persona_pct = float(np.mean(pct_values)) if pct_values else 0.0
+    categories = {str(row["dimensao"]): str(row["categoria"]) for row in selected_rows}
+    persona = ", ".join(categories[dimension] for dimension in dimensions)
+
+    return {
+        "persona": persona,
+        "votes": total_votes * persona_pct,
+        "pct": persona_pct,
+        "breakdown": categories,
+    }
+
+
+def _render_metric_pair(votes: float, pct: float) -> str:
+    return f"""
+        <div class="raiox-profile-metrics">
+            <div class="raiox-profile-metric">
+                <div class="raiox-profile-metric-label">Votos estimados</div>
+                <div class="raiox-profile-metric-value">{_format_number(votes)}</div>
+            </div>
+            <div class="raiox-profile-metric">
+                <div class="raiox-profile-metric-label">Percentual</div>
+                <div class="raiox-profile-metric-value">{_format_percent(pct)}</div>
+            </div>
+        </div>
+    """
+
+
+def _render_voter_profile_cards() -> None:
+    icp_geral_df = _read_selected_parquet("icp_geral")
+    persona_df = _read_selected_parquet("icp_geral_persona")
+    ideal = _ideal_voter_from_icp(icp_geral_df)
+    total_votes = _infer_icp_total_votes(icp_geral_df)
+
+    if ideal is None:
+        st.warning("Nao encontrei dados suficientes em `*_icp_geral.parquet` para montar o Eleitor Ideal.")
+    else:
+        breakdown = ideal["breakdown"]
+        st.markdown(
+            f"""
+            <div class="raiox-profile-top">
+                <div class="raiox-profile-card raiox-profile-card--hero">
+                    <div class="raiox-profile-label">Eleitor ideal</div>
+                    <div class="raiox-profile-title">{html.escape(str(ideal["persona"]).title())}</div>
+                    {_render_metric_pair(float(ideal["votes"]), float(ideal["pct"]))}
+                    <div class="raiox-profile-breakdown">
+                        Genero: {html.escape(str(breakdown["genero"]).title())} &nbsp;|&nbsp;
+                        Idade: {html.escape(str(breakdown["idade"]).title())} &nbsp;|&nbsp;
+                        Escolaridade: {html.escape(str(breakdown["escolaridade"]).title())} &nbsp;|&nbsp;
+                        Estado civil: {html.escape(str(breakdown["estado_civil"]).title())}
+                    </div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    if persona_df is None or persona_df.empty:
+        st.warning("Nao encontrei dados em `*_icp_geral_persona.parquet` para montar o Eleitor Consolidado.")
+        return
+
+    st.markdown(
+        "<div class='raiox-profile-section-title'>Eleitor Consolidado</div>",
+        unsafe_allow_html=True,
+    )
+    cards: list[str] = []
+    for _, row in persona_df.head(6).iterrows():
+        persona = str(row.get("persona_resumo") or "").strip()
+        if not persona:
+            persona_parts = [
+                row.get("genero_principal"),
+                row.get("idade_principal"),
+                row.get("escolaridade_principal"),
+                row.get("estado_civil_principal"),
+            ]
+            persona = ", ".join(str(part) for part in persona_parts if pd.notna(part) and str(part).strip())
+
+        pct = _to_float(row.get("confianca_persona"), default=np.nan)
+        if pd.isna(pct):
+            pct_cols = [
+                "pct_genero_principal",
+                "pct_idade_principal",
+                "pct_escolaridade_principal",
+                "pct_estado_civil_principal",
+            ]
+            values = [_to_float(row.get(col), default=np.nan) for col in pct_cols]
+            values = [value for value in values if not pd.isna(value)]
+            pct = float(np.mean(values)) if values else 0.0
+
+        votes = total_votes * pct
+        cards.append(
+            f"""
+            <div class="raiox-profile-card">
+                <div class="raiox-profile-label">Eleitor consolidado</div>
+                <div class="raiox-profile-persona">{html.escape(persona.title())}</div>
+                {_render_metric_pair(votes, float(pct))}
+            </div>
+            """
+        )
+
+    st.markdown(f"<div class='raiox-profile-grid'>{''.join(cards)}</div>", unsafe_allow_html=True)
 
 
 _apply_visual_model()
@@ -1050,34 +1288,40 @@ _section_header(
 treemap_df, mesorregiao = _mesorregiao_filter(votos_bairro_df)
 col_left, col_right = st.columns(2, gap="large")
 with col_left:
-    treemap_fig, _ = _territorial_treemap(treemap_df)
-    treemap_event = st.plotly_chart(
-        treemap_fig,
-        use_container_width=True,
-        key="pagina1_treemap_territorial",
-        on_select="rerun",
-        selection_mode="points",
-    )
-    territorial_context = _treemap_selection(treemap_event)
+    with st.container(border=True):
+        st.markdown(
+            "<div class='raiox-chart-card-title'>Votacao por Municipio e Bairro</div>",
+            unsafe_allow_html=True,
+        )
+        treemap_fig, _ = _territorial_treemap(treemap_df)
+        treemap_event = st.plotly_chart(
+            treemap_fig,
+            use_container_width=True,
+            key="pagina1_treemap_territorial",
+            on_select="rerun",
+            selection_mode="points",
+        )
+        territorial_context = _treemap_selection(treemap_event)
 with col_right:
-    bar_title_col, bar_filter_col = st.columns([0.58, 0.42], gap="medium")
-    with bar_title_col:
+    with st.container(border=True):
         st.markdown(
             "<div class='raiox-bar-title'>Distribuicao por perfil no recorte selecionado</div>",
             unsafe_allow_html=True,
         )
-    with bar_filter_col:
-        st.markdown("<div class='raiox-bar-filter'>", unsafe_allow_html=True)
-        perfil_kind = st.selectbox(
-            "Filtrar barras por",
-            ["genero", "idade", "escolaridade", "estado_civil"],
-            format_func=lambda value: value.replace("_", " ").title(),
-            key="pagina1_bar_profile_kind",
-        )
-        st.markdown("</div>", unsafe_allow_html=True)
-    st.plotly_chart(_demographic_bar(perfil_kind, territorial_context, mesorregiao), use_container_width=True)
-    if territorial_context:
-        label = territorial_context.get("nm_bairro") or territorial_context.get("nm_municipio")
-        st.caption(f"Recorte do treemap: {label}")
+        _, bar_filter_col = st.columns([0.54, 0.46], gap="medium")
+        with bar_filter_col:
+            st.markdown("<div class='raiox-bar-filter'>", unsafe_allow_html=True)
+            perfil_kind = st.selectbox(
+                "Filtrar barras por",
+                ["genero", "idade", "escolaridade", "estado_civil"],
+                format_func=lambda value: value.replace("_", " ").title(),
+                key="pagina1_bar_profile_kind",
+            )
+            st.markdown("</div>", unsafe_allow_html=True)
+        st.plotly_chart(_demographic_bar(perfil_kind, territorial_context, mesorregiao), use_container_width=True)
+        if territorial_context:
+            label = territorial_context.get("nm_bairro") or territorial_context.get("nm_municipio")
+            st.caption(f"Recorte do treemap: {label}")
 
 _major_section_header("Perfil do Eleitor", "Perfil descritivo do eleitorado que sustentou esse voto.")
+_render_voter_profile_cards()
