@@ -255,58 +255,52 @@ def _apply_visual_model() -> None:
         .raiox-profile-top {{
             display: flex;
             justify-content: center;
-            margin: 0.85rem 0 1rem 0;
+            margin: 0.85rem 0 0.9rem 0;
         }}
-        .raiox-profile-grid {{
+        .raiox-profile-stack {{
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
-            gap: 1rem;
-            margin-bottom: 1rem;
+            grid-template-columns: 1fr;
+            gap: 0.9rem;
+            width: min(100%, 34rem);
         }}
         .raiox-profile-card {{
             border: 1px solid rgba(184, 208, 255, 0.24);
             border-radius: 16px;
             background: linear-gradient(145deg, rgba(7, 18, 36, 0.72) 0%, rgba(7, 18, 36, 0.54) 100%);
             box-shadow: 0 18px 40px rgba(2, 9, 24, 0.42);
-            padding: 1rem 1.05rem 0.95rem 1.05rem;
-            min-height: 12.4rem;
+            padding: 1.18rem 1.25rem 1.12rem 1.25rem;
+            min-height: 10.5rem;
         }}
-        .raiox-profile-card--hero {{
-            width: min(100%, 38rem);
+        .raiox-profile-card--ideal {{
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
             text-align: center;
-        }}
-        .raiox-profile-label {{
-            color: #b7c7e6;
-            font-size: 0.78rem;
-            font-weight: 800;
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
         }}
         .raiox-profile-title {{
             color: #ffffff;
-            font-size: 1.28rem;
+            font-size: 2.18rem;
             font-weight: 850;
-            line-height: 1.16;
-            margin-top: 0.38rem;
+            line-height: 1.05;
         }}
         .raiox-profile-persona {{
             color: #eaf2ff;
-            font-size: 1rem;
-            font-weight: 700;
-            line-height: 1.32;
-            margin-top: 0.6rem;
+            font-size: 1.16rem;
+            font-weight: 650;
+            line-height: 1.35;
+            margin-top: 0.72rem;
         }}
         .raiox-profile-metrics {{
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 0.68rem;
-            margin-top: 0.9rem;
+            gap: 0.72rem;
+            margin-top: 1rem;
         }}
         .raiox-profile-metric {{
             border-radius: 12px;
             background: rgba(255,255,255,0.08);
             border: 1px solid rgba(255,255,255,0.16);
-            padding: 0.62rem 0.7rem;
+            padding: 0.68rem 0.74rem;
         }}
         .raiox-profile-metric-label {{
             color: #b7c7e6;
@@ -316,34 +310,48 @@ def _apply_visual_model() -> None:
         }}
         .raiox-profile-metric-value {{
             color: #ffffff;
-            font-size: 1.18rem;
+            font-size: 1.22rem;
             font-weight: 850;
             margin-top: 0.16rem;
         }}
-        .raiox-profile-breakdown {{
-            color: rgba(234, 242, 255, 0.86);
-            font-size: 0.84rem;
-            line-height: 1.38;
-            margin-top: 0.72rem;
+        .raiox-profile-list {{
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 0.62rem;
+            margin-top: 0.95rem;
+            text-align: left;
         }}
-        .raiox-profile-section-title {{
-            color: #eaf2ff;
-            font-size: 1.22rem;
-            font-weight: 850;
-            text-align: center;
-            margin: 0.35rem 0 0.72rem 0;
-            letter-spacing: 0.02em;
+        .raiox-profile-persona-row {{
+            border-radius: 12px;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.16);
+            padding: 0.68rem 0.74rem;
+        }}
+        .raiox-profile-persona-tag {{
+            color: #b7c7e6;
+            font-size: 0.72rem;
+            font-weight: 750;
             text-transform: uppercase;
+        }}
+        .raiox-profile-persona-text {{
+            color: #ffffff;
+            font-size: 1rem;
+            font-weight: 700;
+            line-height: 1.32;
+            margin-top: 0.18rem;
         }}
         @media (max-width: 900px) {{
             .mapa-kpi-grid,
             .raiox-kpi-grid,
             .raiox-heatmap-kpi-row,
-            .raiox-profile-grid {{
+            .raiox-profile-metrics {{
                 grid-template-columns: 1fr;
             }}
             .mapa-major-section-title {{
                 font-size: 1.55rem;
+            }}
+            .raiox-profile-title {{
+                font-size: 1.82rem;
             }}
         }}
         </style>
@@ -353,11 +361,16 @@ def _apply_visual_model() -> None:
 
 
 def _major_section_header(title: str, subtitle: str) -> None:
+    subtitle_html = (
+        f'<div class="mapa-major-section-subtitle">{subtitle}</div>'
+        if subtitle
+        else ""
+    )
     st.markdown(
         f"""
         <div class="mapa-major-section">
             <div class="mapa-major-section-title">{title}</div>
-            <div class="mapa-major-section-subtitle">{subtitle}</div>
+            {subtitle_html}
         </div>
         """,
         unsafe_allow_html=True,
@@ -571,6 +584,19 @@ def _format_number(value: float | int) -> str:
     return f"{float(value):,.0f}".replace(",", ".")
 
 
+def _format_percent(value: float | int | None) -> str:
+    if value is None or pd.isna(value):
+        return "--"
+    return f"{float(value) * 100:.1f}%".replace(".", ",")
+
+
+def _to_float(value: object, default: float = np.nan) -> float:
+    numeric = pd.to_numeric(value, errors="coerce")
+    if pd.isna(numeric):
+        return default
+    return float(numeric)
+
+
 def _current_files() -> list[str]:
     files = st.session_state.get("deputados_files", [])
     if files:
@@ -599,6 +625,20 @@ def _read_selected_parquet(kind: str) -> pd.DataFrame | None:
         return load_parquet(file_name, load_env().get("HF_TOKEN"))
     except Exception as exc:
         st.warning(f"Nao consegui ler `{kind}.parquet`: {exc}")
+        return None
+
+
+def _read_selected_exact_parquet(file_basename: str) -> pd.DataFrame | None:
+    file_name = next(
+        (file_name for file_name in _selected_files() if Path(file_name).name == file_basename),
+        None,
+    )
+    if not file_name:
+        return None
+    try:
+        return load_parquet(file_name, load_env().get("HF_TOKEN"))
+    except Exception as exc:
+        st.warning(f"Nao consegui ler `{file_basename}`: {exc}")
         return None
 
 
@@ -1121,149 +1161,150 @@ def _demographic_bar(kind: str, context: dict[str, str], mesorregiao: str) -> go
     return fig
 
 
-def _format_percent(value: float | int | None) -> str:
-    if value is None or pd.isna(value):
-        return "--"
-    return f"{float(value) * 100:.1f}%".replace(".", ",")
-
-
-def _infer_icp_total_votes(icp_geral_df: pd.DataFrame | None) -> float:
+def _estimated_total_votes(icp_geral_df: pd.DataFrame | None) -> float:
     if icp_geral_df is None or icp_geral_df.empty or "votos_estimados" not in icp_geral_df.columns:
         return 0.0
-    totals = (
-        icp_geral_df.assign(votos_estimados=pd.to_numeric(icp_geral_df["votos_estimados"], errors="coerce"))
-        .groupby("dimensao", dropna=True)["votos_estimados"]
-        .sum()
-        .dropna()
-    )
-    if totals.empty:
-        return 0.0
-    return float(totals.median())
+    if "dimensao" in icp_geral_df.columns:
+        totals = (
+            icp_geral_df.assign(votos_estimados=pd.to_numeric(icp_geral_df["votos_estimados"], errors="coerce"))
+            .groupby("dimensao", dropna=True)["votos_estimados"]
+            .sum()
+            .dropna()
+        )
+        if not totals.empty:
+            return float(totals.median())
+    return float(pd.to_numeric(icp_geral_df["votos_estimados"], errors="coerce").fillna(0).sum())
 
 
-def _to_float(value: object, default: float = 0.0) -> float:
-    numeric = pd.to_numeric(value, errors="coerce")
-    if pd.isna(numeric):
-        return default
-    return float(numeric)
-
-
-def _ideal_voter_from_icp(icp_geral_df: pd.DataFrame | None) -> dict[str, object] | None:
-    required = {"dimensao", "categoria", "votos_estimados", "pct_votos_estimados"}
-    if icp_geral_df is None or icp_geral_df.empty or not required.issubset(icp_geral_df.columns):
+def _executive_persona_info(
+    persona_df: pd.DataFrame | None,
+    icp_geral_df: pd.DataFrame | None,
+) -> dict[str, float | str] | None:
+    if persona_df is None or persona_df.empty:
         return None
 
-    dimensions = ["genero", "idade", "escolaridade", "estado_civil"]
-    selected_rows: list[pd.Series] = []
-    for dimension in dimensions:
-        dim_df = icp_geral_df[icp_geral_df["dimensao"].astype(str).str.strip().eq(dimension)].copy()
-        if dim_df.empty:
-            return None
-        dim_df["votos_estimados"] = pd.to_numeric(dim_df["votos_estimados"], errors="coerce").fillna(0)
-        selected_rows.append(dim_df.loc[dim_df["votos_estimados"].idxmax()])
+    row = persona_df.iloc[0]
+    persona = ""
+    for column in ("persona_executiva", "persona_resumo", "resumo_persona", "persona"):
+        if column not in persona_df.columns:
+            continue
+        values = persona_df[column].dropna().astype(str).str.strip()
+        values = values[values.ne("")]
+        if not values.empty:
+            persona = str(values.iloc[0])
+            row = persona_df.loc[values.index[0]]
+            break
+    if not persona:
+        return None
 
-    total_votes = _infer_icp_total_votes(icp_geral_df)
-    pct_values = [_to_float(row["pct_votos_estimados"]) for row in selected_rows]
-    persona_pct = float(np.mean(pct_values)) if pct_values else 0.0
-    categories = {str(row["dimensao"]): str(row["categoria"]) for row in selected_rows}
-    persona = ", ".join(categories[dimension] for dimension in dimensions)
+    pct = np.nan
+    for column in ("pct_votos_estimados", "pct_votos", "percentual_votos", "participacao_votos", "confianca_persona"):
+        if column in persona_df.columns:
+            pct = _to_float(row.get(column))
+            if not pd.isna(pct):
+                break
 
-    return {
-        "persona": persona,
-        "votes": total_votes * persona_pct,
-        "pct": persona_pct,
-        "breakdown": categories,
-    }
+    total_votes = _estimated_total_votes(icp_geral_df)
+    votes = np.nan
+    for column in ("votos_estimados", "qt_votos_estimados", "qt_votos", "votos"):
+        if column in persona_df.columns:
+            votes = _to_float(row.get(column))
+            if not pd.isna(votes):
+                break
+    if pd.isna(votes) and not pd.isna(pct) and total_votes > 0:
+        votes = total_votes * pct
+    if pd.isna(pct) and not pd.isna(votes) and total_votes > 0:
+        pct = votes / total_votes
+
+    return {"persona": persona, "votes": votes, "pct": pct}
 
 
-def _render_metric_pair(votes: float, pct: float) -> str:
-    return f"""
-        <div class="raiox-profile-metrics">
-            <div class="raiox-profile-metric">
-                <div class="raiox-profile-metric-label">Votos estimados</div>
-                <div class="raiox-profile-metric-value">{_format_number(votes)}</div>
-            </div>
-            <div class="raiox-profile-metric">
-                <div class="raiox-profile-metric-label">Percentual</div>
-                <div class="raiox-profile-metric-value">{_format_percent(pct)}</div>
-            </div>
-        </div>
-    """
+def _consolidated_personas(clusters_persona_df: pd.DataFrame | None) -> list[dict[str, str]]:
+    if clusters_persona_df is None or clusters_persona_df.empty or "persona_resumo" not in clusters_persona_df.columns:
+        return []
+
+    rows = clusters_persona_df.copy()
+    rows["persona_resumo"] = rows["persona_resumo"].fillna("").astype(str).str.strip()
+    rows = rows[rows["persona_resumo"].ne("")]
+    if rows.empty:
+        return []
+
+    if "ranking_icp" in rows.columns:
+        rows["_ranking_icp_sort"] = pd.to_numeric(rows["ranking_icp"], errors="coerce").fillna(9999)
+        rows = rows.sort_values(["_ranking_icp_sort", "tipo_icp" if "tipo_icp" in rows.columns else "persona_resumo"])
+
+    personas: list[dict[str, str]] = []
+    for _, row in rows.iterrows():
+        persona = str(row.get("persona_resumo") or "").strip()
+        if not persona:
+            continue
+        label_parts = []
+        if "ranking_icp" in rows.columns and pd.notna(row.get("ranking_icp")):
+            label_parts.append(f"Ranking {int(_to_float(row.get('ranking_icp'), 0))}")
+        personas.append({"label": " - ".join(label_parts) or "Persona", "persona": persona})
+    return personas
 
 
 def _render_voter_profile_cards() -> None:
-    icp_geral_df = _read_selected_parquet("icp_geral")
     persona_df = _read_selected_parquet("icp_geral_persona")
-    ideal = _ideal_voter_from_icp(icp_geral_df)
-    total_votes = _infer_icp_total_votes(icp_geral_df)
-
-    if ideal is None:
-        st.warning("Nao encontrei dados suficientes em `*_icp_geral.parquet` para montar o Eleitor Ideal.")
-    else:
-        breakdown = ideal["breakdown"]
-        st.markdown(
-            f"""
-            <div class="raiox-profile-top">
-                <div class="raiox-profile-card raiox-profile-card--hero">
-                    <div class="raiox-profile-label">Eleitor ideal</div>
-                    <div class="raiox-profile-title">{html.escape(str(ideal["persona"]).title())}</div>
-                    {_render_metric_pair(float(ideal["votes"]), float(ideal["pct"]))}
-                    <div class="raiox-profile-breakdown">
-                        Genero: {html.escape(str(breakdown["genero"]).title())} &nbsp;|&nbsp;
-                        Idade: {html.escape(str(breakdown["idade"]).title())} &nbsp;|&nbsp;
-                        Escolaridade: {html.escape(str(breakdown["escolaridade"]).title())} &nbsp;|&nbsp;
-                        Estado civil: {html.escape(str(breakdown["estado_civil"]).title())}
-                    </div>
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    if persona_df is None or persona_df.empty:
-        st.warning("Nao encontrei dados em `*_icp_geral_persona.parquet` para montar o Eleitor Consolidado.")
+    icp_geral_df = _read_selected_parquet("icp_geral")
+    clusters_persona_df = _read_selected_exact_parquet("icp_clusters_persona.parquet")
+    persona_info = _executive_persona_info(persona_df, icp_geral_df)
+    if not persona_info:
+        st.warning("Nao encontrei a persona executiva em `*_icp_geral_persona.parquet`.")
         return
 
+    votes = float(persona_info["votes"]) if not pd.isna(persona_info["votes"]) else np.nan
+    pct = float(persona_info["pct"]) if not pd.isna(persona_info["pct"]) else np.nan
+    votes_label = _format_number(votes) if not pd.isna(votes) else "--"
+    pct_label = _format_percent(pct)
+    consolidated_rows = _consolidated_personas(clusters_persona_df)
+    consolidated_html = "".join(
+        f"""
+        <div class="raiox-profile-persona-row">
+            <div class="raiox-profile-persona-tag">{html.escape(row["label"])}</div>
+            <div class="raiox-profile-persona-text">{html.escape(row["persona"])}</div>
+        </div>
+        """
+        for row in consolidated_rows
+    )
+    if not consolidated_html:
+        consolidated_html = """
+        <div class="raiox-profile-persona-row">
+            <div class="raiox-profile-persona-text">Nao encontrei personas em icp_clusters_persona.parquet.</div>
+        </div>
+        """
+    consolidated_card = f"""
+        <div class="raiox-profile-card raiox-profile-card--ideal">
+            <div class="raiox-profile-title">Eleitor Consolidado</div>
+            <div class="raiox-profile-list">{consolidated_html}</div>
+        </div>
+    """
+
     st.markdown(
-        "<div class='raiox-profile-section-title'>Eleitor Consolidado</div>",
+        f"""
+        <div class="raiox-profile-top">
+            <div class="raiox-profile-stack">
+                <div class="raiox-profile-card raiox-profile-card--ideal">
+                    <div class="raiox-profile-title">Eleitor Ideal</div>
+                    <div class="raiox-profile-persona">{html.escape(str(persona_info["persona"]))}</div>
+                    <div class="raiox-profile-metrics">
+                        <div class="raiox-profile-metric">
+                            <div class="raiox-profile-metric-label">Votos</div>
+                            <div class="raiox-profile-metric-value">{votes_label}</div>
+                        </div>
+                        <div class="raiox-profile-metric">
+                            <div class="raiox-profile-metric-label">Participacao nos votos</div>
+                            <div class="raiox-profile-metric-value">{pct_label}</div>
+                        </div>
+                    </div>
+                </div>
+                {consolidated_card}
+            </div>
+        </div>
+        """,
         unsafe_allow_html=True,
     )
-    cards: list[str] = []
-    for _, row in persona_df.head(6).iterrows():
-        persona = str(row.get("persona_resumo") or "").strip()
-        if not persona:
-            persona_parts = [
-                row.get("genero_principal"),
-                row.get("idade_principal"),
-                row.get("escolaridade_principal"),
-                row.get("estado_civil_principal"),
-            ]
-            persona = ", ".join(str(part) for part in persona_parts if pd.notna(part) and str(part).strip())
-
-        pct = _to_float(row.get("confianca_persona"), default=np.nan)
-        if pd.isna(pct):
-            pct_cols = [
-                "pct_genero_principal",
-                "pct_idade_principal",
-                "pct_escolaridade_principal",
-                "pct_estado_civil_principal",
-            ]
-            values = [_to_float(row.get(col), default=np.nan) for col in pct_cols]
-            values = [value for value in values if not pd.isna(value)]
-            pct = float(np.mean(values)) if values else 0.0
-
-        votes = total_votes * pct
-        cards.append(
-            f"""
-            <div class="raiox-profile-card">
-                <div class="raiox-profile-label">Eleitor consolidado</div>
-                <div class="raiox-profile-persona">{html.escape(persona.title())}</div>
-                {_render_metric_pair(votes, float(pct))}
-            </div>
-            """
-        )
-
-    st.markdown(f"<div class='raiox-profile-grid'>{''.join(cards)}</div>", unsafe_allow_html=True)
 
 
 _apply_visual_model()
@@ -1326,5 +1367,5 @@ with col_right:
             label = territorial_context.get("nm_bairro") or territorial_context.get("nm_municipio")
             st.caption(f"Recorte do treemap: {label}")
 
-_major_section_header("Perfil do Eleitor", "Perfil descritivo do eleitorado que sustentou esse voto.")
+_major_section_header("Perfil do Eleitor", "")
 _render_voter_profile_cards()
