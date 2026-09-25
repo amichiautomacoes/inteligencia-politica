@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import base64
 import html
@@ -767,15 +767,10 @@ def _territorial_map_view(df: pd.DataFrame | None, kind: str) -> pd.DataFrame | 
 
 def _territorial_concentration_chart(df: pd.DataFrame | None, kind: str) -> go.Figure:
     label_col = "nm_mesorregiao" if kind == "votos_mesorregiao" else "nm_municipio"
-    empty_title = "Top 10 mesorregiões" if kind == "votos_mesorregiao" else "Top 10 municípios"
+    title = "Top 10 mesorregioes" if kind == "votos_mesorregiao" else "Top 10 municipios"
+
     if df is None or df.empty or "qt_votos" not in df.columns or label_col not in df.columns:
-        fig = px.bar(
-            pd.DataFrame({"territorio": ["Sem dados"], "qt_votos": [0], "pct": [0.0]}),
-            x="qt_votos",
-            y="territorio",
-            orientation="h",
-            title=empty_title,
-        )
+        ranking = pd.DataFrame({"territorio": ["Sem dados"], "qt_votos": [0.0], "pct": [0.0]})
     else:
         ranking = df.copy()
         ranking["qt_votos"] = pd.to_numeric(ranking["qt_votos"], errors="coerce").fillna(0)
@@ -787,34 +782,38 @@ def _territorial_concentration_chart(df: pd.DataFrame | None, kind: str) -> go.F
             .sort_values("qt_votos", ascending=False)
             .head(10)
         )
-        total_votes = float(ranking["qt_votos"].sum())
-        if df is not None and not df.empty:
-            total_votes = float(pd.to_numeric(df["qt_votos"], errors="coerce").fillna(0).sum())
+        total_votes = float(pd.to_numeric(df["qt_votos"], errors="coerce").fillna(0).sum())
         ranking["pct"] = np.where(total_votes > 0, ranking["qt_votos"] / total_votes, 0.0)
         ranking = ranking.sort_values("qt_votos", ascending=True)
         ranking = ranking.rename(columns={label_col: "territorio"})
-        fig = px.bar(
-            ranking,
-            x="qt_votos",
-            y="territorio",
-            orientation="h",
-            custom_data=["qt_votos", "pct"],
-            title=empty_title,
-            color="qt_votos",
-            color_continuous_scale="Blues",
-        )
 
-    max_votes = float(pd.to_numeric(fig.data[0].x, errors="coerce").max() or 0) if fig.data else 0
-    fig.update_traces(
-        text=[
-            f"{_format_number(votes)}<br><b>{_format_percent(pct)} dos votos</b>"
-            for votes, pct in (getattr(fig.data[0], "customdata", []) or [])
-        ]
-        if fig.data and getattr(fig.data[0], "customdata", None) is not None
-        else None,
-        textposition="outside",
-        cliponaxis=False,
-        hovertemplate="<b>%{y}</b><br>Votos: %{customdata[0]:,.0f}<br>Participacao: %{customdata[1]:.1%}<extra></extra>",
+    ranking["qt_votos"] = pd.to_numeric(ranking["qt_votos"], errors="coerce").fillna(0)
+    ranking["pct"] = pd.to_numeric(ranking["pct"], errors="coerce").fillna(0)
+    max_votes = float(ranking["qt_votos"].max()) if not ranking.empty else 0.0
+    if not np.isfinite(max_votes):
+        max_votes = 0.0
+
+    customdata = np.stack([ranking["qt_votos"], ranking["pct"]], axis=-1)
+    trace_text = [
+        f"{_format_number(votes)}<br><b>{_format_percent(pct)} dos votos</b>"
+        for votes, pct in customdata
+    ]
+    fig = go.Figure(
+        go.Bar(
+            x=ranking["qt_votos"],
+            y=ranking["territorio"],
+            orientation="h",
+            marker={
+                "color": ranking["qt_votos"],
+                "colorscale": "Blues",
+                "line": {"color": "rgba(255,255,255,0.22)", "width": 0.6},
+            },
+            customdata=customdata,
+            text=trace_text,
+            textposition="outside",
+            cliponaxis=False,
+            hovertemplate="<b>%{y}</b><br>Votos: %{customdata[0]:,.0f}<br>Participacao: %{customdata[1]:.1%}<extra></extra>",
+        )
     )
     fig.update_layout(
         height=560,
@@ -822,7 +821,7 @@ def _territorial_concentration_chart(df: pd.DataFrame | None, kind: str) -> go.F
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font={"color": "#eaf2ff", "family": "Segoe UI, Inter, sans-serif"},
-        title={"font": {"size": 18, "color": "#eaf2ff"}},
+        title={"text": title, "font": {"size": 18, "color": "#eaf2ff"}},
         xaxis={
             "title": "",
             "showticklabels": False,
@@ -834,7 +833,6 @@ def _territorial_concentration_chart(df: pd.DataFrame | None, kind: str) -> go.F
         bargap=0.32,
     )
     return fig
-
 
 def _municipal_concentration_frame(df: pd.DataFrame | None) -> pd.DataFrame:
     if df is None or df.empty or not {"nm_municipio", "qt_votos"}.issubset(df.columns):
@@ -1243,9 +1241,9 @@ def _territorial_map(df: pd.DataFrame | None) -> go.Figure:
     zmax = float(np.log10(max_votes + 1.0)) if max_votes > 0 else 1.0
     tickvals, ticktext = _build_log_colorbar_ticks(max_votes)
     map_title = (
-        "Concentração de Votos por <b>mesorregião</b> (MG)"
+        "ConcentraÃ§Ã£o de Votos por <b>mesorregiÃ£o</b> (MG)"
         if is_mesorregiao_df
-        else "Concentração de votos por município (MG)"
+        else "ConcentraÃ§Ã£o de votos por municÃ­pio (MG)"
     )
 
     fig = px.choropleth(
@@ -1283,7 +1281,7 @@ def _territorial_map(df: pd.DataFrame | None) -> go.Figure:
         hovertemplate=(
             "<b>%{hovertext}</b><br>"
             "<span style='color:#93c5fd'>Votos:</span> %{customdata[3]:,.0f}<br>"
-            "<span style='color:#93c5fd'>Cód. município (TSE):</span> %{customdata[0]}<br>"
+            "<span style='color:#93c5fd'>CÃ³d. municÃ­pio (TSE):</span> %{customdata[0]}<br>"
             "<span style='color:#93c5fd'>Lat/Lon:</span> %{customdata[1]:.4f}, %{customdata[2]:.4f}<extra></extra>"
         ),
         hoverlabel={
@@ -1495,13 +1493,15 @@ def _treemap_selection(event: object | None) -> dict[str, str]:
 
     point = points[0]
     if isinstance(point, dict):
-        customdata = point.get("customdata") or []
+        customdata = point.get("customdata")
         label = str(point.get("label") or "")
         parent = str(point.get("parent") or "")
     else:
-        customdata = getattr(point, "customdata", []) or []
+        customdata = getattr(point, "customdata", None)
         label = str(getattr(point, "label", "") or "")
         parent = str(getattr(point, "parent", "") or "")
+    if customdata is None:
+        customdata = []
     if len(customdata) >= 4:
         municipio = str(customdata[0] or "")
         bairro = str(customdata[1] or "")
@@ -1648,7 +1648,7 @@ with col_left:
 with col_right:
     with st.container(border=True):
         st.markdown(
-            "<div class='raiox-bar-title'>Distribuição por perfil demográfico</div>",
+            "<div class='raiox-bar-title'>DistribuiÃ§Ã£o por perfil demogrÃ¡fico</div>",
             unsafe_allow_html=True,
         )
         _, bar_filter_col = st.columns([0.54, 0.46], gap="medium")
@@ -1666,3 +1666,4 @@ with col_right:
         if territorial_context:
             label = territorial_context.get("nm_bairro") or territorial_context.get("nm_municipio")
             st.caption(f"Recorte do treemap: {label}")
+
