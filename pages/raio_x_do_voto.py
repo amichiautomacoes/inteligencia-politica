@@ -56,6 +56,89 @@ def _apply_visual_model() -> None:
             margin-bottom: 1.1rem !important;
             line-height: 1.35 !important;
         }}
+        .raiox-hero {{
+            position: relative;
+            overflow: hidden;
+            min-height: 22rem;
+            margin: 0.15rem 0 1.25rem 0;
+            padding: 2.05rem 2.35rem 2rem 2.35rem;
+            border: 1px solid rgba(147, 197, 253, 0.24);
+            border-radius: 0;
+            background:
+                linear-gradient(90deg, rgba(1, 10, 28, 0.96) 0%, rgba(3, 18, 45, 0.86) 46%, rgba(4, 20, 48, 0.60) 100%),
+                url("data:image/png;base64,{base64.b64encode(BACKGROUND_PATH.read_bytes()).decode("ascii") if BACKGROUND_PATH.exists() else ""}");
+            background-size: cover;
+            background-position: center;
+            box-shadow: 0 22px 54px rgba(1, 8, 24, 0.58);
+        }}
+        .raiox-hero-title {{
+            position: relative;
+            z-index: 1;
+            color: #f8fbff;
+            font-size: 3.2rem;
+            font-weight: 850;
+            line-height: 1;
+            letter-spacing: 0;
+            text-shadow: 0 0 18px rgba(147, 197, 253, 0.36);
+        }}
+        .raiox-hero-subtitle {{
+            position: relative;
+            z-index: 1;
+            margin-top: 1.1rem;
+            color: rgba(203, 213, 225, 0.82);
+            font-size: 1.04rem;
+            font-weight: 600;
+        }}
+        .raiox-candidate-row {{
+            position: relative;
+            z-index: 1;
+            display: grid;
+            grid-template-columns: 10.5rem minmax(0, 1fr);
+            gap: 1.35rem;
+            align-items: center;
+            margin-top: 1.5rem;
+            max-width: 58rem;
+        }}
+        .raiox-candidate-photo {{
+            width: 10.5rem;
+            aspect-ratio: 1 / 1.35;
+            border-radius: 10px;
+            object-fit: cover;
+            background: rgba(226, 232, 240, 0.92);
+            border: 1px solid rgba(255,255,255,0.42);
+            box-shadow: 0 16px 34px rgba(0,0,0,0.38);
+        }}
+        .raiox-candidate-info {{
+            display: grid;
+            gap: 1.35rem;
+        }}
+        .raiox-candidate-line {{
+            color: #f8fbff;
+            font-size: 1.72rem;
+            font-weight: 850;
+            line-height: 1.1;
+            text-transform: uppercase;
+            text-shadow: 0 0 16px rgba(147, 197, 253, 0.28);
+        }}
+        @media (max-width: 760px) {{
+            .raiox-hero {{
+                padding: 1.45rem 1.1rem 1.4rem 1.1rem;
+                min-height: auto;
+            }}
+            .raiox-hero-title {{
+                font-size: 2.15rem;
+            }}
+            .raiox-candidate-row {{
+                grid-template-columns: 7.5rem minmax(0, 1fr);
+                gap: 0.95rem;
+            }}
+            .raiox-candidate-photo {{
+                width: 7.5rem;
+            }}
+            .raiox-candidate-line {{
+                font-size: 1.05rem;
+            }}
+        }}
         .mapa-major-section,
         .mapa-section-card,
         .mapa-kpi-card,
@@ -133,6 +216,7 @@ def _apply_visual_model() -> None:
             margin-bottom: 1.1rem;
         }}
         .mapa-kpi-card,
+        .mapa-kpi-wide-card,
         .raiox-kpi-card {{
             background: linear-gradient(145deg, rgba(10, 23, 45, 0.72) 0%, rgba(10, 23, 45, 0.48) 100%);
             border-radius: 16px;
@@ -159,6 +243,41 @@ def _apply_visual_model() -> None:
             margin-top: 0.34rem;
             line-height: 1.25;
         }}
+        .mapa-kpi-wide-card {{
+            position: relative;
+            overflow: hidden;
+            margin-top: -0.2rem;
+            margin-bottom: 1.1rem;
+            min-height: 9.4rem;
+            padding: 1.18rem 1.35rem 1.05rem 1.35rem;
+            background:
+                linear-gradient(90deg, rgba(3, 14, 36, 0.92) 0%, rgba(5, 24, 55, 0.74) 62%, rgba(6, 20, 46, 0.50) 100%),
+                url("data:image/png;base64,{base64.b64encode(BACKGROUND_PATH.read_bytes()).decode("ascii") if BACKGROUND_PATH.exists() else ""}");
+            background-size: cover;
+            background-position: center;
+        }}
+        .mapa-kpi-wide-tag {{
+            position: absolute;
+            top: 1rem;
+            right: 1.2rem;
+            color: #eaf2ff;
+            background: rgba(148, 163, 184, 0.20);
+            border: 1px solid rgba(184, 208, 255, 0.24);
+            border-radius: 999px;
+            padding: 0.38rem 0.78rem;
+            font-size: 0.76rem;
+            font-weight: 850;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+        }}
+        .mapa-kpi-wide-value {{
+            max-width: 44rem;
+            margin-top: 0.28rem;
+            color: #ffffff;
+            font-size: 2.35rem;
+            font-weight: 900;
+            line-height: 1.02;
+        }}
         .raiox-kpi-title {{
             font-size: 1.1rem;
             font-weight: 700;
@@ -171,8 +290,7 @@ def _apply_visual_model() -> None:
             font-weight: 800;
             color: #ffffff;
         }}
-        .raiox-kpi-dominant-share,
-        .raiox-kpi-value--persona {{
+        .raiox-kpi-dominant-share {{
             display: block;
             margin-top: 0.28rem;
             font-size: 0.98rem;
@@ -248,110 +366,53 @@ def _apply_visual_model() -> None:
             margin: 0.12rem 0 0.78rem 0;
             text-align: center;
         }}
+        .raiox-concentration-summary {{
+            color: #f8fbff;
+            font-size: 1.12rem;
+            font-weight: 760;
+            line-height: 1.35;
+            margin: 0.2rem 0 0.9rem 0;
+        }}
+        .raiox-concentration-grid {{
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 0.7rem;
+            margin: 0.2rem 0 1rem 0;
+        }}
+        .raiox-concentration-pill {{
+            border: 1px solid rgba(184, 208, 255, 0.22);
+            border-radius: 12px;
+            background: rgba(255,255,255,0.07);
+            padding: 0.62rem 0.72rem;
+        }}
+        .raiox-concentration-pill-label {{
+            color: #b7c7e6;
+            font-size: 0.72rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }}
+        .raiox-concentration-pill-value {{
+            color: #ffffff;
+            font-size: 1.28rem;
+            font-weight: 860;
+            margin-top: 0.12rem;
+        }}
         .raiox-bar-filter [data-testid="stSelectbox"] {{
             max-width: 16rem;
             margin-left: auto;
         }}
-        .raiox-profile-top {{
-            display: flex;
-            justify-content: center;
-            margin: 0.85rem 0 0.9rem 0;
-        }}
-        .raiox-profile-stack {{
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 0.9rem;
-            width: min(100%, 34rem);
-        }}
-        .raiox-profile-card {{
-            border: 1px solid rgba(184, 208, 255, 0.24);
-            border-radius: 16px;
-            background: linear-gradient(145deg, rgba(7, 18, 36, 0.72) 0%, rgba(7, 18, 36, 0.54) 100%);
-            box-shadow: 0 18px 40px rgba(2, 9, 24, 0.42);
-            padding: 1.18rem 1.25rem 1.12rem 1.25rem;
-            min-height: 10.5rem;
-        }}
-        .raiox-profile-card--ideal {{
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            text-align: center;
-        }}
-        .raiox-profile-title {{
-            color: #ffffff;
-            font-size: 2.18rem;
-            font-weight: 850;
-            line-height: 1.05;
-        }}
-        .raiox-profile-persona {{
-            color: #eaf2ff;
-            font-size: 1.16rem;
-            font-weight: 650;
-            line-height: 1.35;
-            margin-top: 0.72rem;
-        }}
-        .raiox-profile-metrics {{
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 0.72rem;
-            margin-top: 1rem;
-        }}
-        .raiox-profile-metric {{
-            border-radius: 12px;
-            background: rgba(255,255,255,0.08);
-            border: 1px solid rgba(255,255,255,0.16);
-            padding: 0.68rem 0.74rem;
-        }}
-        .raiox-profile-metric-label {{
-            color: #b7c7e6;
-            font-size: 0.72rem;
-            font-weight: 750;
-            text-transform: uppercase;
-        }}
-        .raiox-profile-metric-value {{
-            color: #ffffff;
-            font-size: 1.22rem;
-            font-weight: 850;
-            margin-top: 0.16rem;
-        }}
-        .raiox-profile-list {{
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 0.62rem;
-            margin-top: 0.95rem;
-            text-align: left;
-        }}
-        .raiox-profile-persona-row {{
-            border-radius: 12px;
-            background: rgba(255,255,255,0.08);
-            border: 1px solid rgba(255,255,255,0.16);
-            padding: 0.68rem 0.74rem;
-        }}
-        .raiox-profile-persona-tag {{
-            color: #b7c7e6;
-            font-size: 0.72rem;
-            font-weight: 750;
-            text-transform: uppercase;
-        }}
-        .raiox-profile-persona-text {{
-            color: #ffffff;
-            font-size: 1rem;
-            font-weight: 700;
-            line-height: 1.32;
-            margin-top: 0.18rem;
-        }}
         @media (max-width: 900px) {{
             .mapa-kpi-grid,
             .raiox-kpi-grid,
-            .raiox-heatmap-kpi-row,
-            .raiox-profile-metrics {{
+            .raiox-heatmap-kpi-row {{
                 grid-template-columns: 1fr;
+            }}
+            .raiox-concentration-grid {{
+                grid-template-columns: repeat(2, minmax(0, 1fr));
             }}
             .mapa-major-section-title {{
                 font-size: 1.55rem;
-            }}
-            .raiox-profile-title {{
-                font-size: 1.82rem;
             }}
         }}
         </style>
@@ -590,13 +651,6 @@ def _format_percent(value: float | int | None) -> str:
     return f"{float(value) * 100:.1f}%".replace(".", ",")
 
 
-def _to_float(value: object, default: float = np.nan) -> float:
-    numeric = pd.to_numeric(value, errors="coerce")
-    if pd.isna(numeric):
-        return default
-    return float(numeric)
-
-
 def _current_files() -> list[str]:
     files = st.session_state.get("deputados_files", [])
     if files:
@@ -617,6 +671,59 @@ def _selected_files() -> list[str]:
     return selected or files
 
 
+@st.cache_data(show_spinner=False)
+def _remote_image_data_url(file_name: str, token: str | None = None) -> str:
+    suffix = Path(file_name).suffix.lower()
+    mime = "image/png" if suffix == ".png" else "image/jpeg"
+    fs = hf_filesystem(token)
+    with fs.open(file_name, "rb") as source:
+        encoded = base64.b64encode(source.read()).decode("ascii")
+    return f"data:{mime};base64,{encoded}"
+
+
+def _candidate_photo_data_url() -> str:
+    image_file = next(
+        (
+            file_name
+            for file_name in _current_files()
+            if Path(file_name).suffix.lower() in {".jpg", ".jpeg", ".png"}
+        ),
+        "",
+    )
+    if not image_file:
+        return ""
+    try:
+        return _remote_image_data_url(image_file, load_env().get("HF_TOKEN"))
+    except Exception:
+        return ""
+
+
+def _render_page_header() -> None:
+    photo_url = _candidate_photo_data_url()
+    photo_html = (
+        f'<img class="raiox-candidate-photo" src="{photo_url}" alt="Foto do candidato">'
+        if photo_url
+        else '<div class="raiox-candidate-photo"></div>'
+    )
+    st.markdown(
+        f"""
+        <section class="raiox-hero">
+            <div class="raiox-hero-title">RAIO X da vota&ccedil;&atilde;o 2022</div>
+            <div class="raiox-hero-subtitle">Analises descritivas geograficas e do perfil do eleitor na ultima eleicao.</div>
+            <div class="raiox-candidate-row">
+                {photo_html}
+                <div class="raiox-candidate-info">
+                    <div class="raiox-candidate-line">NOME: JOAO VITOR XAVIER</div>
+                    <div class="raiox-candidate-line">CARGO: DEPUTADO ESTADUAL</div>
+                    <div class="raiox-candidate-line">PARTIDO: CIDADANIA</div>
+                </div>
+            </div>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def _read_selected_parquet(kind: str) -> pd.DataFrame | None:
     file_name = file_by_kind(_selected_files(), kind)
     if not file_name:
@@ -625,20 +732,6 @@ def _read_selected_parquet(kind: str) -> pd.DataFrame | None:
         return load_parquet(file_name, load_env().get("HF_TOKEN"))
     except Exception as exc:
         st.warning(f"Nao consegui ler `{kind}.parquet`: {exc}")
-        return None
-
-
-def _read_selected_exact_parquet(file_basename: str) -> pd.DataFrame | None:
-    file_name = next(
-        (file_name for file_name in _selected_files() if Path(file_name).name == file_basename),
-        None,
-    )
-    if not file_name:
-        return None
-    try:
-        return load_parquet(file_name, load_env().get("HF_TOKEN"))
-    except Exception as exc:
-        st.warning(f"Nao consegui ler `{file_basename}`: {exc}")
         return None
 
 
@@ -655,10 +748,290 @@ def _territorial_kind_select() -> str:
     return options[selected]
 
 
+def _territorial_map_view(df: pd.DataFrame | None, kind: str) -> pd.DataFrame | None:
+    if df is None or df.empty or "qt_votos" not in df.columns:
+        return df
+    if kind != "votos_mesorregiao" or "nm_mesorregiao" not in df.columns:
+        return df
+
+    group_cols = ["nm_mesorregiao"]
+    optional_cols = [col for col in ("cd_mesorregiao", "nr_mesorregiao") if col in df.columns]
+    result = (
+        df.assign(qt_votos=pd.to_numeric(df["qt_votos"], errors="coerce").fillna(0))
+        .groupby(group_cols, as_index=False)
+        .agg({"qt_votos": "sum", **{col: "first" for col in optional_cols}})
+    )
+    result["nivel_territorial"] = "mesorregiao"
+    return result
+
+
+def _territorial_concentration_chart(df: pd.DataFrame | None, kind: str) -> go.Figure:
+    label_col = "nm_mesorregiao" if kind == "votos_mesorregiao" else "nm_municipio"
+    empty_title = "Top 10 mesorregiões" if kind == "votos_mesorregiao" else "Top 10 municípios"
+    if df is None or df.empty or "qt_votos" not in df.columns or label_col not in df.columns:
+        fig = px.bar(
+            pd.DataFrame({"territorio": ["Sem dados"], "qt_votos": [0], "pct": [0.0]}),
+            x="qt_votos",
+            y="territorio",
+            orientation="h",
+            title=empty_title,
+        )
+    else:
+        ranking = df.copy()
+        ranking["qt_votos"] = pd.to_numeric(ranking["qt_votos"], errors="coerce").fillna(0)
+        ranking[label_col] = ranking[label_col].fillna("Nao informado").astype(str).str.strip()
+        ranking.loc[ranking[label_col].eq(""), label_col] = "Nao informado"
+        ranking = (
+            ranking.groupby(label_col, as_index=False)["qt_votos"]
+            .sum()
+            .sort_values("qt_votos", ascending=False)
+            .head(10)
+        )
+        total_votes = float(ranking["qt_votos"].sum())
+        if df is not None and not df.empty:
+            total_votes = float(pd.to_numeric(df["qt_votos"], errors="coerce").fillna(0).sum())
+        ranking["pct"] = np.where(total_votes > 0, ranking["qt_votos"] / total_votes, 0.0)
+        ranking = ranking.sort_values("qt_votos", ascending=True)
+        ranking = ranking.rename(columns={label_col: "territorio"})
+        fig = px.bar(
+            ranking,
+            x="qt_votos",
+            y="territorio",
+            orientation="h",
+            custom_data=["qt_votos", "pct"],
+            title=empty_title,
+            color="qt_votos",
+            color_continuous_scale="Blues",
+        )
+
+    max_votes = float(pd.to_numeric(fig.data[0].x, errors="coerce").max() or 0) if fig.data else 0
+    fig.update_traces(
+        text=[
+            f"{_format_number(votes)}<br><b>{_format_percent(pct)} dos votos</b>"
+            for votes, pct in (getattr(fig.data[0], "customdata", []) or [])
+        ]
+        if fig.data and getattr(fig.data[0], "customdata", None) is not None
+        else None,
+        textposition="outside",
+        cliponaxis=False,
+        hovertemplate="<b>%{y}</b><br>Votos: %{customdata[0]:,.0f}<br>Participacao: %{customdata[1]:.1%}<extra></extra>",
+    )
+    fig.update_layout(
+        height=560,
+        margin={"l": 8, "r": 68, "t": 54, "b": 22},
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font={"color": "#eaf2ff", "family": "Segoe UI, Inter, sans-serif"},
+        title={"font": {"size": 18, "color": "#eaf2ff"}},
+        xaxis={
+            "title": "",
+            "showticklabels": False,
+            "showgrid": False,
+            "range": [0, max_votes * 1.42] if max_votes > 0 else None,
+        },
+        yaxis={"title": "", "tickfont": {"size": 11}},
+        coloraxis_showscale=False,
+        bargap=0.32,
+    )
+    return fig
+
+
+def _municipal_concentration_frame(df: pd.DataFrame | None) -> pd.DataFrame:
+    if df is None or df.empty or not {"nm_municipio", "qt_votos"}.issubset(df.columns):
+        return pd.DataFrame()
+
+    result = df.copy()
+    if "nivel_territorial" in result.columns:
+        municipal = result[
+            result["nivel_territorial"].astype(str).str.strip().str.lower().eq("municipio")
+        ].copy()
+        if not municipal.empty:
+            result = municipal
+
+    result["nm_municipio"] = result["nm_municipio"].fillna("").astype(str).str.strip()
+    result["qt_votos"] = pd.to_numeric(result["qt_votos"], errors="coerce").fillna(0)
+    result = result[result["nm_municipio"].ne("") & result["qt_votos"].gt(0)]
+    if result.empty:
+        return pd.DataFrame()
+
+    agg_map = {"qt_votos": "sum"}
+    if "qt_secoes_com_voto" in result.columns:
+        result["qt_secoes_com_voto"] = pd.to_numeric(
+            result["qt_secoes_com_voto"], errors="coerce"
+        ).fillna(0)
+        agg_map["qt_secoes_com_voto"] = "sum"
+
+    result = (
+        result.groupby("nm_municipio", as_index=False)
+        .agg(agg_map)
+        .sort_values("qt_votos", ascending=False)
+        .reset_index(drop=True)
+    )
+    votos_total = float(result["qt_votos"].sum())
+    if votos_total <= 0:
+        return pd.DataFrame()
+
+    result["rank_municipio"] = np.arange(1, len(result) + 1)
+    result["pct_votos"] = result["qt_votos"] / votos_total
+    result["votos_acumulados"] = result["qt_votos"].cumsum()
+    result["pct_acumulado"] = result["votos_acumulados"] / votos_total
+    return result
+
+
+def _concentration_reference_rows(concentration_df: pd.DataFrame) -> pd.DataFrame:
+    if concentration_df.empty:
+        return pd.DataFrame()
+    total_rows = len(concentration_df)
+    points = [point for point in (1, 5, 10, 20, 50) if point <= total_rows]
+    if total_rows not in points:
+        points.append(total_rows)
+    rows = concentration_df.iloc[[point - 1 for point in points]].copy()
+    rows["referencia"] = [f"Top {point}" if point < total_rows else "Todos" for point in points]
+    return rows
+
+
+def _accumulated_concentration_chart(concentration_df: pd.DataFrame) -> go.Figure:
+    if concentration_df.empty:
+        fig = go.Figure()
+        fig.add_annotation(
+            text="Dados municipais indisponiveis.",
+            x=0.5,
+            y=0.5,
+            xref="paper",
+            yref="paper",
+            showarrow=False,
+            font={"color": "#eaf2ff", "size": 16},
+        )
+        fig.update_layout(height=430, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+        return fig
+
+    ref_df = _concentration_reference_rows(concentration_df)
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=concentration_df["rank_municipio"],
+            y=concentration_df["pct_acumulado"] * 100,
+            mode="lines",
+            fill="tozeroy",
+            line={"color": "#60A5FA", "width": 3},
+            fillcolor="rgba(96, 165, 250, 0.20)",
+            customdata=np.stack(
+                [
+                    concentration_df["votos_acumulados"],
+                    concentration_df["pct_acumulado"],
+                    concentration_df["nm_municipio"],
+                ],
+                axis=-1,
+            ),
+            hovertemplate=(
+                "<b>Top %{x:.0f} munic&iacute;pios</b><br>"
+                "%{customdata[0]:,.0f} votos acumulados<br>"
+                "%{customdata[1]:.1%} da vota&ccedil;&atilde;o total<br>"
+                "Munic&iacute;pio na posi&ccedil;&atilde;o: %{customdata[2]}<extra></extra>"
+            ),
+            showlegend=False,
+        )
+    )
+    if not ref_df.empty:
+        fig.add_trace(
+            go.Scatter(
+                x=ref_df["rank_municipio"],
+                y=ref_df["pct_acumulado"] * 100,
+                mode="markers+text",
+                marker={"size": 10, "color": "#F8FAFC", "line": {"color": "#60A5FA", "width": 2}},
+                text=ref_df["referencia"],
+                textposition="top center",
+                textfont={"color": "#eaf2ff", "size": 11},
+                hovertemplate=(
+                    "<b>%{text}</b><br>"
+                    "%{customdata[0]:,.0f} votos acumulados<br>"
+                    "%{customdata[1]:.1%} da vota&ccedil;&atilde;o total<extra></extra>"
+                ),
+                customdata=np.stack([ref_df["votos_acumulados"], ref_df["pct_acumulado"]], axis=-1),
+                showlegend=False,
+            )
+        )
+    fig.update_layout(
+        height=430,
+        margin={"l": 34, "r": 26, "t": 18, "b": 44},
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font={"color": "#eaf2ff", "family": "Segoe UI, Inter, sans-serif"},
+        xaxis={
+            "title": "Municipios acumulados",
+            "gridcolor": "rgba(255,255,255,0.08)",
+            "zeroline": False,
+        },
+        yaxis={
+            "title": "% da votacao total",
+            "range": [0, 100],
+            "ticksuffix": "%",
+            "gridcolor": "rgba(255,255,255,0.12)",
+            "zeroline": False,
+        },
+        hoverlabel={
+            "bgcolor": "rgba(5,12,28,0.95)",
+            "font_color": "#EAF2FF",
+            "bordercolor": "rgba(147,197,253,0.55)",
+        },
+    )
+    return fig
+
+
+def _render_accumulated_concentration_section(df: pd.DataFrame | None) -> None:
+    concentration_df = _municipal_concentration_frame(df)
+    _major_section_header(
+        "Concentra&ccedil;&atilde;o Territorial",
+        "Quanto da vota&ccedil;&atilde;o total est&aacute; concentrada nos munic&iacute;pios onde o candidato mais recebeu votos.",
+    )
+    with st.container(border=True):
+        if concentration_df.empty:
+            st.warning("Nao encontrei dados municipais validos para calcular a concentracao territorial.")
+            return
+
+        def pct_at(rank: int) -> float:
+            if concentration_df.empty:
+                return np.nan
+            idx = min(rank, len(concentration_df)) - 1
+            return float(concentration_df.iloc[idx]["pct_acumulado"])
+
+        top10_pct = pct_at(10)
+        st.markdown(
+            f"""
+            <div class="raiox-concentration-summary">
+                Os 10 principais munic&iacute;pios concentram {_format_percent(top10_pct)} da vota&ccedil;&atilde;o total.
+            </div>
+            <div class="raiox-concentration-grid">
+                <div class="raiox-concentration-pill">
+                    <div class="raiox-concentration-pill-label">Top 1</div>
+                    <div class="raiox-concentration-pill-value">{_format_percent(pct_at(1))}</div>
+                </div>
+                <div class="raiox-concentration-pill">
+                    <div class="raiox-concentration-pill-label">Top 5</div>
+                    <div class="raiox-concentration-pill-value">{_format_percent(pct_at(5))}</div>
+                </div>
+                <div class="raiox-concentration-pill">
+                    <div class="raiox-concentration-pill-label">Top 10</div>
+                    <div class="raiox-concentration-pill-value">{_format_percent(top10_pct)}</div>
+                </div>
+                <div class="raiox-concentration-pill">
+                    <div class="raiox-concentration-pill-label">Top 20</div>
+                    <div class="raiox-concentration-pill-value">{_format_percent(pct_at(20))}</div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.plotly_chart(_accumulated_concentration_chart(concentration_df), use_container_width=True)
+
+
 def _render_kpis(df: pd.DataFrame | None) -> None:
     total_votos = "--"
     municipios = "--"
-    reduto = "--"
+    reduto_nome = "--"
+    reduto_votos = "--"
+    mesorregiao_nome = "--"
+    mesorregiao_votos = "--"
 
     if df is not None and not df.empty:
         metric_df = df
@@ -681,7 +1054,18 @@ def _render_kpis(df: pd.DataFrame | None) -> None:
                 .sort_values("qt_votos", ascending=False)
             )
             if not by_city.empty:
-                reduto = str(by_city.iloc[0]["nm_municipio"]).title()
+                reduto_nome = str(by_city.iloc[0]["nm_municipio"]).title()
+                reduto_votos = _format_number(by_city.iloc[0]["qt_votos"])
+        if {"nm_mesorregiao", "qt_votos"}.issubset(metric_df.columns):
+            by_meso = (
+                metric_df.assign(qt_votos=pd.to_numeric(metric_df["qt_votos"], errors="coerce").fillna(0))
+                .groupby("nm_mesorregiao", as_index=False)["qt_votos"]
+                .sum()
+                .sort_values("qt_votos", ascending=False)
+            )
+            if not by_meso.empty:
+                mesorregiao_nome = str(by_meso.iloc[0]["nm_mesorregiao"]).title()
+                mesorregiao_votos = _format_number(by_meso.iloc[0]["qt_votos"])
 
     st.markdown(
         f"""
@@ -689,18 +1073,24 @@ def _render_kpis(df: pd.DataFrame | None) -> None:
             <div class="mapa-kpi-card">
                 <div class="mapa-kpi-label">Total de votos</div>
                 <div class="mapa-kpi-value">{total_votos}</div>
-                <div class="mapa-kpi-caption">Soma de qt_votos em votos_territoriais.</div>
+                <div class="mapa-kpi-caption">Votos nominais no recorte municipal.</div>
             </div>
             <div class="mapa-kpi-card">
-                <div class="mapa-kpi-label">Municipios</div>
+                <div class="mapa-kpi-label">Munic&iacute;pio mais votado</div>
+                <div class="mapa-kpi-value">{reduto_votos}</div>
+                <div class="mapa-kpi-caption">{html.escape(reduto_nome)}</div>
+            </div>
+            <div class="mapa-kpi-card">
+                <div class="mapa-kpi-label">Munic&iacute;pios com votos</div>
                 <div class="mapa-kpi-value">{municipios}</div>
-                <div class="mapa-kpi-caption">Cobertura territorial do candidato.</div>
+                <div class="mapa-kpi-caption">Munic&iacute;pios em que ele foi votado.</div>
             </div>
-            <div class="mapa-kpi-card">
-                <div class="mapa-kpi-label">Principal reduto</div>
-                <div class="mapa-kpi-value">{reduto}</div>
-                <div class="mapa-kpi-caption">Municipio com maior votacao.</div>
-            </div>
+        </div>
+        <div class="mapa-kpi-wide-card">
+            <div class="mapa-kpi-wide-tag">Maior concentra&ccedil;&atilde;o</div>
+            <div class="mapa-kpi-label">Territ&oacute;rio l&iacute;der</div>
+            <div class="mapa-kpi-wide-value">{html.escape(mesorregiao_nome)}</div>
+            <div class="mapa-kpi-caption">{mesorregiao_votos} votos</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -852,6 +1242,11 @@ def _territorial_map(df: pd.DataFrame | None) -> go.Figure:
     max_votes = float(mapa_df["qt_votos"].max()) if not mapa_df.empty else 0.0
     zmax = float(np.log10(max_votes + 1.0)) if max_votes > 0 else 1.0
     tickvals, ticktext = _build_log_colorbar_ticks(max_votes)
+    map_title = (
+        "Concentração de Votos por <b>mesorregião</b> (MG)"
+        if is_mesorregiao_df
+        else "Concentração de votos por município (MG)"
+    )
 
     fig = px.choropleth(
         mapa_df,
@@ -878,13 +1273,13 @@ def _territorial_map(df: pd.DataFrame | None) -> go.Figure:
             [0.70, "#2563EB"],
             [1.00, "#0B1F4D"],
         ],
-        title="Concentração de votos por município (MG)",
+        title=map_title,
         template=st.session_state.get("theme", "plotly_white"),
         range_color=[0.0, zmax],
     )
     fig.update_traces(
-        marker_line_color="rgba(210,228,255,0.75)",
-        marker_line_width=0.7,
+        marker_line_color="rgba(210,228,255,0)" if is_mesorregiao_df else "rgba(210,228,255,0.75)",
+        marker_line_width=0.15 if is_mesorregiao_df else 0.7,
         hovertemplate=(
             "<b>%{hovertext}</b><br>"
             "<span style='color:#93c5fd'>Votos:</span> %{customdata[3]:,.0f}<br>"
@@ -911,7 +1306,7 @@ def _territorial_map(df: pd.DataFrame | None) -> go.Figure:
                     lon=boundary_lon,
                     lat=boundary_lat,
                     mode="lines",
-                    line={"color": "rgba(0,0,0,0.92)", "width": 2.6},
+                    line={"color": "rgba(255,255,255,0.92)", "width": 2.4},
                     hoverinfo="skip",
                     showlegend=False,
                     name="Fronteiras das mesorregioes",
@@ -929,12 +1324,42 @@ def _territorial_map(df: pd.DataFrame | None) -> go.Figure:
                     lon=state_lon,
                     lat=state_lat,
                     mode="lines",
-                    line={"color": "rgba(0,0,0,0.96)", "width": 3.2},
+                    line={"color": "rgba(255,255,255,0.98)", "width": 3.4},
                     hoverinfo="skip",
                     showlegend=False,
                     name="Limite de Minas Gerais",
                 )
             )
+        label_df = (
+            mapa_df[["mesorregiao_nome", "qt_votos", "latitude", "longitude"]]
+            .dropna(subset=["mesorregiao_nome", "latitude", "longitude"])
+            .assign(mesorregiao_nome=lambda frame: frame["mesorregiao_nome"].astype(str).str.strip())
+        )
+        label_df = label_df[label_df["mesorregiao_nome"].ne("")]
+        if not label_df.empty:
+            label_df = (
+                label_df.groupby("mesorregiao_nome", as_index=False)
+                .agg({"qt_votos": "first", "latitude": "mean", "longitude": "mean"})
+            )
+            total_meso_votes = float(pd.to_numeric(label_df["qt_votos"], errors="coerce").fillna(0).sum())
+            if total_meso_votes > 0:
+                label_df["pct_votos"] = (
+                    pd.to_numeric(label_df["qt_votos"], errors="coerce").fillna(0)
+                    / total_meso_votes
+                )
+                label_df = label_df[label_df["pct_votos"] > 0]
+                fig.add_trace(
+                    go.Scattergeo(
+                        lon=label_df["longitude"],
+                        lat=label_df["latitude"],
+                        mode="text",
+                        text=label_df["pct_votos"].map(_format_percent),
+                        textfont={"color": "#ffffff", "size": 13, "family": "Segoe UI, Inter, sans-serif"},
+                        hoverinfo="skip",
+                        showlegend=False,
+                        name="Participacao da mesorregiao",
+                    )
+                )
     fig.update_geos(fitbounds="locations", visible=False, bgcolor="rgba(0,0,0,0)")
     fig.update_layout(
         margin={"l": 6, "r": 36, "t": 52, "b": 6},
@@ -1114,10 +1539,10 @@ def _apply_territorial_context(df: pd.DataFrame, context: dict[str, str], mesorr
 def _demographic_bar(kind: str, context: dict[str, str], mesorregiao: str) -> go.Figure:
     df = _read_selected_parquet(kind)
     prefix_by_kind = {
-        "genero": "votos_genero_",
-        "idade": "votos_idade_",
-        "escolaridade": "votos_escolaridade_",
-        "estado_civil": "votos_estado_civil_",
+        "genero": "pct_genero_",
+        "idade": "pct_idade_",
+        "escolaridade": "pct_escolaridade_",
+        "estado_civil": "pct_estado_civil_",
     }
     prefix = prefix_by_kind[kind]
 
@@ -1127,10 +1552,15 @@ def _demographic_bar(kind: str, context: dict[str, str], mesorregiao: str) -> go
         df = _apply_territorial_context(df, context, mesorregiao)
         value_cols = [col for col in df.columns if col.startswith(prefix)]
         if value_cols:
+            weight_col = "QT_VOTOS_TOTAL" if "QT_VOTOS_TOTAL" in df.columns else "qt_votos"
+            weights = pd.to_numeric(df.get(weight_col, 0), errors="coerce").fillna(0)
             bar_df = pd.DataFrame(
                 {
                     "categoria": [_demographic_label(col, prefix) for col in value_cols],
-                    "votos": [pd.to_numeric(df[col], errors="coerce").fillna(0).sum() for col in value_cols],
+                    "votos": [
+                        (pd.to_numeric(df[col], errors="coerce").fillna(0) * weights / 100).sum()
+                        for col in value_cols
+                    ],
                 }
             ).sort_values("votos", ascending=False)
         else:
@@ -1161,171 +1591,41 @@ def _demographic_bar(kind: str, context: dict[str, str], mesorregiao: str) -> go
     return fig
 
 
-def _estimated_total_votes(icp_geral_df: pd.DataFrame | None) -> float:
-    if icp_geral_df is None or icp_geral_df.empty or "votos_estimados" not in icp_geral_df.columns:
-        return 0.0
-    if "dimensao" in icp_geral_df.columns:
-        totals = (
-            icp_geral_df.assign(votos_estimados=pd.to_numeric(icp_geral_df["votos_estimados"], errors="coerce"))
-            .groupby("dimensao", dropna=True)["votos_estimados"]
-            .sum()
-            .dropna()
-        )
-        if not totals.empty:
-            return float(totals.median())
-    return float(pd.to_numeric(icp_geral_df["votos_estimados"], errors="coerce").fillna(0).sum())
-
-
-def _executive_persona_info(
-    persona_df: pd.DataFrame | None,
-    icp_geral_df: pd.DataFrame | None,
-) -> dict[str, float | str] | None:
-    if persona_df is None or persona_df.empty:
-        return None
-
-    row = persona_df.iloc[0]
-    persona = ""
-    for column in ("persona_executiva", "persona_resumo", "resumo_persona", "persona"):
-        if column not in persona_df.columns:
-            continue
-        values = persona_df[column].dropna().astype(str).str.strip()
-        values = values[values.ne("")]
-        if not values.empty:
-            persona = str(values.iloc[0])
-            row = persona_df.loc[values.index[0]]
-            break
-    if not persona:
-        return None
-
-    pct = np.nan
-    for column in ("pct_votos_estimados", "pct_votos", "percentual_votos", "participacao_votos", "confianca_persona"):
-        if column in persona_df.columns:
-            pct = _to_float(row.get(column))
-            if not pd.isna(pct):
-                break
-
-    total_votes = _estimated_total_votes(icp_geral_df)
-    votes = np.nan
-    for column in ("votos_estimados", "qt_votos_estimados", "qt_votos", "votos"):
-        if column in persona_df.columns:
-            votes = _to_float(row.get(column))
-            if not pd.isna(votes):
-                break
-    if pd.isna(votes) and not pd.isna(pct) and total_votes > 0:
-        votes = total_votes * pct
-    if pd.isna(pct) and not pd.isna(votes) and total_votes > 0:
-        pct = votes / total_votes
-
-    return {"persona": persona, "votes": votes, "pct": pct}
-
-
-def _consolidated_personas(clusters_persona_df: pd.DataFrame | None) -> list[dict[str, str]]:
-    if clusters_persona_df is None or clusters_persona_df.empty or "persona_resumo" not in clusters_persona_df.columns:
-        return []
-
-    rows = clusters_persona_df.copy()
-    rows["persona_resumo"] = rows["persona_resumo"].fillna("").astype(str).str.strip()
-    rows = rows[rows["persona_resumo"].ne("")]
-    if rows.empty:
-        return []
-
-    if "ranking_icp" in rows.columns:
-        rows["_ranking_icp_sort"] = pd.to_numeric(rows["ranking_icp"], errors="coerce").fillna(9999)
-        rows = rows.sort_values(["_ranking_icp_sort", "tipo_icp" if "tipo_icp" in rows.columns else "persona_resumo"])
-
-    personas: list[dict[str, str]] = []
-    for _, row in rows.iterrows():
-        persona = str(row.get("persona_resumo") or "").strip()
-        if not persona:
-            continue
-        label_parts = []
-        if "ranking_icp" in rows.columns and pd.notna(row.get("ranking_icp")):
-            label_parts.append(f"Ranking {int(_to_float(row.get('ranking_icp'), 0))}")
-        personas.append({"label": " - ".join(label_parts) or "Persona", "persona": persona})
-    return personas
-
-
-def _render_voter_profile_cards() -> None:
-    persona_df = _read_selected_parquet("icp_geral_persona")
-    icp_geral_df = _read_selected_parquet("icp_geral")
-    clusters_persona_df = _read_selected_exact_parquet("icp_clusters_persona.parquet")
-    persona_info = _executive_persona_info(persona_df, icp_geral_df)
-    if not persona_info:
-        st.warning("Nao encontrei a persona executiva em `*_icp_geral_persona.parquet`.")
-        return
-
-    votes = float(persona_info["votes"]) if not pd.isna(persona_info["votes"]) else np.nan
-    pct = float(persona_info["pct"]) if not pd.isna(persona_info["pct"]) else np.nan
-    votes_label = _format_number(votes) if not pd.isna(votes) else "--"
-    pct_label = _format_percent(pct)
-    consolidated_rows = _consolidated_personas(clusters_persona_df)
-    consolidated_html = "".join(
-        f"""
-        <div class="raiox-profile-persona-row">
-            <div class="raiox-profile-persona-tag">{html.escape(row["label"])}</div>
-            <div class="raiox-profile-persona-text">{html.escape(row["persona"])}</div>
-        </div>
-        """
-        for row in consolidated_rows
-    )
-    if not consolidated_html:
-        consolidated_html = """
-        <div class="raiox-profile-persona-row">
-            <div class="raiox-profile-persona-text">Nao encontrei personas em icp_clusters_persona.parquet.</div>
-        </div>
-        """
-    consolidated_card = f"""
-        <div class="raiox-profile-card raiox-profile-card--ideal">
-            <div class="raiox-profile-title">Eleitor Consolidado</div>
-            <div class="raiox-profile-list">{consolidated_html}</div>
-        </div>
-    """
-
-    st.markdown(
-        f"""
-        <div class="raiox-profile-top">
-            <div class="raiox-profile-stack">
-                <div class="raiox-profile-card raiox-profile-card--ideal">
-                    <div class="raiox-profile-title">Eleitor Ideal</div>
-                    <div class="raiox-profile-persona">{html.escape(str(persona_info["persona"]))}</div>
-                    <div class="raiox-profile-metrics">
-                        <div class="raiox-profile-metric">
-                            <div class="raiox-profile-metric-label">Votos</div>
-                            <div class="raiox-profile-metric-value">{votes_label}</div>
-                        </div>
-                        <div class="raiox-profile-metric">
-                            <div class="raiox-profile-metric-label">Participacao nos votos</div>
-                            <div class="raiox-profile-metric-value">{pct_label}</div>
-                        </div>
-                    </div>
-                </div>
-                {consolidated_card}
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
 _apply_visual_model()
 
-st.title("Raio X do voto")
-st.caption("Visualizacao conectada aos parquets de 2022 selecionados por cargo e candidato.")
+_render_page_header()
 
-_major_section_header("Mapa de Votacao", "Leitura territorial do desempenho eleitoral no recorte ativo.")
+_major_section_header("Mapa Territorial da Vota&ccedil;&atilde;o", "Leitura territorial do desempenho eleitoral no recorte ativo.")
 votos_municipio_df = _read_selected_parquet("votos_municipio")
 votos_bairro_df = _read_selected_parquet("votos_bairro")
 _render_kpis(votos_municipio_df)
 header_col, filter_col = st.columns([0.72, 0.28], gap="large")
 with header_col:
-    _section_header("Distribuicao territorial dos votos", "Fonte: parquets de votacao territorial de 2022.")
+    _section_header(
+        "Sua vota&ccedil;&atilde;o no territ&oacute;rio de Minas Gerais",
+        "Concentra&ccedil;&atilde;o territorial dos votos por Messoregi&atilde;o e por Municipio.",
+    )
 with filter_col:
     territorial_kind = _territorial_kind_select()
-votos_df = _read_selected_parquet(territorial_kind)
-st.plotly_chart(_territorial_map(votos_df), use_container_width=True)
+votos_df = _territorial_map_view(_read_selected_parquet(territorial_kind), territorial_kind)
+map_col, concentration_col = st.columns([0.68, 0.32], gap="large")
+with map_col:
+    st.plotly_chart(_territorial_map(votos_df), use_container_width=True)
+with concentration_col:
+    with st.container(border=True):
+        st.markdown(
+            "<div class='raiox-chart-card-title'>Concentra&ccedil;&atilde;o territorial</div>",
+            unsafe_allow_html=True,
+        )
+        st.plotly_chart(
+            _territorial_concentration_chart(votos_df, territorial_kind),
+            use_container_width=True,
+        )
+
+_render_accumulated_concentration_section(votos_municipio_df)
 
 _section_header(
-    "Votacao por Municipio e Perfil",
+    "Vota&ccedil;&atilde;o por Bairro de cada munic&iacute;pio e Perfil demogr&aacute;fico",
     "Treemap territorial e distribuicao demografica conforme parquet selecionado.",
 )
 treemap_df, mesorregiao = _mesorregiao_filter(votos_bairro_df)
@@ -1366,6 +1666,3 @@ with col_right:
         if territorial_context:
             label = territorial_context.get("nm_bairro") or territorial_context.get("nm_municipio")
             st.caption(f"Recorte do treemap: {label}")
-
-_major_section_header("Perfil do Eleitor", "")
-_render_voter_profile_cards()

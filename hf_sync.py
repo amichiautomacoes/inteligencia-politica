@@ -10,8 +10,9 @@ from huggingface_hub import HfFileSystem
 
 
 DATA_DIR = Path("data") / "deputados"
-SUPPORTED_SUFFIXES = {".csv", ".parquet", ".json", ".jsonl", ".xlsx", ".xls"}
+SUPPORTED_SUFFIXES = {".csv", ".parquet", ".json", ".jsonl", ".xlsx", ".xls", ".jpg", ".jpeg", ".png"}
 DEFAULT_VISUALIZATION_YEAR = "2022"
+DEFAULT_VISUALIZACAO_PREFIX = "deputados/estaduais/2022/joao_vitor_xavier"
 
 
 def load_env(path: str | Path = ".env") -> dict[str, str]:
@@ -33,7 +34,11 @@ def load_env(path: str | Path = ".env") -> dict[str, str]:
 def hf_visualizacao_path(env: dict[str, str] | None = None) -> str:
     config = env or load_env()
     bucket_url = config.get("HF_BUCKET_URL", "").rstrip("/")
-    prefix = config.get("HF_VISUALIZACAO_PREFIX") or config.get("HF_DEPUTADOS_PREFIX") or "deputados"
+    prefix = (
+        config.get("HF_VISUALIZACAO_PREFIX")
+        or config.get("HF_DEPUTADOS_PREFIX")
+        or DEFAULT_VISUALIZACAO_PREFIX
+    )
     if not bucket_url:
         raise RuntimeError("HF_BUCKET_URL nao foi configurado no .env.")
     return f"{bucket_url}/{prefix.strip('/')}"
@@ -78,7 +83,9 @@ def deputado_parts(file_name: str) -> dict[str, str] | None:
     if len(parts) < 3:
         return None
 
-    if len(parts) >= 4 and parts[2].isdigit():
+    if parts[0] in {"estaduais", "federais"} and parts[1].isdigit():
+        cargo, ano, nome_slug = parts[0], parts[1], parts[2]
+    elif len(parts) >= 4 and parts[2].isdigit():
         cargo, nome_slug, ano = parts[0], parts[1], parts[2]
     else:
         ano, cargo, nome_slug = parts[0], parts[1], parts[2]
@@ -195,13 +202,24 @@ def selected_deputado_files(files: list[str], filters: dict[str, str]) -> list[s
 
 def file_by_kind(files: list[str], kind: str) -> str | None:
     kind_aliases = {
-        "votos_mesorregiao": "votacao_por_mesorregiao.parquet",
-        "votos_municipio": "votacao_por_municipio.parquet",
-        "votos_bairro": "votacao_por_bairro.parquet",
-        "votos_territoriais": "votacao_por_municipio.parquet",
+        "votos_mesorregiao": "territorio/stage01a_municipios.parquet",
+        "votos_municipio": "territorio/stage01a_municipios.parquet",
+        "votos_bairro": "territorio/stage01b_bairros.parquet",
+        "votos_territoriais": "territorio/stage01a_municipios.parquet",
+        "escolaridade": "demografico/stage02_escolaridade.parquet",
+        "estado_civil": "demografico/stage02_estado_civil.parquet",
+        "genero": "demografico/stage02_genero.parquet",
+        "idade": "demografico/stage02_idade.parquet",
     }
     if kind in kind_aliases:
-        return next((file_name for file_name in files if file_name.endswith(kind_aliases[kind])), None)
+        return next(
+            (
+                file_name
+                for file_name in files
+                if file_name.replace("\\", "/").endswith(kind_aliases[kind])
+            ),
+            None,
+        )
 
     suffix = f"_{kind}.parquet"
     return next((file_name for file_name in files if file_name.endswith(suffix)), None)

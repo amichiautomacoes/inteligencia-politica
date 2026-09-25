@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from hf_sync import data_files, path_filter_options
+from hf_sync import data_files
 
 
 st.set_page_config(
@@ -27,12 +27,7 @@ with st.sidebar:
         st.error(f"Falha ao ler HF: {exc}")
         files = []
 
-    options = path_filter_options(files)
-
-    cargo = st.selectbox("CARGO", ["Todos", *options["cargos"]], key="filtro_cargo")
-    nome = st.selectbox("CANDIDATO", ["Todos", *options["nomes"]], key="filtro_nome")
-
-    st.session_state["deputados_filters"] = {"ano": "2022", "cargo": cargo, "nome": nome}
+    st.session_state["deputados_filters"] = {"ano": "2022", "cargo": "Todos", "nome": "Todos"}
     st.session_state["deputados_files"] = files
 
 current_page = st.navigation(pages, position="sidebar")
