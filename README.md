@@ -51,7 +51,10 @@ Esses arquivos alimentam o grafico de perfil demografico, recortado por mesorreg
 
 - `gastos/gastos_territoriais.parquet`
   - usado em `gastos_territoriais`;
-  - alimenta a **Matriz de Eficiencia por Custo do Voto**.
+
+- `gastos/despesas_campanha.parquet`
+  - usado em `despesas_campanha`;
+  - alimenta o ranking de custo por voto por tipo de despesa.
 
 - `gastos/emendas_legislativa.parquet`
   - usado em `emendas_legislativa`;
@@ -111,23 +114,17 @@ Esta secao traz:
 
 ### 5. Matriz de Eficiencia por Custo do Voto
 
-Cruza votos, custo por voto e despesa territorial.
+Mostra quanto cada tipo de despesa custou por voto no resultado geral da campanha.
 
 Esta secao traz:
 
-- scatter plot em escala logaritmica no eixo X;
+- custo medio geral por voto;
+- total gasto na campanha;
+- tipo de despesa lider em gasto;
+- ranking horizontal por `tipo_despesa`;
 - eixo X: custo por voto em R$/voto;
-- eixo Y: total de votos do candidato no territorio;
-- tamanho da bolha: despesa territorial agregada;
-- filtro de nivel territorial:
-  - municipio;
-  - mesorregiao;
-  - bairro;
-- classificacao em quatro quadrantes:
-  - Eficiente / Organico;
-  - Alto Investimento / Alto Retorno;
-  - Ineficiente / Carro de Ouro;
-  - Baixa Relevancia.
+- cor da barra: valor total gasto no tipo de despesa;
+- linha de Pareto com percentual acumulado do gasto.
 
 ### 6. Mapa da atuacao parlamentar de acordo com os votos
 

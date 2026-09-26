@@ -181,52 +181,29 @@ Essa secao e mais interpretativa do que exploratoria. Ela deve ajudar o usuario 
 
 Funcao visual:
 
-Cruzar votos, custo por voto e despesa territorial para indicar eficiencia eleitoral.
+Mostrar quanto cada tipo de despesa custou por voto no resultado geral da campanha.
 
 Tipo:
 
-Scatter plot em matriz de quatro quadrantes.
+Ranking horizontal com leitura de Pareto.
 
 Codificacao visual:
 
-- eixo X: custo por voto em R$/voto, escala logaritmica;
-- eixo Y: total de votos;
-- tamanho da bolha: despesa agregada no territorio;
-- cor da bolha: quadrante de classificacao;
-- areas de fundo sutis marcam os quatro quadrantes.
-
-Quadrantes:
-
-- Superior esquerdo: **Eficiente / Organico**
-  - alto volume de votos;
-  - baixo custo por voto;
-  - cor sugerida: verde/ciano discreto.
-
-- Superior direito: **Alto Investimento / Alto Retorno**
-  - alto volume de votos;
-  - alto custo por voto;
-  - cor sugerida: azul claro.
-
-- Inferior direito: **Ineficiente / Carro de Ouro**
-  - alto custo;
-  - baixo resultado;
-  - cor sugerida: amarelo/ambar, usado com moderacao.
-
-- Inferior esquerdo: **Baixa Relevancia**
-  - baixo custo;
-  - baixo resultado;
-  - cor sugerida: cinza azulado.
+- eixo X: custo por voto em R$/voto;
+- eixo Y: tipo de despesa;
+- cor da barra: valor total gasto no tipo de despesa;
+- linha superior: percentual acumulado do gasto.
 
 Direcao:
 
-A matriz deve ser lida como diagnostico estrategico. O usuario precisa identificar rapidamente quais territorios entregam retorno e quais consomem investimento sem gerar votos proporcionais.
+A visualizacao deve indicar rapidamente quais tipos de despesa mais pesaram no custo de cada voto, sem sugerir vinculo territorial quando a base nao traz esse relacionamento.
 
 Cuidados visuais:
 
-- nao deixar bolhas muito grandes ocultarem outras;
-- manter labels de quadrante discretos;
-- preservar contraste das linhas medianas;
-- usar a cor como semantica, nao como decoracao.
+- manter os nomes longos de tipos de despesa legiveis;
+- destacar o custo por voto em cada barra;
+- diferenciar valor total gasto e custo por voto;
+- usar a linha acumulada como apoio analitico, nao como elemento dominante.
 
 ### 6. Mapa da Atuacao Parlamentar de Acordo com os Votos
 
@@ -346,7 +323,7 @@ Mapas com multiplas camadas, especialmente votos + emendas, precisam de legendas
 | Treemap municipio/bairro | Retangulos proporcionais | Como os votos se distribuem dentro dos municipios e bairros? |
 | Barras demograficas | Barras horizontais percentuais | Qual o perfil estimado do eleitor no recorte? |
 | Curva acumulada | Linha/area com marcadores | Quanta votacao se concentra nos top municipios? |
-| Matriz de custo do voto | Scatter plot de 4 quadrantes | Onde o voto foi eficiente ou caro? |
+| Matriz de custo do voto | Ranking/Pareto por tipo de despesa | Quais despesas mais pesaram no custo por voto? |
 | Mapa de atuacao parlamentar | Coropletico + bolhas de emendas | Onde votos e emendas se cruzam? |
 
 ## Briefing Curto

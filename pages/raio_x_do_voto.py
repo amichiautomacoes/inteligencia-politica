@@ -1903,185 +1903,50 @@ def _demographic_bar(kind: str, context: dict[str, str], mesorregiao: str) -> go
     return fig
 
 
-def _expense_type_column(df: pd.DataFrame | None) -> str | None:
-    if df is None or df.empty:
-        return None
-    return "tipo_despesa" if "tipo_despesa" in df.columns else None
+def _campaign_total_votes(votos_df: pd.DataFrame | None) -> float:
+    if votos_df is None or votos_df.empty or "qt_votos" not in votos_df.columns:
+        return 0.0
+    votes = pd.to_numeric(votos_df["qt_votos"], errors="coerce").fillna(0)
+    if "nm_municipio" in votos_df.columns:
+        frame = votos_df[["nm_municipio"]].copy()
+        frame["qt_votos"] = votes
+        return float(frame.groupby("nm_municipio")["qt_votos"].sum().sum())
+    return float(votes.sum())
 
 
-def _campaign_expense_type_shares(df: pd.DataFrame | None) -> pd.DataFrame:
-    if df is None or df.empty or "tipo_despesa" not in df.columns or "valor_despesa" not in df.columns:
+def _expense_cost_by_type_frame(
+    despesas_df: pd.DataFrame | None,
+    total_votes: float,
+) -> pd.DataFrame:
+    if (
+        despesas_df is None
+        or despesas_df.empty
+        or "tipo_despesa" not in despesas_df.columns
+        or "valor_despesa" not in despesas_df.columns
+        or total_votes <= 0
+    ):
         return pd.DataFrame()
 
-    result = df[["tipo_despesa", "valor_despesa"]].copy()
+    result = despesas_df[["tipo_despesa", "valor_despesa"]].copy()
     result["tipo_despesa"] = result["tipo_despesa"].fillna("Nao informado").astype(str).str.strip()
     result.loc[result["tipo_despesa"].eq(""), "tipo_despesa"] = "Nao informado"
-    result["valor_despesa"] = pd.to_numeric(result["valor_despesa"], errors="coerce").fillna(0)
+    result["valor_total_despesa"] = pd.to_numeric(result["valor_despesa"], errors="coerce").fillna(0)
     result = (
-        result.groupby("tipo_despesa", as_index=False)["valor_despesa"]
+        result.groupby("tipo_despesa", as_index=False)["valor_total_despesa"]
         .sum()
-        .sort_values("valor_despesa", ascending=False)
+        .sort_values("valor_total_despesa", ascending=False)
     )
-    result = result[result["valor_despesa"].gt(0)].copy()
-    total = float(result["valor_despesa"].sum())
-    if total <= 0:
-        return pd.DataFrame()
-
-    result["share_despesa"] = result["valor_despesa"] / total
-    return result[["tipo_despesa", "share_despesa"]]
-
-
-def _cost_efficiency_frame(
-    df: pd.DataFrame | None,
-    despesas_df: pd.DataFrame | None = None,
-    context: dict[str, str] | None = None,
-    mesorregiao: str | None = None,
-) -> pd.DataFrame:
-    if df is None or df.empty:
-        return pd.DataFrame()
-    required = {"qt_votos"}
-    if not required.issubset(df.columns):
-        return pd.DataFrame()
-
-    label_col = "nm_municipio"
-    if label_col not in df.columns:
-        return pd.DataFrame()
-
-    expense_col = "valor_despesas_rateado" if "valor_despesas_rateado" in df.columns else "valor_total_despesas"
-    if expense_col not in df.columns:
-        return pd.DataFrame()
-
-    result = df.copy()
-    if mesorregiao and "nm_mesorregiao" in result.columns:
-        result = result[result["nm_mesorregiao"].astype(str).str.strip().eq(mesorregiao)].copy()
-    if result.empty:
-        return pd.DataFrame()
-
-    context = context or {}
-    for column in ("nm_municipio", "cd_municipio"):
-        value = context.get(column)
-        if value and column in result.columns:
-            result = result[result[column].astype(str).str.strip() == value]
-    if result.empty:
-        return pd.DataFrame()
-
-    type_col = _expense_type_column(result)
-
-    result[label_col] = result[label_col].fillna("Nao informado").astype(str).str.strip()
-    result.loc[result[label_col].eq(""), label_col] = "Nao informado"
-    if type_col is None:
-        result["tipo_despesa_grafico"] = "Total"
-    else:
-        result["tipo_despesa_grafico"] = result[type_col].fillna("Nao informado").astype(str).str.strip()
-        result.loc[result["tipo_despesa_grafico"].eq(""), "tipo_despesa_grafico"] = "Nao informado"
-    result["qt_votos"] = pd.to_numeric(result["qt_votos"], errors="coerce").fillna(0)
-    result[expense_col] = pd.to_numeric(result[expense_col], errors="coerce").fillna(0)
-
-    if type_col is None:
-        expense_shares = _campaign_expense_type_shares(despesas_df)
-        if not expense_shares.empty:
-            territory = (
-                result.groupby(label_col, as_index=False)
-                .agg({"qt_votos": "sum", expense_col: "sum"})
-                .rename(columns={label_col: "territorio", expense_col: "valor_total_despesa"})
-            )
-            territory = territory[territory["qt_votos"].gt(0) & territory["valor_total_despesa"].gt(0)].copy()
-            if territory.empty:
-                return territory
-            territory["_join_key"] = 1
-            expense_shares = expense_shares.copy()
-            expense_shares["_join_key"] = 1
-            result = territory.merge(expense_shares, on="_join_key", how="inner").drop(columns="_join_key")
-            result["valor_total_despesa"] = result["valor_total_despesa"] * result["share_despesa"]
-            result = result.drop(columns="share_despesa")
-            result["custo_por_voto"] = result["valor_total_despesa"] / result["qt_votos"]
-            result = result[np.isfinite(result["custo_por_voto"]) & result["custo_por_voto"].gt(0)].copy()
-            result["total_gasto"] = result["valor_total_despesa"].map(lambda value: f"R$ {value:,.2f}")
-            return result.sort_values("valor_total_despesa", ascending=False)
-
-    group_cols = [label_col, "tipo_despesa_grafico"]
-    result = (
-        result.groupby(group_cols, as_index=False)
-        .agg({"qt_votos": "sum", expense_col: "sum"})
-        .rename(
-            columns={
-                label_col: "territorio",
-                "tipo_despesa_grafico": "tipo_despesa",
-                expense_col: "valor_total_despesa",
-            }
-        )
-    )
-    result = result[result["qt_votos"].gt(0) & result["valor_total_despesa"].gt(0)].copy()
+    result = result[result["valor_total_despesa"].gt(0)].copy()
     if result.empty:
         return result
 
-    result["custo_por_voto"] = result["valor_total_despesa"] / result["qt_votos"]
-    result = result[np.isfinite(result["custo_por_voto"]) & result["custo_por_voto"].gt(0)].copy()
-    if result.empty:
-        return result
-
-    result["total_gasto"] = result["valor_total_despesa"].map(lambda value: f"R$ {value:,.2f}")
-    return result.sort_values("valor_total_despesa", ascending=False)
-
-
-def _cost_efficiency_mesorregiao_options(df: pd.DataFrame | None) -> list[str]:
-    if df is None or df.empty or "nm_mesorregiao" not in df.columns:
-        return []
-
-    expense_col = "valor_despesas_rateado" if "valor_despesas_rateado" in df.columns else "valor_total_despesas"
-    if expense_col not in df.columns:
-        return (
-            df["nm_mesorregiao"]
-            .dropna()
-            .astype(str)
-            .str.strip()
-            .replace("", np.nan)
-            .dropna()
-            .sort_values()
-            .unique()
-            .tolist()
-        )
-
-    ranking = df[["nm_mesorregiao", expense_col]].copy()
-    ranking["nm_mesorregiao"] = ranking["nm_mesorregiao"].fillna("").astype(str).str.strip()
-    ranking[expense_col] = pd.to_numeric(ranking[expense_col], errors="coerce").fillna(0)
-    ranking = ranking[ranking["nm_mesorregiao"].ne("")]
-    if ranking.empty:
-        return []
-
-    return (
-        ranking.groupby("nm_mesorregiao", as_index=False)[expense_col]
-        .sum()
-        .sort_values(expense_col, ascending=False)["nm_mesorregiao"]
-        .tolist()
-    )
-
-
-def _render_cost_efficiency_mesorregiao_buttons(df: pd.DataFrame | None) -> str | None:
-    options = _cost_efficiency_mesorregiao_options(df)
-    if not options:
-        return None
-
-    state_key = "pagina1_cost_efficiency_mesorregiao"
-    selected = st.session_state.get(state_key)
-    if selected not in options:
-        selected = options[0]
-        st.session_state[state_key] = selected
-
-    for start in range(0, len(options), 6):
-        cols = st.columns(6, gap="small")
-        for col, option in zip(cols, options[start : start + 6]):
-            label = option
-            active = selected == option
-            if col.button(
-                label,
-                key=f"pagina1_cost_efficiency_mesorregiao_{start}_{label}",
-                use_container_width=True,
-                type="primary" if active else "secondary",
-            ):
-                st.session_state[state_key] = option
-                st.rerun()
-    return selected
+    total_spend = float(result["valor_total_despesa"].sum())
+    result["qt_votos"] = float(total_votes)
+    result["custo_por_voto"] = result["valor_total_despesa"] / float(total_votes)
+    result["pct_gasto"] = result["valor_total_despesa"] / total_spend if total_spend > 0 else 0.0
+    result["pct_gasto_acumulado"] = result["pct_gasto"].cumsum()
+    result["rotulo_custo"] = result["custo_por_voto"].map(_format_currency)
+    return result
 
 
 def _cost_efficiency_kpis(chart_df: pd.DataFrame) -> dict[str, str]:
@@ -2089,16 +1954,21 @@ def _cost_efficiency_kpis(chart_df: pd.DataFrame) -> dict[str, str]:
         return {
             "custo_por_voto": _format_currency(0),
             "total_gasto": _format_currency(0),
+            "despesa_lider": "Sem dados",
+            "despesa_lider_caption": "Sem tipo de despesa",
         }
     total_spend = float(pd.to_numeric(chart_df["valor_total_despesa"], errors="coerce").fillna(0).sum())
-    votes_by_territory = chart_df.assign(
-        qt_votos=pd.to_numeric(chart_df["qt_votos"], errors="coerce").fillna(0)
-    ).groupby("territorio")["qt_votos"].max()
-    total_votes = float(votes_by_territory.sum())
+    total_votes = float(pd.to_numeric(chart_df["qt_votos"], errors="coerce").fillna(0).max())
     cost_per_vote = total_spend / total_votes if total_votes > 0 else 0.0
+    leader = chart_df.sort_values("valor_total_despesa", ascending=False).head(1).iloc[0]
     return {
         "custo_por_voto": _format_currency(cost_per_vote),
         "total_gasto": _format_currency(total_spend),
+        "despesa_lider": str(leader["tipo_despesa"]),
+        "despesa_lider_caption": (
+            f"{_format_currency(float(leader['valor_total_despesa']))} | "
+            f"{_format_percent(float(leader['pct_gasto']))} do gasto"
+        ),
     }
 
 
@@ -2108,12 +1978,17 @@ def _render_cost_efficiency_kpis(chart_df: pd.DataFrame) -> None:
         f"""
         <div class="raiox-heatmap-kpi-row">
             <div class="raiox-heatmap-kpi">
-                <div class="raiox-heatmap-kpi-label">Custo por voto</div>
+                <div class="raiox-heatmap-kpi-label">Custo médio por voto</div>
                 <div class="raiox-heatmap-kpi-value">{html.escape(kpis["custo_por_voto"])}</div>
             </div>
             <div class="raiox-heatmap-kpi">
                 <div class="raiox-heatmap-kpi-label">Total gasto</div>
                 <div class="raiox-heatmap-kpi-value">{html.escape(kpis["total_gasto"])}</div>
+            </div>
+            <div class="raiox-heatmap-kpi">
+                <div class="raiox-heatmap-kpi-label">Despesa líder</div>
+                <div class="raiox-heatmap-kpi-value">{html.escape(kpis["despesa_lider"])}</div>
+                <div class="mapa-kpi-caption">{html.escape(kpis["despesa_lider_caption"])}</div>
             </div>
         </div>
         """,
@@ -2121,11 +1996,11 @@ def _render_cost_efficiency_kpis(chart_df: pd.DataFrame) -> None:
     )
 
 
-def _cost_efficiency_heatmap(chart_df: pd.DataFrame) -> go.Figure:
+def _expense_cost_by_type_chart(chart_df: pd.DataFrame) -> go.Figure:
     if chart_df.empty:
         fig = go.Figure()
         fig.add_annotation(
-            text="Dados de gastos territoriais indisponiveis.",
+            text="Dados de despesas de campanha indisponiveis.",
             x=0.5,
             y=0.5,
             xref="paper",
@@ -2136,137 +2011,124 @@ def _cost_efficiency_heatmap(chart_df: pd.DataFrame) -> go.Figure:
         fig.update_layout(height=560, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
         return fig
 
-    top_territories = (
-        chart_df.groupby("territorio", as_index=False)["valor_total_despesa"]
-        .sum()
-        .sort_values("valor_total_despesa", ascending=False)
-        .head(24)["territorio"]
-        .tolist()
-    )
-    top_expense_types = (
-        chart_df.groupby("tipo_despesa", as_index=False)["valor_total_despesa"]
-        .sum()
-        .sort_values("valor_total_despesa", ascending=False)
-        .head(14)["tipo_despesa"]
-        .tolist()
-    )
-    display_df = chart_df[
-        chart_df["territorio"].isin(top_territories)
-        & chart_df["tipo_despesa"].isin(top_expense_types)
-    ].copy()
-    pivot_cost = display_df.pivot_table(
-        index="territorio",
-        columns="tipo_despesa",
-        values="custo_por_voto",
-        aggfunc="mean",
-    ).reindex(index=top_territories, columns=top_expense_types)
-    pivot_spend = display_df.pivot_table(
-        index="territorio",
-        columns="tipo_despesa",
-        values="valor_total_despesa",
-        aggfunc="sum",
-    ).reindex(index=top_territories, columns=top_expense_types)
-    pivot_votes = display_df.pivot_table(
-        index="territorio",
-        columns="tipo_despesa",
-        values="qt_votos",
-        aggfunc="sum",
-    ).reindex(index=top_territories, columns=top_expense_types)
-    text = pivot_spend.map(lambda value: "" if pd.isna(value) else f"R$ {value:,.0f}").to_numpy()
-    customdata = np.dstack(
+    display_df = chart_df.sort_values("valor_total_despesa", ascending=False).copy()
+    customdata = np.stack(
         [
-            pivot_spend.fillna(0).to_numpy(),
-            pivot_votes.fillna(0).to_numpy(),
-            pivot_cost.fillna(0).to_numpy(),
-        ]
+            display_df["valor_total_despesa"],
+            display_df["pct_gasto"],
+            display_df["pct_gasto_acumulado"],
+            display_df["qt_votos"],
+        ],
+        axis=-1,
     )
-    fig = go.Figure(
-        data=go.Heatmap(
-            z=pivot_cost.to_numpy(),
-            x=pivot_cost.columns,
-            y=pivot_cost.index,
-            text=text,
-            texttemplate="%{text}",
-            textfont={"color": "#f8fbff", "size": 11},
-            customdata=customdata,
-            colorscale=[
-                [0.0, "#16A34A"],
-                [0.46, "#FACC15"],
-                [0.68, "#F97316"],
-                [1.0, "#DC2626"],
-            ],
-            hoverongaps=False,
-            colorbar={
-                "title": {"text": "Custo por voto"},
-                "tickprefix": "R$ ",
-                "len": 0.86,
-                "thickness": 14,
-                "outlinewidth": 0,
+    fig = go.Figure()
+    fig.add_trace(
+        go.Bar(
+            x=display_df["custo_por_voto"],
+            y=display_df["tipo_despesa"],
+            orientation="h",
+            marker={
+                "color": display_df["valor_total_despesa"],
+                "colorscale": [
+                    [0.0, "rgba(96, 165, 250, 0.72)"],
+                    [0.55, "rgba(37, 99, 235, 0.94)"],
+                    [1.0, "rgba(147, 197, 253, 1.0)"],
+                ],
+                "line": {"color": "rgba(239,246,255,0.78)", "width": 1},
+                "colorbar": {
+                    "title": {"text": "Total gasto"},
+                    "tickprefix": "R$ ",
+                    "len": 0.82,
+                    "thickness": 14,
+                    "outlinewidth": 0,
+                },
             },
+            text=display_df["rotulo_custo"],
+            textposition="outside",
+            textfont={"color": "#f8fbff", "size": 12},
+            customdata=customdata,
+            cliponaxis=False,
             hovertemplate=(
                 "<b>%{y}</b><br>"
-                "Tipo de despesa: %{x}<br>"
+                "Custo por voto: R$ %{x:,.2f}<br>"
                 "Total gasto: R$ %{customdata[0]:,.2f}<br>"
-                "Votos: %{customdata[1]:,.0f}<br>"
-                "Custo por voto: R$ %{customdata[2]:,.2f}<extra></extra>"
+                "Participação no gasto: %{customdata[1]:.1%}<br>"
+                "Participação acumulada: %{customdata[2]:.1%}<br>"
+                "Votos totais: %{customdata[3]:,.0f}<extra></extra>"
             ),
         )
     )
+    fig.add_trace(
+        go.Scatter(
+            x=display_df["pct_gasto_acumulado"],
+            y=display_df["tipo_despesa"],
+            mode="lines+markers",
+            name="% gasto acumulado",
+            line={"color": "#FACC15", "width": 2},
+            marker={"size": 7, "color": "#FACC15"},
+            customdata=display_df["pct_gasto_acumulado"],
+            hovertemplate="Gasto acumulado: %{customdata:.1%}<extra></extra>",
+            xaxis="x2",
+        )
+    )
     fig.update_layout(
-        height=max(500, min(900, 160 + len(pivot_cost.index) * 30)),
-        margin={"l": 190, "r": 42, "t": 14, "b": 150},
+        height=max(520, min(920, 170 + len(display_df) * 34)),
+        margin={"l": 240, "r": 58, "t": 36, "b": 70},
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font={"color": "#eaf2ff", "family": "Segoe UI, Inter, sans-serif"},
         xaxis={
-            "title": "Tipo de despesa",
+            "title": "Custo por voto",
+            "tickprefix": "R$ ",
+            "gridcolor": "rgba(255,255,255,0.10)",
+            "zeroline": False,
+            "range": [0, float(display_df["custo_por_voto"].max()) * 1.22],
+        },
+        xaxis2={
+            "title": "% acumulado do gasto",
+            "overlaying": "x",
             "side": "top",
-            "tickfont": {"size": 11, "color": "#f8fbff"},
-            "tickangle": -35,
+            "range": [0, 1],
+            "tickformat": ".0%",
             "showgrid": False,
-            "automargin": True,
+            "zeroline": False,
         },
         yaxis={
-            "title": "Localidade",
+            "title": "",
             "tickfont": {"size": 12, "color": "#dbeafe"},
             "showgrid": False,
             "automargin": True,
+            "autorange": "reversed",
         },
         hoverlabel={
             "bgcolor": "rgba(5,12,28,0.95)",
             "font_color": "#EAF2FF",
             "bordercolor": "rgba(147,197,253,0.55)",
         },
+        showlegend=False,
     )
     return fig
 
 
 def _render_cost_efficiency_section(
-    df: pd.DataFrame | None,
+    votos_df: pd.DataFrame | None,
     despesas_df: pd.DataFrame | None,
 ) -> None:
     _major_section_header(
         "Matriz de Eficiência por Custo do Voto",
-        "Heatmap de eficiência: verde indica menor custo por voto; vermelho indica baixa eficiência.",
+        "Ranking do custo por voto de cada tipo de despesa da campanha.",
     )
-    mesorregiao_options = _cost_efficiency_mesorregiao_options(df)
-    mesorregiao = st.session_state.get("pagina1_cost_efficiency_mesorregiao")
-    if mesorregiao not in mesorregiao_options:
-        mesorregiao = mesorregiao_options[0] if mesorregiao_options else None
-        st.session_state["pagina1_cost_efficiency_mesorregiao"] = mesorregiao
-    chart_df = _cost_efficiency_frame(df, despesas_df, {}, mesorregiao)
+    chart_df = _expense_cost_by_type_frame(despesas_df, _campaign_total_votes(votos_df))
     header_col, filter_col = st.columns([0.58, 0.42], gap="large")
     with header_col:
         _section_header(
             "Eficiência do investimento eleitoral",
-            "Linhas mostram municípios; colunas mostram tipos de despesa e a cor indica o custo por voto no recorte.",
+            "Barras mostram quanto cada tipo de despesa custou por voto no resultado geral da campanha.",
         )
     with filter_col:
         _render_cost_efficiency_kpis(chart_df)
-    mesorregiao = _render_cost_efficiency_mesorregiao_buttons(df)
-    chart_df = _cost_efficiency_frame(df, despesas_df, {}, mesorregiao)
     with st.container(border=True):
-        st.plotly_chart(_cost_efficiency_heatmap(chart_df), use_container_width=True)
+        st.plotly_chart(_expense_cost_by_type_chart(chart_df), use_container_width=True)
 
 
 def _parliamentary_action_frame(
@@ -2753,9 +2615,8 @@ with col_right:
                 st.rerun()
 
 _render_accumulated_concentration_section(votos_municipio_df)
-gastos_territoriais_df = _read_selected_parquet("gastos_territoriais")
 despesas_campanha_df = _read_selected_parquet("despesas_campanha")
-_render_cost_efficiency_section(gastos_territoriais_df, despesas_campanha_df)
+_render_cost_efficiency_section(votos_municipio_df, despesas_campanha_df)
 emendas_legislativa_df = _read_selected_parquet("emendas_legislativa")
 _render_parliamentary_action_section(votos_municipio_df, emendas_legislativa_df)
 
