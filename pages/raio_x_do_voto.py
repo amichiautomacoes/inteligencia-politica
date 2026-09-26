@@ -453,27 +453,13 @@ def _apply_visual_model() -> None:
             text-shadow: 0 0 12px rgba(147, 197, 253, 0.22);
         }}
         .raiox-concentration-city-list {{
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 0.18rem 0.58rem;
             margin: 0.48rem 0 0 0;
-            padding: 0;
-            list-style: none;
             color: #f8fbff;
-            font-size: 0.68rem;
+            font-size: 0.7rem;
             font-weight: 720;
-            line-height: 1.13;
-        }}
-        .raiox-concentration-city-list li {{
-            min-width: 0;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }}
-        .raiox-concentration-city-rank {{
-            color: #93c5fd;
-            font-weight: 850;
-            margin-right: 0.16rem;
+            line-height: 1.18;
+            column-count: 2;
+            column-gap: 0.8rem;
         }}
         .raiox-concentration-pill-caption {{
             color: #9fb2d4;
@@ -1207,13 +1193,8 @@ def _render_accumulated_concentration_section(df: pd.DataFrame | None) -> None:
             effective_rank = int(row["rank_municipio"])
             title = f"Top {rank}" if effective_rank >= rank else "Todos"
             city_rows = concentration_df.head(effective_rank)
-            city_items = "\n".join(
-                (
-                    "<li>"
-                    f"<span class=\"raiox-concentration-city-rank\">{int(city_row['rank_municipio'])}.</span>"
-                    f"{html.escape(str(city_row['nm_municipio']).title())}"
-                    "</li>"
-                )
+            city_items = "<br>".join(
+                f"{int(city_row['rank_municipio'])}. {html.escape(str(city_row['nm_municipio']).title())}"
                 for _, city_row in city_rows.iterrows()
             )
             return f"""
@@ -1221,7 +1202,7 @@ def _render_accumulated_concentration_section(df: pd.DataFrame | None) -> None:
                     <div class="raiox-concentration-pill-label">{title}</div>
                     <div class="raiox-concentration-pill-value">{_format_percent(float(row["pct_acumulado"]))}</div>
                     <div class="raiox-concentration-pill-city">{effective_rank} municípios no recorte</div>
-                    <ul class="raiox-concentration-city-list">{city_items}</ul>
+                    <div class="raiox-concentration-city-list">{city_items}</div>
                     <div class="raiox-concentration-pill-caption">{_format_number(float(row["votos_acumulados"]))} votos acumulados</div>
                 </div>
             """
