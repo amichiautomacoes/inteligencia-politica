@@ -4,6 +4,7 @@ import html
 from textwrap import dedent
 
 import pandas as pd
+import plotly.graph_objects as go
 import streamlit as st
 
 from hf_sync import file_by_kind, load_env, load_parquet
@@ -219,6 +220,233 @@ def _render_icp_geral_card(icp_df: pd.DataFrame | None) -> None:
     )
 
 
+def _sunburst_selection(event: object | None) -> dict[str, str]:
+    if not event:
+        return {}
+    selection = getattr(event, "selection", {}) if hasattr(event, "selection") else event.get("selection", {}) if isinstance(event, dict) else {}
+    points = selection.get("points", []) if isinstance(selection, dict) else getattr(selection, "points", [])
+    if not points:
+        return {}
+    point = points[0]
+    customdata = point.get("customdata") if isinstance(point, dict) else getattr(point, "customdata", None)
+    if not customdata:
+        return {}
+    values = list(customdata) if not isinstance(customdata, str) else [customdata]
+    return {
+        "perfil_eleitor": str(values[0] or ""),
+        "cluster_strategy_label": str(values[1] or ""),
+        "persona_executiva": str(values[2] or ""),
+        "cluster_strategy_reason": str(values[3] or ""),
+    }
+
+
+def _cluster_sunburst_frame(clusters_df: pd.DataFrame) -> tuple[pd.DataFrame, float]:
+    if clusters_df is None or clusters_df.empty:
+        return pd.DataFrame(), 0.0
+    df = clusters_df.copy()
+    aliases = {
+        "perfil_eleitor": ("perfil_eleitor", "perfil", "perfil_eleitoral"),
+        "cluster_strategy_label": ("cluster_strategy_label", "cluster_label", "cluster"),
+        "persona_executiva": ("persona_executiva", "persona", "persona_label"),
+        "cluster_strategy_reason": ("cluster_strategy_reason", "cluster_reason", "justificativa"),
+        "votos_candidato": ("votos_candidato", "votos", "total_votos"),
+        "cd_municipio": ("cd_municipio", "codigo_municipio", "cod_municipio"),
+    }
+    for target, candidates in aliases.items():
+        if target not in df.columns:
+            source = next((column for column in candidates if column in df.columns), None)
+            df[target] = df[source] if source else ""
+    df["votos_candidato"] = pd.to_numeric(df["votos_candidato"], errors="coerce").fillna(0)
+    for column in ("perfil_eleitor", "cluster_strategy_label", "persona_executiva", "cluster_strategy_reason"):
+        df[column] = df[column].fillna("Nao informado").astype(str).str.strip().replace("", "Nao informado")
+
+    # O total central deve contar cada município uma única vez, mesmo que o parquet
+    # traga mais de uma linha de cluster para o mesmo município.
+    if df["cd_municipio"].astype(str).str.strip().ne("").any():
+        municipality_total = df.groupby("cd_municipio", as_index=False)["votos_candidato"].max()["votos_candidato"].sum()
+    else:
+        municipality_total = float(df["votos_candidato"].sum())
+    grouped = (
+        df.groupby(["perfil_eleitor", "cluster_strategy_label", "persona_executiva", "cluster_strategy_reason"], dropna=False, as_index=False)["votos_candidato"]
+        .sum()
+        .rename(columns={"votos_candidato": "votos"})
+    )
+    return grouped, float(municipality_total)
+
+
+def _cluster_sunburst(df: pd.DataFrame, total_votes: float) -> go.Figure:
+    if df.empty:
+        return go.Figure()
+    rows = [{"ids": "total", "labels": "Votação total", "parents": "", "values": total_votes, "custom": ["", "", "", ""]}]
+    profile_totals = df.groupby("perfil_eleitor", as_index=False)["votos"].sum()
+    for _, row in profile_totals.iterrows():
+        profile = str(row["perfil_eleitor"])
+        rows.append({"ids": f"perfil::{profile}", "labels": profile, "parents": "total", "values": row["votos"], "custom": [profile, "", "", ""]})
+    for _, row in df.iterrows():
+        profile = str(row["perfil_eleitor"])
+        cluster = str(row["cluster_strategy_label"])
+        persona = str(row["persona_executiva"])
+        label = f"{cluster} · {persona}"
+        rows.append({"ids": f"persona::{profile}::{cluster}::{persona}", "labels": label, "parents": f"perfil::{profile}", "values": row["votos"], "custom": [profile, cluster, persona, row["cluster_strategy_reason"]]})
+    chart = pd.DataFrame(rows)
+    fig = go.Figure(go.Sunburst(ids=chart["ids"], labels=chart["labels"], parents=chart["parents"], values=chart["values"], customdata=chart["custom"], branchvalues="total", maxdepth=3, insidetextorientation="radial", hovertemplate="%{label}<br>%{value:,.0f} votos<extra></extra>"))
+    fig.update_layout(height=520, margin={"l": 8, "r": 8, "t": 18, "b": 8}, paper_bgcolor="rgba(0,0,0,0)", font={"color": "#eaf2ff"})
+    return fig
+
+
+def _render_cluster_sunburst(clusters_df: pd.DataFrame | None) -> None:
+    grouped, total_votes = _cluster_sunburst_frame(clusters_df)
+    if grouped.empty:
+        visualization_placeholder("Composição do voto indisponível")
+        return
+    chart_col, detail_col = st.columns([1.6, 1], gap="large")
+    with chart_col:
+        st.markdown("<div class='raiox-chart-card-title'>Sunburst de composição do voto</div>", unsafe_allow_html=True)
+        event = st.plotly_chart(_cluster_sunburst(grouped, total_votes), use_container_width=True, key="dna_cluster_sunburst", on_select="rerun", selection_mode="points")
+    selected = _sunburst_selection(event)
+    with detail_col:
+        st.markdown("<div class='raiox-chart-card-title'>Detalhe do cluster selecionado</div>", unsafe_allow_html=True)
+        if selected.get("persona_executiva"):
+            st.markdown(f"**{html.escape(selected['cluster_strategy_label'])} · {html.escape(selected['persona_executiva'])}**", unsafe_allow_html=True)
+            st.caption(f"Perfil: {selected['perfil_eleitor']}")
+            st.info(selected.get("cluster_strategy_reason") or "Justificativa não informada.")
+        else:
+            st.caption("Selecione uma fatia do anel externo para ver a justificativa estratégica do cluster.")
+
+
+def _heatmap_selection(event: object | None) -> dict[str, str]:
+    if not event:
+        return {}
+    selection = getattr(event, "selection", {}) if hasattr(event, "selection") else event.get("selection", {}) if isinstance(event, dict) else {}
+    points = selection.get("points", []) if isinstance(selection, dict) else getattr(selection, "points", [])
+    if not points:
+        return {}
+    point = points[0]
+    customdata = point.get("customdata") if isinstance(point, dict) else getattr(point, "customdata", None)
+    if not customdata:
+        return {}
+    values = list(customdata) if not isinstance(customdata, str) else [customdata]
+    return {
+        "cluster": str(values[0] or ""),
+        "dimension": str(values[1] or ""),
+        "value": str(values[2] or ""),
+        "label": str(values[3] or ""),
+        "reason": str(values[4] or ""),
+    }
+
+
+def _heatmap_frame(df: pd.DataFrame | None, source: str) -> pd.DataFrame:
+    if df is None or df.empty:
+        return pd.DataFrame()
+    working = df.copy()
+    aliases = {
+        "perfil_eleitor": ("perfil_eleitor", "perfil", "perfil_eleitoral", "persona_executiva"),
+        "pct_votos": ("pct_votos", "percentual_votos", "pct_votacao"),
+        "votos_candidato": ("votos_candidato", "votos", "total_votos"),
+        "cluster_strategy_label": ("cluster_strategy_label", "cluster_label", "cluster"),
+        "cluster_strategy_reason": ("cluster_strategy_reason", "cluster_reason", "justificativa"),
+    }
+    for target, candidates in aliases.items():
+        if target not in working.columns:
+            column = next((candidate for candidate in candidates if candidate in working.columns), None)
+            working[target] = working[column] if column else ""
+
+    demographic_columns = [
+        ("Gênero dominante", "genero_principal"),
+        ("Faixa etária dominante", "idade_principal"),
+        ("Escolaridade dominante", "escolaridade_principal"),
+        ("Estado civil dominante", "estado_civil_principal"),
+    ]
+    available = [(label, column) for label, column in demographic_columns if column in working.columns]
+    if not available:
+        return pd.DataFrame()
+    working["perfil_eleitor"] = working["perfil_eleitor"].fillna("Nao informado").astype(str).str.strip().replace("", "Nao informado")
+    working["cluster_strategy_label"] = working["cluster_strategy_label"].fillna("Nao informado").astype(str).str.strip().replace("", "Nao informado")
+    working["cluster_strategy_reason"] = working["cluster_strategy_reason"].fillna("Justificativa não informada.").astype(str).str.strip()
+    working["votos_candidato"] = pd.to_numeric(working["votos_candidato"], errors="coerce").fillna(0)
+    pct = pd.to_numeric(working["pct_votos"], errors="coerce")
+    if pct.isna().all():
+        total = working["votos_candidato"].sum()
+        working["pct_votos"] = working["votos_candidato"] / total * 100 if total else 0
+    else:
+        working["pct_votos"] = pct.fillna(0)
+        if working["pct_votos"].max() <= 1:
+            working["pct_votos"] = working["pct_votos"] * 100
+
+    rows: list[dict[str, object]] = []
+    for label, column in available:
+        values = working[column].fillna("Nao informado").astype(str).str.strip().replace("", "Nao informado")
+        for index, value in values.items():
+            rows.append({
+                "cluster": working.at[index, "perfil_eleitor"],
+                "dimension": label,
+                "value": value,
+                "pct_votos": float(working.at[index, "pct_votos"]),
+                "strategy_label": working.at[index, "cluster_strategy_label"],
+                "reason": working.at[index, "cluster_strategy_reason"],
+                "source": source,
+            })
+    result = pd.DataFrame(rows)
+    if result.empty:
+        return result
+    return (
+        result.groupby(["cluster", "dimension", "value", "strategy_label", "reason", "source"], as_index=False)["pct_votos"]
+        .sum()
+    )
+
+
+def _heatmap_chart(df: pd.DataFrame) -> go.Figure:
+    clusters = list(dict.fromkeys(df["cluster"].tolist()))
+    dimensions = list(dict.fromkeys(df["dimension"].tolist()))
+    pivot = df.pivot_table(index="dimension", columns="cluster", values="pct_votos", aggfunc="sum", fill_value=0).reindex(index=dimensions, columns=clusters, fill_value=0)
+    custom = []
+    for dimension in dimensions:
+        row = []
+        for cluster in clusters:
+            match = df[(df["dimension"] == dimension) & (df["cluster"] == cluster)]
+            if match.empty:
+                row.append([cluster, dimension, 0, "", ""])
+            else:
+                item = match.sort_values("pct_votos", ascending=False).iloc[0]
+                row.append([cluster, dimension, item["value"], item["strategy_label"], item["reason"]])
+        custom.append(row)
+    fig = go.Figure(go.Heatmap(
+        z=pivot.values,
+        x=clusters,
+        y=dimensions,
+        customdata=custom,
+        colorscale=[[0, "#0B1F4D"], [0.5, "#2563EB"], [1, "#EAF2FF"]],
+        colorbar={"title": "% votos"},
+        hovertemplate="Cluster: %{x}<br>%{y}: %{customdata[2]}<br>%{z:.1f}% dos votos<extra></extra>",
+    ))
+    fig.update_layout(height=430, margin={"l": 12, "r": 12, "t": 18, "b": 70}, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font={"color": "#eaf2ff"}, xaxis={"tickangle": -35})
+    return fig
+
+
+def _render_cluster_heatmap(icp_general: pd.DataFrame | None, icp_clusters: pd.DataFrame | None) -> None:
+    selector_col, _ = st.columns([0.32, 0.68])
+    with selector_col:
+        source = st.selectbox("Base do heatmap", ["ICP geral", "ICP clusters"], key="dna_heatmap_source")
+    selected_df = icp_general if source == "ICP geral" else icp_clusters
+    heatmap_df = _heatmap_frame(selected_df, source)
+    if heatmap_df.empty:
+        visualization_placeholder("Heatmap demográfico indisponível")
+        return
+    chart_col, detail_col = st.columns([1.65, 1], gap="large")
+    with chart_col:
+        st.markdown("<div class='raiox-chart-card-title'>Mapa de calor / matriz de afinidade dos clusters</div>", unsafe_allow_html=True)
+        event = st.plotly_chart(_heatmap_chart(heatmap_df), use_container_width=True, key="dna_cluster_heatmap", on_select="rerun", selection_mode="points")
+    selected = _heatmap_selection(event)
+    with detail_col:
+        st.markdown("<div class='raiox-chart-card-title'>Recomendação tática</div>", unsafe_allow_html=True)
+        if selected.get("cluster"):
+            st.markdown(f"**{html.escape(selected['cluster'])}**")
+            st.caption(f"{selected['dimension']}: {selected['value']} · {selected['label']}")
+            st.info(selected.get("reason") or "Recomendação não informada.")
+        else:
+            st.caption("Clique em uma célula para ver o rótulo e a recomendação tática.")
+
+
 apply_shared_visual_model()
 render_page_header("dna")
 
@@ -245,6 +473,10 @@ DNA_SECTIONS = [
 for index, (section_title, section_subtitle) in enumerate(DNA_SECTIONS):
     major_section_header(section_title, section_subtitle)
     if index == 0:
-        _render_icp_geral_card(_read_selected_parquet("icp_geral"))
+        icp_general_df = _read_selected_parquet("icp_geral")
+        icp_clusters_df = _read_selected_parquet("icp_clusters")
+        _render_icp_geral_card(icp_general_df)
+        _render_cluster_sunburst(icp_clusters_df)
+        _render_cluster_heatmap(icp_general_df, icp_clusters_df)
     else:
         visualization_placeholder()
