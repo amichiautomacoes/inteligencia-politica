@@ -13,6 +13,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from hf_sync import data_files, file_by_kind, hf_filesystem, load_env, load_parquet, selected_deputado_files
+from pages.shared_header import render_page_header
 
 try:
     import streamlit_shadcn_ui as ui
@@ -95,6 +96,7 @@ def _apply_visual_model() -> None:
         .raiox-hero-title {{
             position: relative;
             z-index: 1;
+            max-width: calc(100% - 25rem);
             color: #f8fbff;
             font-size: 3.2rem;
             font-weight: 850;
@@ -106,6 +108,7 @@ def _apply_visual_model() -> None:
             position: relative;
             z-index: 1;
             margin-top: 1.1rem;
+            max-width: calc(100% - 25rem);
             color: rgba(203, 213, 225, 0.82);
             font-size: 1.04rem;
             font-weight: 600;
@@ -141,6 +144,59 @@ def _apply_visual_model() -> None:
             text-transform: uppercase;
             text-shadow: 0 0 16px rgba(147, 197, 253, 0.28);
         }}
+        .raiox-page-switch {{
+            position: absolute;
+            z-index: 2;
+            top: 2.05rem;
+            right: 2.35rem;
+            display: inline-grid;
+            grid-template-columns: repeat(2, minmax(8.9rem, 1fr));
+            gap: 0.25rem;
+            padding: 0.28rem;
+            border: 1px solid rgba(147, 197, 253, 0.32);
+            border-radius: 999px;
+            background: rgba(4, 18, 43, 0.72);
+            box-shadow: inset 0 1px 0 rgba(219, 234, 254, 0.10), 0 12px 30px rgba(1, 8, 24, 0.30);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+        }}
+        .raiox-page-switch a {{
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 2.35rem;
+            padding: 0 0.9rem;
+            border-radius: 999px;
+            color: #b7c7e6;
+            font-size: 0.83rem;
+            font-weight: 850;
+            text-decoration: none;
+            text-transform: uppercase;
+            letter-spacing: 0;
+            white-space: nowrap;
+        }}
+        .raiox-page-switch a.active {{
+            color: #f8fbff;
+            background: linear-gradient(145deg, rgba(96, 165, 250, 0.42), rgba(37, 99, 235, 0.30));
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.20), 0 8px 18px rgba(37, 99, 235, 0.24);
+        }}
+        .raiox-page-switch a:not(.active):hover {{
+            color: #f8fbff;
+            background: rgba(96, 165, 250, 0.16);
+        }}
+        @media (max-width: 900px) {{
+            .raiox-page-switch {{
+                position: relative;
+                inset: auto;
+                margin-bottom: 1.1rem;
+                width: 100%;
+                grid-template-columns: 1fr 1fr;
+            }}
+            .raiox-hero-title,
+            .raiox-hero-subtitle {{
+                max-width: 100%;
+            }}
+        }}
         @media (max-width: 760px) {{
             .raiox-hero {{
                 padding: 1.45rem 1.1rem 1.4rem 1.1rem;
@@ -158,6 +214,10 @@ def _apply_visual_model() -> None:
             }}
             .raiox-candidate-line {{
                 font-size: 1.05rem;
+            }}
+            .raiox-page-switch {{
+                grid-template-columns: 1fr;
+                border-radius: 18px;
             }}
         }}
         .mapa-major-section,
@@ -868,29 +928,7 @@ def _candidate_photo_data_url() -> str:
 
 
 def _render_page_header() -> None:
-    deputado = _selected_deputado_label()
-    photo_url = _candidate_photo_data_url()
-    photo_html = (
-        f'<img class="raiox-candidate-photo" src="{photo_url}" alt="Foto do candidato">'
-        if photo_url
-        else '<div class="raiox-candidate-photo"></div>'
-    )
-    st.markdown(
-        f"""
-        <section class="raiox-hero">
-            <div class="raiox-hero-title">RAIO X da votação {html.escape(deputado["ano"])}</div>
-            <div class="raiox-hero-subtitle">Análises descritivas geográficas e do perfil do eleitor na última eleição.</div>
-            <div class="raiox-candidate-row">
-                {photo_html}
-                <div class="raiox-candidate-info">
-                    <div class="raiox-candidate-line">NOME: {html.escape(deputado["nome"])}</div>
-                    <div class="raiox-candidate-line">CARGO: {html.escape(deputado["cargo"])}</div>
-                </div>
-            </div>
-        </section>
-        """,
-        unsafe_allow_html=True,
-    )
+    render_page_header("raio_x")
 
 
 def _read_selected_parquet(kind: str) -> pd.DataFrame | None:

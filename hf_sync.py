@@ -213,6 +213,7 @@ def file_by_kind(files: list[str], kind: str) -> str | None:
         "gastos_territoriais": "gastos/gastos_territoriais.parquet",
         "despesas_campanha": "gastos/despesas_campanha.parquet",
         "emendas_legislativa": "gastos/emendas_legislativa.parquet",
+        "icp_geral": "perfil/stage04_icp_geral_geo.parquet",
     }
     if kind in kind_aliases:
         return next(

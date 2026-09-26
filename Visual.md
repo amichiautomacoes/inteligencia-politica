@@ -4,7 +4,12 @@ Este documento descreve o projeto pelo vies visual, narrativo e de experiencia. 
 
 ## Objetivo Visual
 
-O app **Raio X do voto** deve parecer um painel politico-territorial premium: escuro, analitico, geografico e confiavel. A experiencia precisa conduzir o usuario por uma narrativa clara:
+O app deve parecer um painel politico-territorial premium: escuro, analitico, geografico e confiavel. A experiencia tem duas frentes principais:
+
+- **Raio X Eleitoral**: leitura descritiva do desempenho do candidato.
+- **DNA Eleitoral**: leitura estrategica do eleitor determinante, segmentos e oportunidades.
+
+Na pagina **Raio X Eleitoral**, a narrativa precisa conduzir o usuario por:
 
 - quem e o candidato;
 - onde estao os votos;
@@ -12,6 +17,14 @@ O app **Raio X do voto** deve parecer um painel politico-territorial premium: es
 - quem compoe o perfil demografico dos territorios;
 - quanto custou conquistar votos em cada area;
 - onde houve retorno parlamentar por meio de emendas.
+
+Na pagina **DNA Eleitoral**, a narrativa deve conduzir o usuario por:
+
+- quem e o eleitor-chave da candidatura;
+- quais atributos definem a base eleitoral;
+- onde ha frentes de conversao, consolidacao e expansao;
+- onde o eleitor do candidato esta sobre ou sub-representado;
+- quais bairros, areas ponderadas e clusters indicam oportunidade para 2030.
 
 O resultado visual desejado e uma central de inteligencia eleitoral, nao uma pagina decorativa. O design deve ajudar a interpretar o territorio.
 
@@ -59,6 +72,7 @@ Esse modelo vale para:
 - curva acumulada;
 - matriz de custo;
 - mapa de emendas.
+- secoes e cards da pagina DNA Eleitoral.
 
 ### Tipografia
 
@@ -84,14 +98,27 @@ Composicao:
 
 - bloco horizontal amplo;
 - imagem de fundo escurecida;
-- titulo **RAIO X da votacao 2022**;
+- titulo conforme pagina ativa;
 - subtitulo curto;
 - foto do candidato;
 - nome, cargo e partido em destaque.
+- controle segmentado para alternar entre **Raio X Eleitoral** e **DNA Eleitoral**.
 
 Direcao:
 
 O hero deve parecer uma capa de analise politica. Foto e dados do candidato precisam ser reconhecidos sem competir com os graficos abaixo.
+
+Comportamento por pagina:
+
+- **Raio X Eleitoral**
+  - titulo: **RAIO X da votacao 2022**;
+  - subtitulo: **Analises descritivas geograficas e do perfil do eleitor na ultima eleicao.**
+
+- **DNA Eleitoral**
+  - titulo: **DNA do Eleitor**;
+  - subtitulo: **Quem e, onde esta e como se comporta o eleitor determinante da candidatura.**
+
+O controle segmentado deve parecer parte do hero, nao um elemento solto. Ele deve ocupar o espaco vazio superior direito do cabecalho e indicar claramente a pagina ativa.
 
 ### 2. Mapa Territorial da Votacao
 
@@ -234,6 +261,76 @@ Cuidados visuais:
 - municipios com muitos votos e muitas emendas devem saltar aos olhos;
 - municipios com votos altos e poucas emendas tambem precisam continuar interpretaveis.
 
+## Pagina 2: DNA Eleitoral
+
+Funcao visual:
+
+Transformar a leitura descritiva da pagina 1 em leitura estrategica do eleitor. A pagina deve responder quem sustenta a candidatura hoje, onde esse eleitor esta, como ele se comporta e quais territorios podem orientar acao ate 2030.
+
+Direcao geral:
+
+- manter o mesmo sistema visual premium da pagina 1;
+- usar os mesmos blocos de titulo/subtitulo para secoes;
+- reservar cards para visualizacoes densas e comparativas;
+- evitar linguagem decorativa ou excessivamente publicitaria;
+- priorizar leitura de segmentos, potenciais e oportunidades territoriais.
+
+### 1. Identidade da Base Eleitoral
+
+Funcao visual:
+
+Definir quem e o eleitor-chave e quais atributos mais caracterizam a base do candidato.
+
+Subtitulo:
+
+**Quem e o eleitor-chave e quais atributos definem o perfil do seu eleitor.**
+
+Direcao:
+
+Essa secao deve parecer uma leitura de identidade: clara, sintetica e hierarquica. As visualizacoes futuras devem destacar atributos dominantes, perfis mais fortes e possiveis combinacoes relevantes de genero, idade, escolaridade, estado civil e territorio.
+
+### 2. Segmentacao & Acao Tatica
+
+Funcao visual:
+
+Identificar frentes de conversao, consolidacao e expansao do eleitorado.
+
+Subtitulo:
+
+**Identificacao de frentes de conversao, consolidacao e expansao do eleitorado.**
+
+Direcao:
+
+Essa secao deve ter aparencia mais operacional. As visualizacoes devem ajudar a separar onde a candidatura defende base consolidada, onde pode converter eleitores semelhantes e onde pode expandir para segmentos ainda pouco explorados.
+
+### 3. Matriz de Potencial Demografico
+
+Funcao visual:
+
+Comparar o perfil do eleitor do candidato com a populacao local para identificar sobre-representacao, sub-representacao e oportunidades.
+
+Subtitulo:
+
+**Comparativo entre o perfil do eleitor do candidato e a populacao local. Identificacao de sobre-representacao e frentes de expansao.**
+
+Direcao:
+
+Essa secao deve ser comparativa. A visualizacao precisa deixar claro quando um grupo aparece acima do esperado na base do candidato e quando ha espaco de crescimento frente ao peso demografico local.
+
+### 4. Expansao & Oportunidades para 2030
+
+Funcao visual:
+
+Mapear bairros, areas ponderadas e clusters taticos com potencial de crescimento eleitoral.
+
+Subtitulo:
+
+**Mapeamento em nivel de bairro e area ponderada. Localizacao dos clusters taticos e visualizacao de manchas de potencial de crescimento.**
+
+Direcao:
+
+Essa e a secao mais prospectiva. O mapa volta a ser protagonista, mas com foco em oportunidade futura. As manchas de potencial devem comunicar prioridade territorial sem confundir potencial demografico com voto ja conquistado.
+
 ## Estados Interativos
 
 ### Recorte territorial ativo
@@ -258,6 +355,7 @@ Filtros que mudam a interpretacao principal deveriam ter tratamento visual mais 
 
 Possiveis evolucoes:
 
+- segmented control para alternar entre Raio X Eleitoral e DNA Eleitoral no hero;
 - segmented control para Mesorregiao/Municipio;
 - chips ou tabs para perfil demografico;
 - controles compactos para nivel territorial da matriz de custo.
@@ -271,6 +369,8 @@ Pontos que exigem atencao:
 - treemap e demografia devem empilhar no mobile;
 - matriz scatter precisa manter eixos legiveis;
 - mapa com bolhas precisa preservar espaco para legendas.
+- controle segmentado do hero deve quebrar bem no mobile sem competir com titulo e foto.
+- secoes da pagina DNA Eleitoral devem manter cards empilhados com altura suficiente para visualizacoes futuras.
 
 ## Estados Sem Dados
 
@@ -325,9 +425,13 @@ Mapas com multiplas camadas, especialmente votos + emendas, precisam de legendas
 | Curva acumulada | Linha/area com marcadores | Quanta votacao se concentra nos top municipios? |
 | Matriz de custo do voto | Ranking/Pareto por tipo de despesa | Quais despesas mais pesaram no custo por voto? |
 | Mapa de atuacao parlamentar | Coropletico + bolhas de emendas | Onde votos e emendas se cruzam? |
+| Identidade da Base Eleitoral | Secao estruturada com card reservado | Quem e o eleitor-chave da candidatura? |
+| Segmentacao & Acao Tatica | Secao estruturada com card reservado | Quais frentes exigem conversao, consolidacao e expansao? |
+| Matriz de Potencial Demografico | Secao estruturada com card reservado | Onde o eleitor do candidato esta sobre ou sub-representado? |
+| Expansao & Oportunidades 2030 | Secao estruturada com card reservado | Onde estao os clusters e manchas de crescimento? |
 
 ## Briefing Curto
 
-Construir uma experiencia de inteligencia eleitoral escura, sofisticada e objetiva. O usuario deve percorrer uma narrativa completa: identidade do candidato, distribuicao dos votos, concentracao territorial, perfil demografico, eficiencia financeira e retorno parlamentar.
+Construir uma experiencia de inteligencia eleitoral escura, sofisticada e objetiva. O usuario deve percorrer uma narrativa completa: identidade do candidato, distribuicao dos votos, concentracao territorial, perfil demografico, eficiencia financeira, retorno parlamentar e leitura estrategica do eleitor determinante.
 
 O visual deve ser denso o suficiente para analise, mas limpo o bastante para leitura rapida. Cada grafico precisa responder uma pergunta politica clara.

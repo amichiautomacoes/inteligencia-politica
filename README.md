@@ -1,17 +1,30 @@
 # Visualizacao Eleitoral
 
-Aplicacao Streamlit para leitura territorial, demografica, financeira e parlamentar da votacao de candidatos.
+Aplicacao Streamlit para leitura territorial, demografica, financeira, parlamentar e demografica-estrategica da votacao de candidatos.
 
-O app consome arquivos remotos do Hugging Face, configurados pelo `.env`, e apresenta a pagina principal **Raio X do voto**.
+O app consome arquivos remotos do Hugging Face, configurados pelo `.env`, e apresenta duas paginas:
+
+- **Raio X do voto**: leitura descritiva territorial, financeira e parlamentar.
+- **DNA Eleitor**: estrutura inicial para leitura do eleitor determinante e oportunidades demograficas.
 
 ## Estrutura do projeto
 
 - `app.py`: ponto de entrada Streamlit, configuracao de pagina e navegacao.
 - `pages/raio_x_do_voto.py`: pagina principal da visualizacao.
-- `pages/pagina_2.py`: pagina auxiliar ainda sem fluxo consolidado.
+- `pages/dna_eleitor.py`: pagina do DNA Eleitor, com secoes estruturadas para as visualizacoes da segunda experiencia.
+- `pages/shared_header.py`: componente compartilhado de cabecalho, fundo, foto do candidato, seletor entre paginas e helpers visuais comuns.
 - `hf_sync.py`: leitura de `.env`, listagem remota no Hugging Face, cache e mapeamento dos parquets por tipo.
 - `assets/background.png`: imagem de fundo usada no modelo visual.
 - `Visual.md`: briefing visual do produto, separado da documentacao tecnica.
+
+## Navegacao
+
+A navegacao e configurada em `app.py` por `st.navigation`, com duas rotas:
+
+- `/raio-x-eleitoral`: pagina **Raio X do voto**;
+- `/dna-eleitoral`: pagina **DNA Eleitor**.
+
+O cabecalho possui um controle segmentado estilizado com as opcoes **Raio X Eleitoral** e **DNA Eleitoral**. A selecao navega entre as rotas mantendo o mesmo deputado selecionado na barra lateral.
 
 ## Fonte de dados
 
@@ -67,8 +80,10 @@ Esses arquivos alimentam o grafico de perfil demografico, recortado por mesorreg
 Apresenta o contexto geral da analise:
 
 - titulo da visualizacao: `RAIO X da votacao 2022`;
+- subtitulo: `Analises descritivas geograficas e do perfil do eleitor na ultima eleicao.`;
 - foto do candidato, quando encontrada entre os arquivos remotos;
 - nome, cargo e partido do candidato analisado.
+- controle segmentado para alternar entre **Raio X Eleitoral** e **DNA Eleitoral**.
 
 ### 2. Mapa Territorial da Votacao
 
@@ -139,6 +154,42 @@ Esta secao traz:
 
 O valor principal de emendas vem de `valor_pago_atualizado`, com fallback para `valor_empenhado_ano` e `valor_indicado`.
 
+## Pagina 2: DNA Eleitor
+
+### 1. Cabecalho do candidato
+
+Usa o mesmo componente visual da pagina 1, com alteracao apenas do titulo e subtitulo:
+
+- titulo da visualizacao: `DNA do Eleitor`;
+- subtitulo: `Quem e, onde esta e como se comporta o eleitor determinante da candidatura.`;
+- foto, nome e cargo do deputado selecionado;
+- controle segmentado para alternar entre **Raio X Eleitoral** e **DNA Eleitoral**.
+
+### 2. Secoes estruturadas
+
+A pagina ja possui as secoes base montadas em `pages/dna_eleitor.py`, ainda com cards reservados para as visualizacoes:
+
+- **Identidade da Base Eleitoral**
+  - subtitulo: `Quem e o eleitor-chave e quais atributos definem o perfil do seu eleitor.`
+
+- **Segmentacao & Acao Tatica**
+  - subtitulo: `Identificacao de frentes de conversao, consolidacao e expansao do eleitorado.`
+
+- **Matriz de Potencial Demografico**
+  - subtitulo: `Comparativo entre o perfil do eleitor do candidato e a populacao local. Identificacao de sobre-representacao e frentes de expansao.`
+
+- **Expansao & Oportunidades para 2030**
+  - subtitulo: `Mapeamento em nivel de bairro e area ponderada. Localizacao dos clusters taticos e visualizacao de manchas de potencial de crescimento.`
+
+### 3. Helpers visuais
+
+A pagina 2 usa:
+
+- `apply_shared_visual_model()`: aplica fundo, variaveis visuais, hero e estilos compartilhados;
+- `render_page_header("dna")`: renderiza o cabecalho com texto da pagina 2;
+- `major_section_header(...)`: renderiza os blocos de titulo/subtitulo no padrao da pagina 1;
+- `visualization_placeholder()`: cria card reservado para cada visualizacao futura.
+
 ## Cache e performance
 
 O projeto usa cache do Streamlit nos pontos de maior custo:
@@ -193,5 +244,5 @@ streamlit run app.py
 ## Verificacao rapida
 
 ```powershell
-python -m py_compile app.py hf_sync.py pages\raio_x_do_voto.py pages\pagina_2.py
+python -m py_compile app.py hf_sync.py pages\raio_x_do_voto.py pages\dna_eleitor.py
 ```

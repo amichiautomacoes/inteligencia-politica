@@ -1,0 +1,538 @@
+from __future__ import annotations
+
+import base64
+import html
+from pathlib import Path
+
+import streamlit as st
+
+from hf_sync import data_files, hf_filesystem, load_env, selected_deputado_files
+
+
+ASSET_DIR = Path(__file__).resolve().parents[1] / "assets"
+BACKGROUND_PATH = ASSET_DIR / "background.png"
+
+
+def _background_data_url() -> str:
+    if not BACKGROUND_PATH.exists():
+        return ""
+    encoded = base64.b64encode(BACKGROUND_PATH.read_bytes()).decode("ascii")
+    return f"data:image/png;base64,{encoded}"
+
+
+def background_css() -> str:
+    background_url = _background_data_url()
+    if not background_url:
+        return ""
+    return f"""
+    [data-testid="stAppViewContainer"] {{
+        background-image: url("{background_url}");
+        background-size: cover;
+        background-position: center;
+        background-attachment: fixed;
+    }}
+    """
+
+
+def apply_shared_visual_model() -> None:
+    background_url = _background_data_url()
+    st.markdown(
+        f"""
+        <style>
+        {background_css()}
+        :root {{
+            --raiox-card-bg: linear-gradient(145deg, rgba(11, 31, 77, 0.76) 0%, rgba(7, 24, 54, 0.68) 100%);
+            --raiox-card-bg-soft: linear-gradient(145deg, rgba(11, 31, 77, 0.58) 0%, rgba(7, 24, 54, 0.48) 100%);
+            --raiox-control-bg: rgba(13, 39, 82, 0.72);
+            --raiox-card-border: rgba(59, 130, 246, 0.24);
+            --raiox-outline-border: rgba(177, 211, 255, 0.34);
+            --raiox-card-shadow: inset 0 1px 0 rgba(191, 219, 254, 0.08), 0 18px 40px rgba(2, 9, 24, 0.30);
+        }}
+        .stApp {{
+            color: #eaf2ff;
+        }}
+        .stApp h1 {{
+            font-size: 2.72rem;
+            font-weight: 800;
+            letter-spacing: 0.01em;
+            color: #eaf2ff;
+            margin-top: 0.1rem;
+            margin-bottom: 0.15rem;
+            line-height: 1.02;
+        }}
+        .raiox-hero {{
+            position: relative;
+            overflow: hidden;
+            min-height: 22rem;
+            margin: 0.15rem 0 1.25rem 0;
+            padding: 2.05rem 2.35rem 2rem 2.35rem;
+            border: 1px solid rgba(147, 197, 253, 0.24);
+            border-radius: 0;
+            background:
+                linear-gradient(90deg, rgba(1, 10, 28, 0.96) 0%, rgba(3, 18, 45, 0.86) 46%, rgba(4, 20, 48, 0.60) 100%),
+                url("{background_url}");
+            background-size: cover;
+            background-position: center;
+            box-shadow: 0 22px 54px rgba(1, 8, 24, 0.58);
+        }}
+        .raiox-hero-title {{
+            position: relative;
+            z-index: 1;
+            max-width: calc(100% - 25rem);
+            color: #f8fbff;
+            font-size: 3.2rem;
+            font-weight: 850;
+            line-height: 1;
+            letter-spacing: 0;
+            text-shadow: 0 0 18px rgba(147, 197, 253, 0.36);
+        }}
+        .raiox-hero-subtitle {{
+            position: relative;
+            z-index: 1;
+            margin-top: 1.1rem;
+            max-width: calc(100% - 25rem);
+            color: rgba(203, 213, 225, 0.82);
+            font-size: 1.04rem;
+            font-weight: 600;
+        }}
+        .raiox-candidate-row {{
+            position: relative;
+            z-index: 1;
+            display: grid;
+            grid-template-columns: 10.5rem minmax(0, 1fr);
+            gap: 1.35rem;
+            align-items: center;
+            margin-top: 1.5rem;
+            max-width: 58rem;
+        }}
+        .raiox-candidate-photo {{
+            width: 10.5rem;
+            aspect-ratio: 1 / 1.35;
+            border-radius: 10px;
+            object-fit: cover;
+            background: rgba(226, 232, 240, 0.92);
+            border: 1px solid rgba(255,255,255,0.42);
+            box-shadow: 0 16px 34px rgba(0,0,0,0.38);
+        }}
+        .raiox-candidate-info {{
+            display: grid;
+            gap: 1.35rem;
+        }}
+        .raiox-candidate-line {{
+            color: #f8fbff;
+            font-size: 1.72rem;
+            font-weight: 850;
+            line-height: 1.1;
+            text-transform: uppercase;
+            text-shadow: 0 0 16px rgba(147, 197, 253, 0.28);
+        }}
+        .raiox-page-switch {{
+            position: absolute;
+            z-index: 2;
+            top: 2.05rem;
+            right: 2.35rem;
+            display: inline-grid;
+            grid-template-columns: repeat(2, minmax(8.9rem, 1fr));
+            gap: 0.25rem;
+            padding: 0.28rem;
+            border: 1px solid rgba(147, 197, 253, 0.32);
+            border-radius: 999px;
+            background: rgba(4, 18, 43, 0.72);
+            box-shadow: inset 0 1px 0 rgba(219, 234, 254, 0.10), 0 12px 30px rgba(1, 8, 24, 0.30);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+        }}
+        .raiox-page-switch a {{
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 2.35rem;
+            padding: 0 0.9rem;
+            border-radius: 999px;
+            color: #b7c7e6;
+            font-size: 0.83rem;
+            font-weight: 850;
+            text-decoration: none;
+            text-transform: uppercase;
+            letter-spacing: 0;
+            white-space: nowrap;
+        }}
+        .raiox-page-switch a.active {{
+            color: #f8fbff;
+            background: linear-gradient(145deg, rgba(96, 165, 250, 0.42), rgba(37, 99, 235, 0.30));
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.20), 0 8px 18px rgba(37, 99, 235, 0.24);
+        }}
+        .raiox-page-switch a:not(.active):hover {{
+            color: #f8fbff;
+            background: rgba(96, 165, 250, 0.16);
+        }}
+        .mapa-major-section,
+        .mapa-section-card {{
+            border: 1px solid var(--raiox-card-border);
+            background: var(--raiox-card-bg);
+            box-shadow: var(--raiox-card-shadow);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+        }}
+        .mapa-major-section {{
+            position: relative;
+            overflow: hidden;
+            padding: 1.28rem 1.35rem 1.16rem 1.52rem;
+            margin: 1.78rem 0 1rem 0;
+            border-radius: 20px;
+            background:
+                radial-gradient(circle at 14% 0%, rgba(96, 165, 250, 0.18) 0%, rgba(96, 165, 250, 0) 34%),
+                linear-gradient(132deg, rgba(13, 36, 78, 0.94) 0%, rgba(9, 22, 43, 0.78) 54%, rgba(8, 20, 40, 0.58) 100%);
+        }}
+        .mapa-major-section::before {{
+            content: "";
+            position: absolute;
+            inset: 0 auto 0 0;
+            width: 9px;
+            background: linear-gradient(180deg, rgba(248, 251, 255, 1) 0%, rgba(96, 165, 250, 0.98) 42%, rgba(37, 99, 235, 0.94) 100%);
+            box-shadow: 0 0 34px rgba(96, 165, 250, 0.52);
+        }}
+        .mapa-major-section-title {{
+            position: relative;
+            z-index: 1;
+            color: #f8fbff;
+            font-size: 2.46rem;
+            font-weight: 900;
+            line-height: 1.02;
+            letter-spacing: 0;
+            text-shadow: 0 0 22px rgba(147, 197, 253, 0.34);
+        }}
+        .mapa-major-section-subtitle {{
+            position: relative;
+            z-index: 1;
+            max-width: 62rem;
+            margin-top: 0.36rem;
+            color: #d1def7;
+            font-size: 0.96rem;
+            line-height: 1.45;
+        }}
+        .mapa-section-card {{
+            padding: 0.86rem 1rem 0.78rem 1rem;
+            margin: 1.35rem 0 0.62rem 0;
+            border-radius: 18px;
+            background: var(--raiox-card-bg-soft);
+        }}
+        .mapa-section-title {{
+            color: #eaf2ff;
+            font-size: 1.54rem;
+            font-weight: 760;
+            line-height: 1.08;
+            letter-spacing: 0;
+        }}
+        .mapa-section-subtitle {{
+            margin-top: 0.17rem;
+            color: #b7c7e6;
+            font-size: 0.91rem;
+        }}
+        .dna-placeholder-card {{
+            min-height: 16rem;
+            margin: 0.75rem 0 1.6rem 0;
+            padding: 1.1rem;
+            border: 1px solid var(--raiox-outline-border);
+            border-radius: 18px;
+            background: rgba(7, 24, 54, 0.26);
+            box-shadow: none;
+        }}
+        .dna-placeholder-label {{
+            color: #b7c7e6;
+            font-size: 0.82rem;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }}
+        .dna-placeholder-text {{
+            margin-top: 0.42rem;
+            color: #f8fbff;
+            font-size: 1.05rem;
+            font-weight: 700;
+        }}
+        .dna-icp-card {{
+            position: relative;
+            overflow: hidden;
+            margin: 0.75rem 0 1.6rem 0;
+            padding: 1.25rem 1.35rem 1.15rem 1.35rem;
+            border: 1px solid var(--raiox-outline-border);
+            border-radius: 18px;
+            background:
+                radial-gradient(circle at 8% 0%, rgba(96, 165, 250, 0.18) 0%, rgba(96, 165, 250, 0) 32%),
+                linear-gradient(145deg, rgba(11, 31, 77, 0.78) 0%, rgba(7, 24, 54, 0.64) 100%);
+            box-shadow: var(--raiox-card-shadow);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+        }}
+        .dna-icp-header {{
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 1rem;
+        }}
+        .dna-icp-title {{
+            color: #f8fbff;
+            font-size: 1.5rem;
+            font-weight: 900;
+            line-height: 1.05;
+            text-transform: uppercase;
+            text-shadow: 0 0 16px rgba(147, 197, 253, 0.25);
+        }}
+        .dna-icp-badges {{
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            gap: 0.45rem;
+        }}
+        .dna-icp-badge {{
+            display: inline-flex;
+            align-items: center;
+            min-height: 2rem;
+            padding: 0 0.72rem;
+            border: 1px solid rgba(147, 197, 253, 0.34);
+            border-radius: 999px;
+            background: rgba(4, 18, 43, 0.56);
+            color: #dbeafe;
+            font-size: 0.78rem;
+            font-weight: 850;
+            white-space: nowrap;
+        }}
+        .dna-icp-badge.strong {{
+            color: #f8fbff;
+            border-color: rgba(96, 165, 250, 0.58);
+            background: rgba(37, 99, 235, 0.24);
+        }}
+        .dna-icp-summary {{
+            margin-top: 0.92rem;
+            padding: 0.95rem 1rem;
+            border: 1px solid rgba(177, 211, 255, 0.22);
+            border-radius: 14px;
+            background: rgba(4, 18, 43, 0.30);
+            color: #eaf2ff;
+            font-size: 1.03rem;
+            font-weight: 650;
+            line-height: 1.45;
+        }}
+        .dna-icp-kpi-grid {{
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 0.72rem;
+            margin-top: 0.95rem;
+        }}
+        .dna-icp-kpi {{
+            min-height: 7.4rem;
+            padding: 0.86rem 0.9rem;
+            border: 1px solid rgba(177, 211, 255, 0.26);
+            border-radius: 14px;
+            background: rgba(4, 18, 43, 0.24);
+        }}
+        .dna-icp-kpi-label {{
+            color: #b7c7e6;
+            font-size: 0.76rem;
+            font-weight: 850;
+            letter-spacing: 0.07em;
+            text-transform: uppercase;
+        }}
+        .dna-icp-kpi-value {{
+            margin-top: 0.5rem;
+            color: #f8fbff;
+            font-size: 1.22rem;
+            font-weight: 900;
+            line-height: 1.12;
+            overflow-wrap: anywhere;
+        }}
+        .dna-icp-kpi-pct {{
+            margin-top: 0.34rem;
+            color: #93c5fd;
+            font-size: 0.98rem;
+            font-weight: 800;
+        }}
+        @media (max-width: 900px) {{
+            .raiox-page-switch {{
+                position: relative;
+                inset: auto;
+                margin-bottom: 1.1rem;
+                width: 100%;
+                grid-template-columns: 1fr 1fr;
+            }}
+            .raiox-hero-title,
+            .raiox-hero-subtitle {{
+                max-width: 100%;
+            }}
+            .dna-icp-kpi-grid {{
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }}
+        }}
+        @media (max-width: 760px) {{
+            .raiox-hero {{
+                padding: 1.45rem 1.1rem 1.4rem 1.1rem;
+                min-height: auto;
+            }}
+            .raiox-hero-title {{
+                font-size: 2.15rem;
+            }}
+            .raiox-candidate-row {{
+                grid-template-columns: 7.5rem minmax(0, 1fr);
+                gap: 0.95rem;
+            }}
+            .raiox-candidate-photo {{
+                width: 7.5rem;
+            }}
+            .raiox-candidate-line {{
+                font-size: 1.05rem;
+            }}
+            .raiox-page-switch {{
+                grid-template-columns: 1fr;
+                border-radius: 18px;
+            }}
+            .mapa-major-section-title {{
+                font-size: 1.55rem;
+            }}
+            .dna-icp-header {{
+                display: grid;
+            }}
+            .dna-icp-badges {{
+                justify-content: flex-start;
+            }}
+            .dna-icp-kpi-grid {{
+                grid-template-columns: 1fr;
+            }}
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _current_files() -> list[str]:
+    files = st.session_state.get("deputados_files", [])
+    if files:
+        return files
+    try:
+        files = data_files()
+        st.session_state["deputados_files"] = files
+        return files
+    except Exception as exc:
+        st.error(f"Nao consegui ler a pasta `deputados` no HF: {exc}")
+        return []
+
+
+def selected_files() -> list[str]:
+    files = _current_files()
+    filters = st.session_state.get("deputados_filters", {})
+    selected = selected_deputado_files(files, filters)
+    return selected or files
+
+
+def selected_deputado_label() -> dict[str, str]:
+    filters = st.session_state.get("deputados_filters", {})
+    cargo = str(filters.get("cargo") or "Deputado").replace("_", " ").title()
+    cargo_labels = {
+        "Estaduais": "Deputado Estadual",
+        "Federais": "Deputado Federal",
+    }
+    return {
+        "nome": str(filters.get("nome") or "Todos").upper(),
+        "cargo": cargo_labels.get(cargo, cargo).upper(),
+        "ano": str(filters.get("ano") or "2022"),
+    }
+
+
+@st.cache_data(show_spinner=False)
+def _remote_image_data_url(file_name: str, token: str | None = None) -> str:
+    suffix = Path(file_name).suffix.lower()
+    mime = "image/png" if suffix == ".png" else "image/jpeg"
+    fs = hf_filesystem(token)
+    with fs.open(file_name, "rb") as source:
+        encoded = base64.b64encode(source.read()).decode("ascii")
+    return f"data:{mime};base64,{encoded}"
+
+
+def candidate_photo_data_url() -> str:
+    image_file = next(
+        (
+            file_name
+            for file_name in selected_files()
+            if Path(file_name).suffix.lower() in {".jpg", ".jpeg", ".png"}
+        ),
+        "",
+    )
+    if not image_file:
+        return ""
+    try:
+        return _remote_image_data_url(image_file, load_env().get("HF_TOKEN"))
+    except Exception:
+        return ""
+
+
+def _page_switch(active_page: str) -> str:
+    raio_active = "active" if active_page == "raio_x" else ""
+    dna_active = "active" if active_page == "dna" else ""
+    return f"""
+    <nav class="raiox-page-switch" aria-label="Alternar pagina">
+        <a class="{raio_active}" href="/raio-x-eleitoral" target="_self">Raio X Eleitoral</a>
+        <a class="{dna_active}" href="/dna-eleitoral" target="_self">DNA Eleitoral</a>
+    </nav>
+    """
+
+
+def render_page_header(active_page: str) -> None:
+    deputado = selected_deputado_label()
+    page_titles = {
+        "raio_x": f"RAIO X da votação {deputado['ano']}",
+        "dna": "DNA do Eleitor",
+    }
+    page_subtitles = {
+        "raio_x": "Análises descritivas geográficas e do perfil do eleitor na última eleição.",
+        "dna": "Quem é, onde está e como se comporta o eleitor determinante da candidatura.",
+    }
+    title = page_titles.get(active_page, page_titles["raio_x"])
+    subtitle = page_subtitles.get(active_page, page_subtitles["raio_x"])
+    photo_url = candidate_photo_data_url()
+    photo_html = (
+        f'<img class="raiox-candidate-photo" src="{photo_url}" alt="Foto do candidato">'
+        if photo_url
+        else '<div class="raiox-candidate-photo"></div>'
+    )
+    st.markdown(
+        f"""
+        <section class="raiox-hero">
+            {_page_switch(active_page)}
+            <div class="raiox-hero-title">{html.escape(title)}</div>
+            <div class="raiox-hero-subtitle">{html.escape(subtitle)}</div>
+            <div class="raiox-candidate-row">
+                {photo_html}
+                <div class="raiox-candidate-info">
+                    <div class="raiox-candidate-line">NOME: {html.escape(deputado["nome"])}</div>
+                    <div class="raiox-candidate-line">CARGO: {html.escape(deputado["cargo"])}</div>
+                </div>
+            </div>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def major_section_header(title: str, subtitle: str) -> None:
+    st.markdown(
+        f"""
+        <div class="mapa-major-section">
+            <div class="mapa-major-section-title">{html.escape(title)}</div>
+            <div class="mapa-major-section-subtitle">{html.escape(subtitle)}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def visualization_placeholder(label: str = "Área reservada para visualização") -> None:
+    st.markdown(
+        f"""
+        <div class="dna-placeholder-card">
+            <div class="dna-placeholder-label">{html.escape(label)}</div>
+            <div class="dna-placeholder-text">As visualizações desta seção serão inseridas aqui.</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )

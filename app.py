@@ -23,7 +23,13 @@ pages = [
     st.Page(
         "pages/raio_x_do_voto.py",
         title="Raio X do voto",
+        url_path="raio-x-eleitoral",
         default=True,
+    ),
+    st.Page(
+        "pages/dna_eleitor.py",
+        title="DNA Eleitor",
+        url_path="dna-eleitoral",
     ),
 ]
 
