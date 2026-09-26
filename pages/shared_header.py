@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import html
 from pathlib import Path
+from textwrap import dedent
 
 import streamlit as st
 
@@ -37,7 +38,7 @@ def background_css() -> str:
 def apply_shared_visual_model() -> None:
     background_url = _background_data_url()
     st.markdown(
-        f"""
+        dedent(f"""
         <style>
         {background_css()}
         :root {{
@@ -400,7 +401,7 @@ def apply_shared_visual_model() -> None:
             }}
         }}
         </style>
-        """,
+        """),
         unsafe_allow_html=True,
     )
 
@@ -469,12 +470,12 @@ def candidate_photo_data_url() -> str:
 def _page_switch(active_page: str) -> str:
     raio_active = "active" if active_page == "raio_x" else ""
     dna_active = "active" if active_page == "dna" else ""
-    return f"""
+    return dedent(f"""
     <nav class="raiox-page-switch" aria-label="Alternar pagina">
-        <a class="{raio_active}" href="/raio-x-eleitoral" target="_self">Raio X Eleitoral</a>
-        <a class="{dna_active}" href="/dna-eleitoral" target="_self">DNA Eleitoral</a>
+        <a class="{raio_active}" href="./raio-x-eleitoral" target="_self">Raio X Eleitoral</a>
+        <a class="{dna_active}" href="./dna-eleitoral" target="_self">DNA Eleitoral</a>
     </nav>
-    """
+    """)
 
 
 def render_page_header(active_page: str) -> None:
@@ -496,7 +497,7 @@ def render_page_header(active_page: str) -> None:
         else '<div class="raiox-candidate-photo"></div>'
     )
     st.markdown(
-        f"""
+        dedent(f"""
         <section class="raiox-hero">
             {_page_switch(active_page)}
             <div class="raiox-hero-title">{html.escape(title)}</div>
@@ -509,30 +510,30 @@ def render_page_header(active_page: str) -> None:
                 </div>
             </div>
         </section>
-        """,
+        """),
         unsafe_allow_html=True,
     )
 
 
 def major_section_header(title: str, subtitle: str) -> None:
     st.markdown(
-        f"""
+        dedent(f"""
         <div class="mapa-major-section">
             <div class="mapa-major-section-title">{html.escape(title)}</div>
             <div class="mapa-major-section-subtitle">{html.escape(subtitle)}</div>
         </div>
-        """,
+        """),
         unsafe_allow_html=True,
     )
 
 
 def visualization_placeholder(label: str = "Área reservada para visualização") -> None:
     st.markdown(
-        f"""
+        dedent(f"""
         <div class="dna-placeholder-card">
             <div class="dna-placeholder-label">{html.escape(label)}</div>
             <div class="dna-placeholder-text">As visualizações desta seção serão inseridas aqui.</div>
         </div>
-        """,
+        """),
         unsafe_allow_html=True,
     )

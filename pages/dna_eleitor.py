@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import html
+from textwrap import dedent
 
 import pandas as pd
 import streamlit as st
@@ -190,17 +191,17 @@ def _render_icp_geral_card(icp_df: pd.DataFrame | None) -> None:
         pct = _format_percent_value(_first_value(icp_df, pct_col, ""))
         pct_html = "" if pct == "Nao informado" else f'<div class="dna-icp-kpi-pct">{html.escape(pct)}</div>'
         kpi_html.append(
-            f"""
+            dedent(f"""
             <div class="dna-icp-kpi">
                 <div class="dna-icp-kpi-label">{html.escape(label)}</div>
                 <div class="dna-icp-kpi-value">{html.escape(value)}</div>
                 {pct_html}
             </div>
-            """
+            """)
         )
 
     st.markdown(
-        f"""
+        dedent(f"""
         <div class="dna-icp-card">
             <div class="dna-icp-header">
                 <div class="dna-icp-title">👤 {html.escape(persona)}</div>
@@ -214,7 +215,7 @@ def _render_icp_geral_card(icp_df: pd.DataFrame | None) -> None:
                 {''.join(kpi_html)}
             </div>
         </div>
-        """,
+        """),
         unsafe_allow_html=True,
     )
 
