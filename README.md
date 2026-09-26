@@ -5,7 +5,7 @@ Aplicacao Streamlit para leitura territorial, demografica, financeira, parlament
 O app consome arquivos remotos do Hugging Face, configurados pelo `.env`, e apresenta duas paginas:
 
 - **Raio X do voto**: leitura descritiva territorial, financeira e parlamentar.
-- **DNA Eleitor**: estrutura inicial para leitura do eleitor determinante e oportunidades demograficas.
+- **DNA Eleitor**: leitura estrategica do eleitor determinante, com ICP geral da base e secoes de segmentacao, potencial e expansao.
 
 ## Estrutura do projeto
 
@@ -59,6 +59,14 @@ O app localiza as pastas dos candidatos a partir do prefixo geral da eleicao, li
 - `demografico/stage02_estado_civil.parquet`
 
 Esses arquivos alimentam o grafico de perfil demografico, recortado por mesorregiao e pela selecao ativa do treemap.
+
+### Perfil estrategico
+
+- `perfil/stage04_icp_geral_geo.parquet`
+  - alias `icp_geral` em `hf_sync.py`;
+  - alimenta o card **ICP Geral** da secao **Identidade da Base Eleitoral**;
+  - contem persona, resumo, confianca do modelo e atributos demograficos principais por territorio;
+  - usa `votos_candidato` como peso na consolidacao do perfil geral.
 
 ### Gastos e atuacao parlamentar
 
@@ -165,23 +173,47 @@ Usa o mesmo componente visual da pagina 1, com alteracao apenas do titulo e subt
 - foto, nome e cargo do deputado selecionado;
 - controle segmentado para alternar entre **Raio X Eleitoral** e **DNA Eleitoral**.
 
-### 2. Secoes estruturadas
+### 2. Identidade da Base Eleitoral
 
-A pagina ja possui as secoes base montadas em `pages/dna_eleitor.py`, ainda com cards reservados para as visualizacoes:
+A primeira secao apresenta o card horizontal **ICP Geral**, carregado de `perfil/stage04_icp_geral_geo.parquet`.
 
-- **Identidade da Base Eleitoral**
+Campos exibidos:
+
+- titulo da persona: `persona_executiva`;
+- confianca do modelo: `confianca_persona`;
+- resumo da persona: `perfil_resumo`;
+- genero principal: `genero_principal`;
+- faixa etaria principal: `idade_principal`;
+- escolaridade principal: `escolaridade_principal`;
+- estado civil principal: `estado_civil_principal`.
+
+Para formar o ICP geral, o processamento:
+
+1. prioriza as linhas com `nivel_territorial = municipio`;
+2. consolida registros por `cd_municipio`;
+3. soma `votos_candidato` por municipio;
+4. identifica persona e categorias dominantes pela soma ponderada dos votos municipais;
+5. calcula a confianca geral por media ponderada de `confianca_persona`, usando os votos como peso.
+
+O card exibe a persona dominante, dois badges de confianca, o resumo analitico e quatro KPIs demograficos.
+
+### 3. Demais secoes estruturadas
+
+A pagina possui quatro secoes em `pages/dna_eleitor.py`. A estrutura e o status atual de cada uma sao:
+
+- **Identidade da Base Eleitoral**: implementada com o card ICP Geral.
   - subtitulo: `Quem e o eleitor-chave e quais atributos definem o perfil do seu eleitor.`
 
-- **Segmentacao & Acao Tatica**
+- **Segmentacao & Acao Tatica**: card reservado para visualizacao futura.
   - subtitulo: `Identificacao de frentes de conversao, consolidacao e expansao do eleitorado.`
 
-- **Matriz de Potencial Demografico**
+- **Matriz de Potencial Demografico**: card reservado para visualizacao futura.
   - subtitulo: `Comparativo entre o perfil do eleitor do candidato e a populacao local. Identificacao de sobre-representacao e frentes de expansao.`
 
-- **Expansao & Oportunidades para 2030**
+- **Expansao & Oportunidades para 2030**: card reservado para visualizacao futura.
   - subtitulo: `Mapeamento em nivel de bairro e area ponderada. Localizacao dos clusters taticos e visualizacao de manchas de potencial de crescimento.`
 
-### 3. Helpers visuais
+### 4. Helpers visuais e renderizacao
 
 A pagina 2 usa:
 
@@ -189,6 +221,8 @@ A pagina 2 usa:
 - `render_page_header("dna")`: renderiza o cabecalho com texto da pagina 2;
 - `major_section_header(...)`: renderiza os blocos de titulo/subtitulo no padrao da pagina 1;
 - `visualization_placeholder()`: cria card reservado para cada visualizacao futura.
+
+Os componentes HTML compartilhados e o card ICP sao renderizados com `st.html`. Essa escolha evita que estruturas HTML aninhadas sejam interpretadas como blocos de codigo pelo parser Markdown.
 
 ## Cache e performance
 
@@ -244,5 +278,5 @@ streamlit run app.py
 ## Verificacao rapida
 
 ```powershell
-python -m py_compile app.py hf_sync.py pages\raio_x_do_voto.py pages\dna_eleitor.py
+python -m py_compile app.py hf_sync.py pages\shared_header.py pages\raio_x_do_voto.py pages\dna_eleitor.py
 ```

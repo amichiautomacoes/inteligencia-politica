@@ -287,7 +287,25 @@ Subtitulo:
 
 Direcao:
 
-Essa secao deve parecer uma leitura de identidade: clara, sintetica e hierarquica. As visualizacoes futuras devem destacar atributos dominantes, perfis mais fortes e possiveis combinacoes relevantes de genero, idade, escolaridade, estado civil e territorio.
+Essa secao deve parecer uma leitura de identidade: clara, sintetica e hierarquica. O primeiro elemento e um card horizontal de **ICP Geral**, que sintetiza a persona dominante da candidatura.
+
+Composicao do card ICP:
+
+- cabecalho com o nome da persona executiva em caixa alta;
+- badge numerico de confianca do modelo;
+- badge qualitativo do nivel de confianca;
+- resumo analitico em uma faixa de leitura ampla;
+- quatro KPIs alinhados: genero, faixa etaria, escolaridade e estado civil;
+- percentual em azul claro como informacao secundaria de cada KPI.
+
+Direcao visual do card:
+
+- manter o formato horizontal em telas amplas;
+- usar fundo azul profundo translucido, borda clara e sombra sutil;
+- separar o resumo dos KPIs sem criar cards aninhados visualmente pesados;
+- usar os marcadores verde, azul, roxo e amarelo apenas para diferenciar os quatro atributos;
+- preservar destaque maior para a persona e para os valores, deixando labels e percentuais em hierarquia secundaria;
+- empilhar os KPIs em duas colunas em telas medias e uma coluna no mobile.
 
 ### 2. Segmentacao & Acao Tatica
 
@@ -425,7 +443,7 @@ Mapas com multiplas camadas, especialmente votos + emendas, precisam de legendas
 | Curva acumulada | Linha/area com marcadores | Quanta votacao se concentra nos top municipios? |
 | Matriz de custo do voto | Ranking/Pareto por tipo de despesa | Quais despesas mais pesaram no custo por voto? |
 | Mapa de atuacao parlamentar | Coropletico + bolhas de emendas | Onde votos e emendas se cruzam? |
-| Identidade da Base Eleitoral | Secao estruturada com card reservado | Quem e o eleitor-chave da candidatura? |
+| Identidade da Base Eleitoral | Card horizontal de ICP Geral com persona, confianca, resumo e quatro KPIs | Quem e o eleitor-chave da candidatura? |
 | Segmentacao & Acao Tatica | Secao estruturada com card reservado | Quais frentes exigem conversao, consolidacao e expansao? |
 | Matriz de Potencial Demografico | Secao estruturada com card reservado | Onde o eleitor do candidato esta sobre ou sub-representado? |
 | Expansao & Oportunidades 2030 | Secao estruturada com card reservado | Onde estao os clusters e manchas de crescimento? |
