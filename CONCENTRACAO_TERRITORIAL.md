@@ -1,22 +1,24 @@
-# Concentração Territorial
+# Concentracao Territorial
 
-Este documento explica como funciona a seção **Concentração Territorial** da Página 1 (`Raio X do voto`), incluindo origem dos dados, regras de cálculo e visualização.
+Este documento explica como funciona a secao **Concentracao Territorial** da Pagina 1 (`Raio X do voto`), incluindo origem dos dados, calculos e visualizacao atual.
 
 ## Objetivo
 
-A seção mede quanto da votação total do candidato está concentrada nos municípios onde ele recebeu mais votos.
+A secao mede quanto da votacao total do candidato esta concentrada nos municipios onde ele recebeu mais votos.
 
-Em termos práticos, ela responde perguntas como:
+Ela responde perguntas como:
 
-- qual percentual dos votos está no município mais forte;
-- quanto os 5, 10 ou 20 principais municípios concentram;
-- quantos municípios são necessários para acumular determinada parcela da votação total.
+- qual percentual dos votos esta no municipio principal;
+- quanto os Top 5, Top 10 e Top 20 municipios acumulam;
+- quantos votos absolutos estao acumulados em cada faixa;
+- como a curva de acumulacao evolui nos municipios mais fortes;
+- se a votacao e concentrada em poucos redutos ou mais distribuida.
 
-## Posição na página
+## Posicao na pagina
 
-Atualmente, a seção é renderizada como a última seção da Página 1, abaixo de:
+A secao e renderizada como a ultima secao da Pagina 1, abaixo de:
 
-**Votação por Bairro de cada município e Perfil demográfico**
+**Votacao por Bairro de cada municipio e Perfil demografico**
 
 A chamada fica no final de `pages/raio_x_do_voto.py`:
 
@@ -26,91 +28,73 @@ _render_accumulated_concentration_section(votos_municipio_df)
 
 ## Dados de entrada
 
-A seção usa o dataframe `votos_municipio_df`, carregado por:
+A secao usa o dataframe `votos_municipio_df`, carregado por:
 
 ```python
 votos_municipio_df = _read_selected_parquet("votos_municipio")
 ```
 
-Esse tipo é resolvido em `hf_sync.py` para o parquet:
+Esse tipo e resolvido em `hf_sync.py` para o parquet:
 
 ```text
 territorio/stage01a_municipios.parquet
 ```
 
-As colunas obrigatórias para a seção funcionar são:
+As colunas obrigatorias sao:
 
-- `nm_municipio`: nome do município;
-- `qt_votos`: quantidade de votos do candidato no município.
+- `nm_municipio`: nome do municipio;
+- `qt_votos`: quantidade de votos do candidato no municipio.
 
-A coluna `qt_secoes_com_voto` é opcional. Se existir, ela é agregada junto, mas não é usada diretamente na visualização atual.
+A coluna `qt_secoes_com_voto` e opcional. Se existir, ela e agregada junto, mas nao aparece diretamente na visualizacao atual.
 
-## Preparação dos dados
+## Preparacao dos dados
 
-A preparação acontece na função:
+A preparacao acontece em:
 
 ```python
 _municipal_concentration_frame(df)
 ```
 
-O processo é:
+Fluxo:
 
-1. Verifica se o dataframe existe, se não está vazio e se contém `nm_municipio` e `qt_votos`.
-2. Se existir a coluna `nivel_territorial`, mantém apenas linhas com valor `municipio`, quando esse recorte estiver disponível.
-3. Normaliza o nome do município:
+1. Valida se o dataframe existe, se nao esta vazio e se contem `nm_municipio` e `qt_votos`.
+2. Se existir a coluna `nivel_territorial`, prioriza linhas com valor `municipio`.
+3. Normaliza `nm_municipio`, removendo nulos e espacos extras.
+4. Converte `qt_votos` para numero e troca valores invalidos por zero.
+5. Remove municipios sem nome e municipios com zero voto.
+6. Agrupa por municipio, somando votos.
+7. Ordena do municipio mais votado para o menos votado.
+8. Calcula o total de votos validos.
 
-```python
-result["nm_municipio"] = result["nm_municipio"].fillna("").astype(str).str.strip()
-```
+Se nao houver dados validos, a secao mostra um aviso e nao renderiza os cards/grafico.
 
-4. Converte `qt_votos` para número e troca valores inválidos por zero.
-5. Remove municípios sem nome e municípios com zero voto.
-6. Agrupa por município, somando os votos:
+## Calculos
 
-```python
-result.groupby("nm_municipio", as_index=False).agg({"qt_votos": "sum"})
-```
+Depois da agregacao municipal, sao criadas quatro colunas principais.
 
-7. Ordena os municípios do maior para o menor número de votos.
-8. Calcula o total de votos municipais válidos.
-
-Se não houver votos válidos após esse tratamento, a seção mostra um aviso de dados indisponíveis.
-
-## Cálculos
-
-Depois da agregação municipal, a função cria quatro colunas principais.
-
-### 1. Ranking do município
+### Ranking
 
 ```python
 rank_municipio = 1, 2, 3, ...
 ```
 
-O município com mais votos recebe rank `1`, o segundo recebe rank `2`, e assim por diante.
+O municipio com mais votos recebe `1`, o segundo recebe `2`, e assim por diante.
 
-### 2. Percentual individual de votos
+### Percentual individual
 
 ```python
 pct_votos = qt_votos / votos_total
 ```
 
-Esse percentual representa a participação individual de cada município na votação total do candidato.
+Representa a participacao individual de cada municipio na votacao total.
 
-Exemplo:
-
-```text
-Município A = 1.000 votos
-Total = 10.000 votos
-pct_votos = 1.000 / 10.000 = 0,10 = 10%
-```
-
-### 3. Votos acumulados
+### Votos acumulados
 
 ```python
 votos_acumulados = qt_votos.cumsum()
 ```
 
-Essa coluna soma os votos em ordem decrescente de força eleitoral.
+Soma os votos seguindo a ordem do ranking.
 
 Exemplo:
 
@@ -120,63 +104,107 @@ Rank 2:   700 votos -> acumulado 1.700
 Rank 3:   300 votos -> acumulado 2.000
 ```
 
-### 4. Percentual acumulado
+### Percentual acumulado
 
 ```python
 pct_acumulado = votos_acumulados / votos_total
 ```
 
-Esse é o principal indicador da seção.
-
-Ele mostra qual parcela da votação total está concentrada nos `N` municípios mais votados.
+Este e o indicador central da secao.
 
 Exemplo:
 
 ```text
-Top 10 municípios = 7.950 votos acumulados
+Top 10 municipios = 7.950 votos acumulados
 Total = 10.000 votos
 pct_acumulado = 7.950 / 10.000 = 79,5%
 ```
 
-## Cards de resumo
+## Layout atual
 
-A seção mostra quatro cards:
+A secao foi reorganizada em duas colunas.
 
-- `Top 1`
-- `Top 5`
-- `Top 10`
-- `Top 20`
+### Coluna esquerda: resumo politico e metricas
 
-Cada card usa a função interna `pct_at(rank)`.
+A coluna esquerda contem:
 
-A lógica é:
+- texto descritivo em destaque;
+- mencao ao municipio principal;
+- leitura do acumulado dos Top 10 municipios;
+- grid 2x2 com os cards:
+  - Top 1;
+  - Top 5;
+  - Top 10;
+  - Top 20.
+
+Cada card mostra:
+
+- percentual acumulado;
+- municipio de referencia;
+- total de votos acumulados.
+
+No `Top 1`, o municipio exibido e o principal municipio do candidato.
+
+Nos demais cards, o texto mostra o municipio que fecha aquela faixa. Por exemplo, no `Top 10`, o municipio exibido e o decimo municipio do ranking, ou o ultimo disponivel se houver menos de 10 municipios.
+
+### Coluna direita: grafico de concentracao
+
+A coluna direita contem:
+
+- toggle para expandir a visualizacao;
+- legenda de foco quando o grafico esta limitado aos Top 50;
+- grafico de curva acumulada.
+
+O grafico tem altura reduzida para ficar mais proporcional dentro da coluna direita.
+
+## Regra de Pareto / zoom inteligente
+
+Por padrao, o grafico mostra apenas os **Top 50 municipios**.
+
+Motivo:
+
+- em bases grandes, como 526 municipios, a curva geralmente se aproxima de 100% cedo;
+- depois do Top 50 ou Top 100, a linha tende a ficar quase plana;
+- limitar a visualizacao inicial ajuda a enxergar a dinamica real de concentracao.
+
+A funcao do grafico recebe o parametro:
 
 ```python
-idx = min(rank, len(concentration_df)) - 1
-return concentration_df.iloc[idx]["pct_acumulado"]
+_accumulated_concentration_chart(concentration_df, max_rank=max_rank)
 ```
 
-Isso significa:
+Quando `max_rank` e informado, o grafico filtra:
 
-- se houver pelo menos 20 municípios, `Top 20` mostra o percentual acumulado até o vigésimo município;
-- se houver menos municípios do que o rank solicitado, usa o último município disponível;
-- por isso, em uma base com apenas 12 municípios, `Top 20` equivale ao acumulado de todos os 12.
+```python
+chart_df = chart_df[chart_df["rank_municipio"].le(max_rank)]
+```
 
-O texto principal da seção usa especificamente o `Top 10`:
+Na interface:
+
+- toggle desligado: mostra Top 50;
+- toggle ligado: mostra todos os municipios.
+
+O toggle usado e:
+
+```python
+st.toggle("Mostrar todos os municipios")
+```
+
+Quando o modo Top 50 esta ativo e existem mais de 50 municipios, a pagina mostra uma legenda:
 
 ```text
-Os 10 principais municípios concentram X% da votação total.
+Visualizacao focada nos Top 50 de N municipios.
 ```
 
-## Gráfico de curva acumulada
+Importante: o zoom afeta apenas o grafico. Os calculos dos cards continuam usando a base completa.
 
-O gráfico é gerado por:
+## Grafico de curva acumulada
+
+O grafico e gerado por:
 
 ```python
-_accumulated_concentration_chart(concentration_df)
+_accumulated_concentration_chart(concentration_df, max_rank=None)
 ```
-
-Ele é um gráfico de linha com área preenchida.
 
 ### Eixo X
 
@@ -184,13 +212,7 @@ Ele é um gráfico de linha com área preenchida.
 x = rank_municipio
 ```
 
-Representa a quantidade de municípios acumulados.
-
-Exemplo:
-
-- `1` = apenas o município mais votado;
-- `5` = soma dos 5 municípios mais votados;
-- `10` = soma dos 10 municípios mais votados.
+Representa a quantidade de municipios acumulados.
 
 ### Eixo Y
 
@@ -198,34 +220,47 @@ Exemplo:
 y = pct_acumulado * 100
 ```
 
-Representa o percentual acumulado da votação total, em escala de 0 a 100%.
+Representa o percentual acumulado da votacao total, de 0% a 100%.
 
-### Linha e preenchimento
+## Estilo do grafico
 
-A linha mostra a velocidade de acumulação dos votos:
+O grafico usa Plotly com:
 
-- subida muito rápida no início indica alta concentração territorial;
-- subida mais gradual indica votação mais distribuída;
-- quando a linha chega perto de 100%, significa que quase toda a votação foi acumulada.
+- linha principal azul clara;
+- area preenchida em azul com baixa opacidade;
+- fundo transparente para combinar com o layout escuro;
+- pontos de referencia maiores, brancos, com borda azul;
+- rotulos dos pontos em branco/brilhante;
+- hover escuro com borda azul clara.
 
-### Hover
+### Linhas de referencia
 
-Ao passar o mouse, o gráfico mostra:
+Foram adicionadas linhas horizontais sutis em:
 
-- Top N municípios;
-- votos acumulados até aquele ponto;
-- percentual acumulado da votação total;
-- município localizado naquela posição do ranking.
+- 25%;
+- 50%;
+- 75%;
+- 90%.
 
-## Pontos de referência no gráfico
+Essas linhas sao adicionadas via `shapes` no layout do Plotly.
 
-A função:
+Tambem existem pequenas anotacoes no canto direito do grafico com os textos:
+
+```text
+25%, 50%, 75%, 90%
+```
+
+Isso facilita a leitura da curva sem depender apenas do eixo Y.
+
+## Pontos de referencia
+
+A funcao:
 
 ```python
 _concentration_reference_rows(concentration_df)
 ```
 
-marca pontos específicos na curva:
+marca os seguintes pontos, quando disponiveis:
 
 - Top 1;
 - Top 5;
@@ -234,19 +269,31 @@ marca pontos específicos na curva:
 - Top 50;
 - Todos.
 
-Um ponto só aparece se existir quantidade suficiente de municípios.
+Se a base visivel tiver menos municipios do que algum ponto, esse ponto nao aparece.
 
-Por exemplo, se houver apenas 18 municípios, o ponto `Top 20` não é criado. Nesse caso, o ponto final será `Todos`.
+Exemplo:
 
-## Formatação dos números
+- no modo Top 50, os pontos podem ir ate Top 50;
+- no modo completo, tambem pode aparecer o ponto Todos, quando diferente dos pontos padrao.
 
-Percentuais são formatados por:
+## Hover
+
+Ao passar o mouse sobre a curva, o grafico mostra:
+
+- Top N municipios;
+- votos acumulados ate aquele ponto;
+- percentual acumulado da votacao total;
+- municipio localizado naquela posicao do ranking.
+
+## Formatacao
+
+Percentuais sao formatados por:
 
 ```python
 _format_percent(value)
 ```
 
-Ela recebe valores em escala decimal e exibe em percentual.
+Ela recebe valores em escala decimal.
 
 Exemplo:
 
@@ -254,7 +301,7 @@ Exemplo:
 0.795 -> 79,5%
 ```
 
-Números absolutos são formatados por:
+Numeros absolutos sao formatados por:
 
 ```python
 _format_number(value)
@@ -266,39 +313,38 @@ Exemplo:
 49781 -> 49.781
 ```
 
-## Interpretação política
+## Interpretacao politica
 
-A leitura da seção é:
+Leitura sugerida:
 
-- `Top 1` alto: o candidato depende fortemente de um município principal;
-- `Top 5` ou `Top 10` alto: votação concentrada em poucos redutos;
-- curva muito inclinada no início: baixa dispersão territorial;
-- curva mais suave: votação mais espalhada;
-- necessidade de muitos municípios para chegar a 80% ou 90%: base territorial mais capilarizada.
+- `Top 1` alto: dependencia forte de um municipio principal;
+- `Top 5` alto: existencia de poucos redutos dominantes;
+- `Top 10` alto: base muito concentrada nos principais municipios;
+- curva muito inclinada no inicio: alta concentracao territorial;
+- curva mais suave: votacao mais distribuida;
+- necessidade de muitos municipios para chegar a 80% ou 90%: base mais espalhada territorialmente.
 
-Importante: a seção não usa o termo "capilaridade territorial" na interface. Ela mede concentração territorial por votos acumulados.
+A interface nao usa o termo "capilaridade territorial". A metrica exibida mede concentracao territorial por votos acumulados.
 
-## Fallbacks e erros tratados
+## Fallbacks
 
-Se os dados municipais não estiverem disponíveis, a seção mostra:
+Se os dados municipais nao estiverem disponiveis, a secao mostra:
 
 ```text
 Nao encontrei dados municipais validos para calcular a concentracao territorial.
 ```
 
-Se o dataframe de concentração estiver vazio no gráfico, é exibida uma figura vazia com a mensagem:
+Se o dataframe do grafico estiver vazio, a figura exibe:
 
 ```text
 Dados municipais indisponiveis.
 ```
 
-## Funções envolvidas
-
-As funções da seção são:
+## Funcoes envolvidas
 
 - `_municipal_concentration_frame`: prepara ranking, votos e percentuais acumulados;
-- `_concentration_reference_rows`: escolhe os pontos de referência da curva;
-- `_accumulated_concentration_chart`: monta o gráfico acumulado;
-- `_render_accumulated_concentration_section`: renderiza título, cards, resumo textual e gráfico;
+- `_concentration_reference_rows`: escolhe os pontos de referencia da curva;
+- `_accumulated_concentration_chart`: monta o grafico acumulado e aplica zoom Top 50/todos;
+- `_render_accumulated_concentration_section`: renderiza layout em duas colunas, cards, texto, toggle e grafico;
 - `_format_percent`: formata percentuais;
-- `_format_number`: formata números absolutos.
+- `_format_number`: formata numeros absolutos.

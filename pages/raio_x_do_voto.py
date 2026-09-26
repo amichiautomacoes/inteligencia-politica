@@ -14,6 +14,11 @@ import streamlit as st
 
 from hf_sync import data_files, file_by_kind, hf_filesystem, load_env, load_parquet, selected_deputado_files
 
+try:
+    import streamlit_shadcn_ui as ui
+except Exception:
+    ui = None
+
 
 ASSET_DIR = Path(__file__).resolve().parents[1] / "assets"
 BACKGROUND_PATH = ASSET_DIR / "background.png"
@@ -368,22 +373,29 @@ def _apply_visual_model() -> None:
         }}
         .raiox-concentration-summary {{
             color: #f8fbff;
-            font-size: 1.12rem;
-            font-weight: 760;
-            line-height: 1.35;
-            margin: 0.2rem 0 0.9rem 0;
+            font-size: 1.28rem;
+            font-weight: 820;
+            line-height: 1.25;
+            margin: 0.1rem 0 0.45rem 0;
+        }}
+        .raiox-concentration-context {{
+            color: #b7c7e6;
+            font-size: 0.92rem;
+            line-height: 1.45;
+            margin: 0 0 1rem 0;
         }}
         .raiox-concentration-grid {{
             display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
+            grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 0.7rem;
-            margin: 0.2rem 0 1rem 0;
+            margin: 0.2rem 0 0 0;
         }}
         .raiox-concentration-pill {{
             border: 1px solid rgba(184, 208, 255, 0.22);
             border-radius: 12px;
-            background: rgba(255,255,255,0.07);
-            padding: 0.62rem 0.72rem;
+            background: linear-gradient(145deg, rgba(15, 37, 70, 0.70) 0%, rgba(7, 18, 36, 0.64) 100%);
+            padding: 0.78rem 0.82rem;
+            min-height: 7.3rem;
         }}
         .raiox-concentration-pill-label {{
             color: #b7c7e6;
@@ -397,6 +409,19 @@ def _apply_visual_model() -> None:
             font-size: 1.28rem;
             font-weight: 860;
             margin-top: 0.12rem;
+        }}
+        .raiox-concentration-pill-city {{
+            color: #eaf2ff;
+            font-size: 0.88rem;
+            font-weight: 720;
+            line-height: 1.18;
+            margin-top: 0.32rem;
+        }}
+        .raiox-concentration-pill-caption {{
+            color: #9fb2d4;
+            font-size: 0.76rem;
+            font-weight: 650;
+            margin-top: 0.34rem;
         }}
         .raiox-bar-filter [data-testid="stSelectbox"] {{
             max-width: 16rem;
@@ -893,7 +918,7 @@ def _concentration_reference_rows(concentration_df: pd.DataFrame) -> pd.DataFram
     return rows
 
 
-def _accumulated_concentration_chart(concentration_df: pd.DataFrame) -> go.Figure:
+def _accumulated_concentration_chart(concentration_df: pd.DataFrame, max_rank: int | None = None) -> go.Figure:
     if concentration_df.empty:
         fig = go.Figure()
         fig.add_annotation(
@@ -905,24 +930,30 @@ def _accumulated_concentration_chart(concentration_df: pd.DataFrame) -> go.Figur
             showarrow=False,
             font={"color": "#eaf2ff", "size": 16},
         )
-        fig.update_layout(height=430, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+        fig.update_layout(height=390, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
         return fig
 
-    ref_df = _concentration_reference_rows(concentration_df)
+    chart_df = concentration_df.copy()
+    if max_rank is not None and max_rank > 0:
+        chart_df = chart_df[chart_df["rank_municipio"].le(max_rank)].copy()
+    if chart_df.empty:
+        chart_df = concentration_df.head(1).copy()
+
+    ref_df = _concentration_reference_rows(chart_df)
     fig = go.Figure()
     fig.add_trace(
         go.Scatter(
-            x=concentration_df["rank_municipio"],
-            y=concentration_df["pct_acumulado"] * 100,
+            x=chart_df["rank_municipio"],
+            y=chart_df["pct_acumulado"] * 100,
             mode="lines",
             fill="tozeroy",
-            line={"color": "#60A5FA", "width": 3},
-            fillcolor="rgba(96, 165, 250, 0.20)",
+            line={"color": "#7DD3FC", "width": 3.4},
+            fillcolor="rgba(59, 130, 246, 0.16)",
             customdata=np.stack(
                 [
-                    concentration_df["votos_acumulados"],
-                    concentration_df["pct_acumulado"],
-                    concentration_df["nm_municipio"],
+                    chart_df["votos_acumulados"],
+                    chart_df["pct_acumulado"],
+                    chart_df["nm_municipio"],
                 ],
                 axis=-1,
             ),
@@ -941,10 +972,15 @@ def _accumulated_concentration_chart(concentration_df: pd.DataFrame) -> go.Figur
                 x=ref_df["rank_municipio"],
                 y=ref_df["pct_acumulado"] * 100,
                 mode="markers+text",
-                marker={"size": 10, "color": "#F8FAFC", "line": {"color": "#60A5FA", "width": 2}},
+                marker={
+                    "size": 13,
+                    "color": "#FFFFFF",
+                    "line": {"color": "#38BDF8", "width": 3},
+                    "symbol": "circle",
+                },
                 text=ref_df["referencia"],
                 textposition="top center",
-                textfont={"color": "#eaf2ff", "size": 11},
+                textfont={"color": "#FFFFFF", "size": 12, "family": "Segoe UI, Inter, sans-serif"},
                 hovertemplate=(
                     "<b>%{text}</b><br>"
                     "%{customdata[0]:,.0f} votos acumulados<br>"
@@ -955,13 +991,14 @@ def _accumulated_concentration_chart(concentration_df: pd.DataFrame) -> go.Figur
             )
         )
     fig.update_layout(
-        height=430,
+        height=390,
         margin={"l": 34, "r": 26, "t": 18, "b": 44},
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font={"color": "#eaf2ff", "family": "Segoe UI, Inter, sans-serif"},
         xaxis={
             "title": "Municipios acumulados",
+            "range": [0.5, int(chart_df["rank_municipio"].max())],
             "gridcolor": "rgba(255,255,255,0.08)",
             "zeroline": False,
         },
@@ -972,6 +1009,34 @@ def _accumulated_concentration_chart(concentration_df: pd.DataFrame) -> go.Figur
             "gridcolor": "rgba(255,255,255,0.12)",
             "zeroline": False,
         },
+        shapes=[
+            {
+                "type": "line",
+                "xref": "paper",
+                "x0": 0,
+                "x1": 1,
+                "yref": "y",
+                "y0": level,
+                "y1": level,
+                "line": {"color": "rgba(226, 232, 240, 0.18)", "width": 1, "dash": "dot"},
+            }
+            for level in (25, 50, 75, 90)
+        ],
+        annotations=[
+            {
+                "xref": "paper",
+                "x": 1.0,
+                "xanchor": "right",
+                "yref": "y",
+                "y": level,
+                "text": f"{level}%",
+                "showarrow": False,
+                "font": {"color": "rgba(226, 232, 240, 0.72)", "size": 10},
+                "bgcolor": "rgba(5, 12, 28, 0.62)",
+                "borderpad": 2,
+            }
+            for level in (25, 50, 75, 90)
+        ],
         hoverlabel={
             "bgcolor": "rgba(5,12,28,0.95)",
             "font_color": "#EAF2FF",
@@ -992,40 +1057,62 @@ def _render_accumulated_concentration_section(df: pd.DataFrame | None) -> None:
             st.warning("Nao encontrei dados municipais validos para calcular a concentracao territorial.")
             return
 
-        def pct_at(rank: int) -> float:
-            if concentration_df.empty:
-                return np.nan
+        def row_at(rank: int) -> pd.Series:
             idx = min(rank, len(concentration_df)) - 1
-            return float(concentration_df.iloc[idx]["pct_acumulado"])
+            return concentration_df.iloc[idx]
 
-        top10_pct = pct_at(10)
-        st.markdown(
-            f"""
-            <div class="raiox-concentration-summary">
-                Os 10 principais munic&iacute;pios concentram {_format_percent(top10_pct)} da vota&ccedil;&atilde;o total.
-            </div>
-            <div class="raiox-concentration-grid">
+        def card_html(rank: int) -> str:
+            row = row_at(rank)
+            effective_rank = int(row["rank_municipio"])
+            title = f"Top {rank}" if effective_rank >= rank else "Todos"
+            city = str(row["nm_municipio"]).title()
+            city_line = city if rank == 1 else f"At&eacute; {city}"
+            return f"""
                 <div class="raiox-concentration-pill">
-                    <div class="raiox-concentration-pill-label">Top 1</div>
-                    <div class="raiox-concentration-pill-value">{_format_percent(pct_at(1))}</div>
+                    <div class="raiox-concentration-pill-label">{title}</div>
+                    <div class="raiox-concentration-pill-value">{_format_percent(float(row["pct_acumulado"]))}</div>
+                    <div class="raiox-concentration-pill-city">{html.escape(city_line)}</div>
+                    <div class="raiox-concentration-pill-caption">{_format_number(float(row["votos_acumulados"]))} votos acumulados</div>
                 </div>
-                <div class="raiox-concentration-pill">
-                    <div class="raiox-concentration-pill-label">Top 5</div>
-                    <div class="raiox-concentration-pill-value">{_format_percent(pct_at(5))}</div>
+            """
+
+        top1 = row_at(1)
+        top10 = row_at(10)
+        left_col, right_col = st.columns([0.42, 0.58], gap="large")
+        with left_col:
+            st.markdown(
+                f"""
+                <div class="raiox-concentration-summary">
+                    {html.escape(str(top1["nm_municipio"]).title())} abre a curva com {_format_percent(float(top1["pct_acumulado"]))} da vota&ccedil;&atilde;o.
                 </div>
-                <div class="raiox-concentration-pill">
-                    <div class="raiox-concentration-pill-label">Top 10</div>
-                    <div class="raiox-concentration-pill-value">{_format_percent(top10_pct)}</div>
+                <div class="raiox-concentration-context">
+                    Os 10 principais munic&iacute;pios acumulam {_format_percent(float(top10["pct_acumulado"]))} dos votos.
+                    Quanto mais r&aacute;pida a curva sobe, mais concentrada est&aacute; a base eleitoral do candidato.
                 </div>
-                <div class="raiox-concentration-pill">
-                    <div class="raiox-concentration-pill-label">Top 20</div>
-                    <div class="raiox-concentration-pill-value">{_format_percent(pct_at(20))}</div>
+                <div class="raiox-concentration-grid">
+                    {card_html(1)}
+                    {card_html(5)}
+                    {card_html(10)}
+                    {card_html(20)}
                 </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        st.plotly_chart(_accumulated_concentration_chart(concentration_df), use_container_width=True)
+                """,
+                unsafe_allow_html=True,
+            )
+        with right_col:
+            show_all = st.toggle(
+                "Mostrar todos os municípios",
+                value=False,
+                key="pagina1_concentration_show_all",
+            )
+            max_rank = None if show_all else min(50, len(concentration_df))
+            if not show_all and len(concentration_df) > 50:
+                st.caption(
+                    f"Visualizacao focada nos Top 50 de {_format_number(len(concentration_df))} municipios."
+                )
+            st.plotly_chart(
+                _accumulated_concentration_chart(concentration_df, max_rank=max_rank),
+                use_container_width=True,
+            )
 
 
 def _render_kpis(df: pd.DataFrame | None) -> None:
@@ -1069,6 +1156,51 @@ def _render_kpis(df: pd.DataFrame | None) -> None:
             if not by_meso.empty:
                 mesorregiao_nome = str(by_meso.iloc[0]["nm_mesorregiao"]).title()
                 mesorregiao_votos = _format_number(by_meso.iloc[0]["qt_votos"])
+
+    if ui is not None:
+        kpi_cols = st.columns(3, gap="medium")
+        cards = [
+            {
+                "label": "Total de votos",
+                "value": total_votos,
+                "description": "Votos nominais no recorte municipal.",
+                "delta": "Base 2022",
+                "key": "kpi_total_votos",
+            },
+            {
+                "label": "Município mais votado",
+                "value": reduto_votos,
+                "description": reduto_nome,
+                "delta": "Reduto principal",
+                "key": "kpi_municipio_mais_votado",
+            },
+            {
+                "label": "Municípios com votos",
+                "value": municipios,
+                "description": "Municípios em que ele foi votado.",
+                "delta": "Alcance municipal",
+                "key": "kpi_municipios_com_votos",
+            },
+        ]
+        for column, card in zip(kpi_cols, cards):
+            with column:
+                ui.metric_card(
+                    label=card["label"],
+                    value=card["value"],
+                    description=card["description"],
+                    delta=card["delta"],
+                    variant="dashboard",
+                    key=card["key"],
+                )
+        ui.metric_card(
+            label="Território líder",
+            value=mesorregiao_nome,
+            description=f"{mesorregiao_votos} votos",
+            delta="Maior concentração",
+            variant="dashboard",
+            key="kpi_territorio_lider",
+        )
+        return
 
     st.markdown(
         f"""
