@@ -177,7 +177,7 @@ Direcao:
 
 Essa secao e mais interpretativa do que exploratoria. Ela deve ajudar o usuario a ler concentracao como um comportamento politico.
 
-### 5. Matriz de Eficiencia por Custo do Voto
+### 5. Eficiencia por Custo do Voto
 
 Funcao visual:
 

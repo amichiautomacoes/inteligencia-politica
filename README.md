@@ -112,7 +112,7 @@ Esta secao traz:
 - toggle para mostrar Top 50 ou todos os municipios;
 - curva acumulada mostrando quantos municipios concentram determinada parcela da votacao total.
 
-### 5. Matriz de Eficiencia por Custo do Voto
+### 5. Eficiencia por Custo do Voto
 
 Mostra quanto cada tipo de despesa custou por voto no resultado geral da campanha.
 

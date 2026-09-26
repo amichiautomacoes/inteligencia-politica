@@ -354,7 +354,7 @@ def _apply_visual_model() -> None:
         }}
         .raiox-heatmap-kpi-row {{
             display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+            grid-template-columns: repeat(3, minmax(0, 1fr));
             gap: 0.75rem;
             margin-top: 0.75rem;
         }}
@@ -2062,10 +2062,17 @@ def _expense_cost_by_type_chart(chart_df: pd.DataFrame) -> go.Figure:
         go.Scatter(
             x=display_df["pct_gasto_acumulado"],
             y=display_df["tipo_despesa"],
-            mode="lines+markers",
+            mode="lines+markers+text",
             name="% gasto acumulado",
-            line={"color": "#FACC15", "width": 2},
-            marker={"size": 7, "color": "#FACC15"},
+            line={"color": "#FACC15", "width": 3.2, "shape": "spline", "smoothing": 0.65},
+            marker={
+                "size": 10,
+                "color": "#FACC15",
+                "line": {"color": "rgba(5,12,28,0.92)", "width": 1.4},
+            },
+            text=display_df["pct_gasto_acumulado"].map(lambda value: f"{value:.0%}"),
+            textposition="middle right",
+            textfont={"color": "#FDE68A", "size": 11, "family": "Segoe UI, Inter, sans-serif"},
             customdata=display_df["pct_gasto_acumulado"],
             hovertemplate="Gasto acumulado: %{customdata:.1%}<extra></extra>",
             xaxis="x2",
@@ -2090,7 +2097,8 @@ def _expense_cost_by_type_chart(chart_df: pd.DataFrame) -> go.Figure:
             "side": "top",
             "range": [0, 1],
             "tickformat": ".0%",
-            "showgrid": False,
+            "showgrid": True,
+            "gridcolor": "rgba(250,204,21,0.13)",
             "zeroline": False,
         },
         yaxis={
@@ -2107,6 +2115,16 @@ def _expense_cost_by_type_chart(chart_df: pd.DataFrame) -> go.Figure:
         },
         showlegend=False,
     )
+    fig.add_shape(
+        type="line",
+        xref="x2",
+        yref="paper",
+        x0=0.8,
+        x1=0.8,
+        y0=0,
+        y1=1,
+        line={"color": "rgba(250,204,21,0.52)", "width": 1, "dash": "dot"},
+    )
     return fig
 
 
@@ -2115,18 +2133,11 @@ def _render_cost_efficiency_section(
     despesas_df: pd.DataFrame | None,
 ) -> None:
     _major_section_header(
-        "Matriz de Eficiência por Custo do Voto",
+        "Eficiência por Custo do Voto",
         "Ranking do custo por voto de cada tipo de despesa da campanha.",
     )
     chart_df = _expense_cost_by_type_frame(despesas_df, _campaign_total_votes(votos_df))
-    header_col, filter_col = st.columns([0.58, 0.42], gap="large")
-    with header_col:
-        _section_header(
-            "Eficiência do investimento eleitoral",
-            "Barras mostram quanto cada tipo de despesa custou por voto no resultado geral da campanha.",
-        )
-    with filter_col:
-        _render_cost_efficiency_kpis(chart_df)
+    _render_cost_efficiency_kpis(chart_df)
     with st.container(border=True):
         st.plotly_chart(_expense_cost_by_type_chart(chart_df), use_container_width=True)
 
