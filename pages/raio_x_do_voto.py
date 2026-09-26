@@ -147,13 +147,19 @@ def _apply_visual_model() -> None:
         .mapa-major-section,
         .mapa-section-card,
         .mapa-kpi-card,
+        .mapa-kpi-wide-card,
         .raiox-kpi-card,
         .raiox-demografia-card,
         .raiox-heatmap-card {{
-            border: 1px solid rgba(184, 208, 255, 0.24);
-            box-shadow: 0 18px 40px rgba(2, 9, 24, 0.42);
+            border: 1px solid rgba(59, 130, 246, 0.24);
+            box-shadow: inset 0 1px 0 rgba(191, 219, 254, 0.08), 0 18px 40px rgba(2, 9, 24, 0.34);
             backdrop-filter: blur(6px);
             -webkit-backdrop-filter: blur(6px);
+        }}
+        .stApp [data-testid="stVerticalBlockBorderWrapper"] {{
+            border-color: rgba(59, 130, 246, 0.24) !important;
+            background: linear-gradient(145deg, rgba(11, 31, 77, 0.34) 0%, rgba(7, 24, 54, 0.24) 100%) !important;
+            box-shadow: inset 0 1px 0 rgba(191, 219, 254, 0.07), 0 16px 34px rgba(2, 9, 24, 0.26);
         }}
         .mapa-major-section {{
             position: relative;
@@ -193,7 +199,7 @@ def _apply_visual_model() -> None:
             padding: 0.86rem 1rem 0.78rem 1rem;
             margin: 1.35rem 0 0.62rem 0;
             border-radius: 18px;
-            background: linear-gradient(145deg, rgba(7, 18, 36, 0.70) 0%, rgba(7, 18, 36, 0.52) 100%);
+            background: linear-gradient(145deg, rgba(11, 31, 77, 0.66) 0%, rgba(7, 24, 54, 0.54) 100%);
         }}
         .mapa-section-title {{
             color: #eaf2ff;
@@ -223,7 +229,7 @@ def _apply_visual_model() -> None:
         .mapa-kpi-card,
         .mapa-kpi-wide-card,
         .raiox-kpi-card {{
-            background: linear-gradient(145deg, rgba(10, 23, 45, 0.72) 0%, rgba(10, 23, 45, 0.48) 100%);
+            background: linear-gradient(145deg, rgba(11, 31, 77, 0.76) 0%, rgba(7, 24, 54, 0.68) 100%);
             border-radius: 16px;
             padding: 0.82rem 0.9rem 0.72rem 0.9rem;
             min-height: 7.8rem;
@@ -256,7 +262,7 @@ def _apply_visual_model() -> None:
             min-height: 9.4rem;
             padding: 1.18rem 1.35rem 1.05rem 1.35rem;
             background:
-                linear-gradient(90deg, rgba(3, 14, 36, 0.92) 0%, rgba(5, 24, 55, 0.74) 62%, rgba(6, 20, 46, 0.50) 100%),
+                linear-gradient(90deg, rgba(11, 31, 77, 0.88) 0%, rgba(7, 24, 54, 0.76) 62%, rgba(6, 20, 46, 0.54) 100%),
                 url("data:image/png;base64,{base64.b64encode(BACKGROUND_PATH.read_bytes()).decode("ascii") if BACKGROUND_PATH.exists() else ""}");
             background-size: cover;
             background-position: center;
@@ -266,8 +272,8 @@ def _apply_visual_model() -> None:
             top: 1rem;
             right: 1.2rem;
             color: #eaf2ff;
-            background: rgba(148, 163, 184, 0.20);
-            border: 1px solid rgba(184, 208, 255, 0.24);
+            background: rgba(11, 31, 77, 0.52);
+            border: 1px solid rgba(59, 130, 246, 0.28);
             border-radius: 999px;
             padding: 0.38rem 0.78rem;
             font-size: 0.76rem;
@@ -304,7 +310,7 @@ def _apply_visual_model() -> None:
         }}
         .raiox-demografia-card,
         .raiox-heatmap-card {{
-            background: linear-gradient(145deg, rgba(7, 18, 36, 0.70) 0%, rgba(7, 18, 36, 0.52) 100%);
+            background: linear-gradient(145deg, rgba(11, 31, 77, 0.72) 0%, rgba(7, 24, 54, 0.58) 100%);
             border-radius: 18px;
             padding: 1rem 1.1rem 0.9rem 1.1rem;
             margin: 0.75rem 0 0.65rem 0;
@@ -330,8 +336,8 @@ def _apply_visual_model() -> None:
             margin-top: 0.75rem;
         }}
         .raiox-heatmap-kpi {{
-            background: rgba(255,255,255,0.08);
-            border: 1px solid rgba(255,255,255,0.18);
+            background: rgba(11, 31, 77, 0.48);
+            border: 1px solid rgba(59, 130, 246, 0.22);
             border-radius: 12px;
             padding: 0.72rem 0.8rem;
         }}
@@ -412,11 +418,12 @@ def _apply_visual_model() -> None:
             margin-top: 0.12rem;
         }}
         .raiox-concentration-pill-city {{
-            color: #f8fbff;
-            font-size: 0.88rem;
-            font-weight: 780;
+            color: #ffffff;
+            font-size: 0.9rem;
+            font-weight: 830;
             line-height: 1.18;
             margin-top: 0.32rem;
+            text-shadow: 0 0 12px rgba(147, 197, 253, 0.22);
         }}
         .raiox-concentration-pill-caption {{
             color: #9fb2d4;
