@@ -1980,6 +1980,35 @@ def _campaign_total_votes(votos_df: pd.DataFrame | None) -> float:
     return float(votes.sum())
 
 
+EXPENSE_TYPE_SHORT_LABELS = {
+    "Atividades de militância e mobilização de rua": "Militância & Rua",
+    "Publicidade por materiais impressos": "Materiais Impressos",
+    "Despesa com Impulsionamento de Conteúdos": "MKT Digital",
+    "Publicidade por adesivos": "Adesivos",
+    "Correspondências e despesas postais": "Despesas Postais",
+    "Serviços prestados por terceiros": "Serviços de Terceiros",
+    "Cessão ou locação de veículos": "Veículos",
+    "Locação/cessão de bens móveis (exceto veículos)": "Equipamentos",
+    "Locação/cessão de bens imóveis": "Comitês",
+    "Publicidade por jornais e revistas": "Jornais",
+    "Comícios": "Comícios",
+    "Diversas a especificar": "Outras Despesas",
+    "Despesas com pessoal": "Equipe & Pessoal",
+    "Combustíveis e lubrificantes": "Combustível",
+    "Produção de jingles, vinhetas e slogans": "Jingles",
+    "Encargos financeiros, taxas bancárias e/ou op. cartão de crédito": "Taxas",
+}
+
+
+def _short_expense_type_label(expense_type: str) -> str:
+    label = EXPENSE_TYPE_SHORT_LABELS.get(expense_type)
+    if label:
+        return label
+    if len(expense_type) <= 28:
+        return expense_type
+    return f"{expense_type[:25].rstrip()}..."
+
+
 def _expense_cost_by_type_frame(
     despesas_df: pd.DataFrame | None,
     total_votes: float,
@@ -2012,6 +2041,8 @@ def _expense_cost_by_type_frame(
     result["pct_gasto"] = result["valor_total_despesa"] / total_spend if total_spend > 0 else 0.0
     result["pct_gasto_acumulado"] = result["pct_gasto"].cumsum()
     result["rotulo_custo"] = result["custo_por_voto"].map(_format_currency)
+    result["tipo_despesa_curto"] = result["tipo_despesa"].map(_short_expense_type_label)
+    result["rotulo_acumulado"] = result["pct_gasto_acumulado"].map(lambda value: f"{value:.0%}")
     return result
 
 
@@ -2078,20 +2109,21 @@ def _expense_cost_by_type_chart(chart_df: pd.DataFrame) -> go.Figure:
         return fig
 
     display_df = chart_df.sort_values("valor_total_despesa", ascending=False).copy()
-    customdata = np.stack(
+    customdata = [
         [
-            display_df["valor_total_despesa"],
-            display_df["pct_gasto"],
-            display_df["pct_gasto_acumulado"],
-            display_df["qt_votos"],
-        ],
-        axis=-1,
-    )
+            row["tipo_despesa"],
+            float(row["valor_total_despesa"]),
+            float(row["pct_gasto"]),
+            float(row["pct_gasto_acumulado"]),
+            float(row["qt_votos"]),
+        ]
+        for _, row in display_df.iterrows()
+    ]
     fig = go.Figure()
     fig.add_trace(
         go.Bar(
             x=display_df["custo_por_voto"],
-            y=display_df["tipo_despesa"],
+            y=display_df["tipo_despesa_curto"],
             orientation="h",
             marker={
                 "color": display_df["valor_total_despesa"],
@@ -2109,44 +2141,46 @@ def _expense_cost_by_type_chart(chart_df: pd.DataFrame) -> go.Figure:
                     "outlinewidth": 0,
                 },
             },
-            text=display_df["rotulo_custo"],
-            textposition="outside",
-            textfont={"color": "#f8fbff", "size": 12},
+            text=display_df["rotulo_acumulado"],
+            textposition="inside",
+            insidetextanchor="middle",
+            textfont={"color": "#f8fbff", "size": 12, "family": "Segoe UI, Inter, sans-serif"},
             customdata=customdata,
             cliponaxis=False,
             hovertemplate=(
-                "<b>%{y}</b><br>"
+                "<b>%{customdata[0]}</b><br>"
                 "Custo por voto: R$ %{x:,.2f}<br>"
-                "Total gasto: R$ %{customdata[0]:,.2f}<br>"
-                "Participação no gasto: %{customdata[1]:.1%}<br>"
-                "Participação acumulada: %{customdata[2]:.1%}<br>"
-                "Votos totais: %{customdata[3]:,.0f}<extra></extra>"
+                "Total gasto: R$ %{customdata[1]:,.2f}<br>"
+                "Participação no gasto: %{customdata[2]:.1%}<br>"
+                "Participação acumulada: %{customdata[3]:.1%}<br>"
+                "Votos totais: %{customdata[4]:,.0f}<extra></extra>"
             ),
         )
     )
     fig.add_trace(
         go.Scatter(
-            x=display_df["pct_gasto_acumulado"],
-            y=display_df["tipo_despesa"],
-            mode="lines+markers+text",
-            name="% gasto acumulado",
-            line={"color": "#FACC15", "width": 3.2, "shape": "spline", "smoothing": 0.65},
+            x=display_df["custo_por_voto"],
+            y=display_df["tipo_despesa_curto"],
+            mode="markers",
+            name="% acumulado",
             marker={
-                "size": 10,
-                "color": "#FACC15",
-                "line": {"color": "rgba(5,12,28,0.92)", "width": 1.4},
+                "size": 7,
+                "color": display_df["pct_gasto_acumulado"],
+                "colorscale": [
+                    [0.0, "#FDE68A"],
+                    [0.8, "#FACC15"],
+                    [1.0, "#F97316"],
+                ],
+                "line": {"color": "rgba(5,12,28,0.92)", "width": 1.2},
+                "showscale": False,
             },
-            text=display_df["pct_gasto_acumulado"].map(lambda value: f"{value:.0%}"),
-            textposition="middle right",
-            textfont={"color": "#FDE68A", "size": 11, "family": "Segoe UI, Inter, sans-serif"},
             customdata=display_df["pct_gasto_acumulado"],
             hovertemplate="Gasto acumulado: %{customdata:.1%}<extra></extra>",
-            xaxis="x2",
         )
     )
     fig.update_layout(
         height=max(520, min(920, 170 + len(display_df) * 34)),
-        margin={"l": 240, "r": 58, "t": 36, "b": 70},
+        margin={"l": 168, "r": 58, "t": 36, "b": 70},
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font={"color": "#eaf2ff", "family": "Segoe UI, Inter, sans-serif"},
@@ -2156,16 +2190,6 @@ def _expense_cost_by_type_chart(chart_df: pd.DataFrame) -> go.Figure:
             "gridcolor": "rgba(255,255,255,0.10)",
             "zeroline": False,
             "range": [0, float(display_df["custo_por_voto"].max()) * 1.22],
-        },
-        xaxis2={
-            "title": "% acumulado do gasto",
-            "overlaying": "x",
-            "side": "top",
-            "range": [0, 1],
-            "tickformat": ".0%",
-            "showgrid": True,
-            "gridcolor": "rgba(250,204,21,0.13)",
-            "zeroline": False,
         },
         yaxis={
             "title": "",
@@ -2180,16 +2204,6 @@ def _expense_cost_by_type_chart(chart_df: pd.DataFrame) -> go.Figure:
             "bordercolor": "rgba(147,197,253,0.55)",
         },
         showlegend=False,
-    )
-    fig.add_shape(
-        type="line",
-        xref="x2",
-        yref="paper",
-        x0=0.8,
-        x1=0.8,
-        y0=0,
-        y1=1,
-        line={"color": "rgba(250,204,21,0.52)", "width": 1, "dash": "dot"},
     )
     return fig
 
