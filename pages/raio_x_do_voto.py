@@ -423,9 +423,13 @@ def _apply_visual_model() -> None:
             margin: 0.2rem 0 0 0;
         }}
         .raiox-concentration-pill {{
+            display: flex;
+            flex-direction: column;
             border-radius: 12px;
             padding: 0.78rem 0.82rem;
-            min-height: 7.3rem;
+            min-height: 22rem;
+            height: 22rem;
+            overflow: hidden;
         }}
         .raiox-concentration-pill-label {{
             color: #b7c7e6;
@@ -448,11 +452,35 @@ def _apply_visual_model() -> None:
             margin-top: 0.32rem;
             text-shadow: 0 0 12px rgba(147, 197, 253, 0.22);
         }}
+        .raiox-concentration-city-list {{
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.18rem 0.58rem;
+            margin: 0.48rem 0 0 0;
+            padding: 0;
+            list-style: none;
+            color: #f8fbff;
+            font-size: 0.68rem;
+            font-weight: 720;
+            line-height: 1.13;
+        }}
+        .raiox-concentration-city-list li {{
+            min-width: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }}
+        .raiox-concentration-city-rank {{
+            color: #93c5fd;
+            font-weight: 850;
+            margin-right: 0.16rem;
+        }}
         .raiox-concentration-pill-caption {{
             color: #9fb2d4;
             font-size: 0.76rem;
             font-weight: 650;
-            margin-top: 0.34rem;
+            margin-top: auto;
+            padding-top: 0.5rem;
         }}
         .raiox-bar-filter [data-testid="stSelectbox"] {{
             max-width: 16rem;
@@ -1178,19 +1206,28 @@ def _render_accumulated_concentration_section(df: pd.DataFrame | None) -> None:
             row = row_at(rank)
             effective_rank = int(row["rank_municipio"])
             title = f"Top {rank}" if effective_rank >= rank else "Todos"
-            city = str(row["nm_municipio"]).title()
-            city_line = city if rank == 1 else f"Até {city}"
+            city_rows = concentration_df.head(effective_rank)
+            city_items = "\n".join(
+                (
+                    "<li>"
+                    f"<span class=\"raiox-concentration-city-rank\">{int(city_row['rank_municipio'])}.</span>"
+                    f"{html.escape(str(city_row['nm_municipio']).title())}"
+                    "</li>"
+                )
+                for _, city_row in city_rows.iterrows()
+            )
             return f"""
                 <div class="raiox-concentration-pill">
                     <div class="raiox-concentration-pill-label">{title}</div>
                     <div class="raiox-concentration-pill-value">{_format_percent(float(row["pct_acumulado"]))}</div>
-                    <div class="raiox-concentration-pill-city">{html.escape(city_line)}</div>
+                    <div class="raiox-concentration-pill-city">{effective_rank} municípios no recorte</div>
+                    <ul class="raiox-concentration-city-list">{city_items}</ul>
                     <div class="raiox-concentration-pill-caption">{_format_number(float(row["votos_acumulados"]))} votos acumulados</div>
                 </div>
             """
 
         top1 = row_at(1)
-        top10 = row_at(10)
+        top15 = row_at(15)
         left_col, right_col = st.columns([0.42, 0.58], gap="large")
         with left_col:
             st.markdown(
@@ -1199,13 +1236,13 @@ def _render_accumulated_concentration_section(df: pd.DataFrame | None) -> None:
                     {html.escape(str(top1["nm_municipio"]).title())} abre a curva com {_format_percent(float(top1["pct_acumulado"]))} da votação.
                 </div>
                 <div class="raiox-concentration-context">
-                    Os 10 principais municípios acumulam {_format_percent(float(top10["pct_acumulado"]))} dos votos.
+                    Os 15 principais municípios acumulam {_format_percent(float(top15["pct_acumulado"]))} dos votos.
                     Quanto mais rápida a curva sobe, mais concentrada está a base eleitoral do candidato.
                 </div>
                 <div class="raiox-concentration-grid">
                     {card_html(1)}
                     {card_html(5)}
-                    {card_html(10)}
+                    {card_html(15)}
                     {card_html(20)}
                 </div>
                 """,
