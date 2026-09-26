@@ -53,9 +53,11 @@ def _apply_visual_model() -> None:
             --raiox-glass-bg-strong: linear-gradient(145deg, rgba(15, 42, 88, 0.58) 0%, rgba(8, 28, 64, 0.42) 100%);
             --raiox-control-bg: rgba(13, 39, 82, 0.72);
             --raiox-card-border: rgba(59, 130, 246, 0.24);
-            --raiox-card-border-soft: rgba(125, 184, 255, 0.28);
+            --raiox-card-border-soft: rgba(177, 211, 255, 0.36);
+            --raiox-outline-border: rgba(177, 211, 255, 0.34);
+            --raiox-outline-border-strong: rgba(219, 234, 254, 0.48);
             --raiox-card-shadow: inset 0 1px 0 rgba(191, 219, 254, 0.08), 0 18px 40px rgba(2, 9, 24, 0.30);
-            --raiox-glass-shadow: inset 0 1px 0 rgba(219, 234, 254, 0.12), 0 14px 34px rgba(2, 9, 24, 0.24);
+            --raiox-glass-shadow: none;
         }}
         .stApp {{
             color: #eaf2ff;
@@ -172,43 +174,46 @@ def _apply_visual_model() -> None:
         .raiox-demografia-card,
         .raiox-heatmap-card,
         .raiox-concentration-pill {{
-            border: 1px solid var(--raiox-card-border-soft);
-            background: var(--raiox-glass-bg);
-            box-shadow: var(--raiox-glass-shadow);
-            backdrop-filter: blur(14px) saturate(122%);
-            -webkit-backdrop-filter: blur(14px) saturate(122%);
+            border: 1px solid var(--raiox-outline-border);
+            background: transparent;
+            box-shadow: none;
+            backdrop-filter: none;
+            -webkit-backdrop-filter: none;
         }}
         .stApp [data-testid="stVerticalBlockBorderWrapper"] {{
-            border-color: var(--raiox-card-border-soft) !important;
-            background: var(--raiox-glass-bg) !important;
-            box-shadow: var(--raiox-glass-shadow);
-            backdrop-filter: blur(14px) saturate(122%);
-            -webkit-backdrop-filter: blur(14px) saturate(122%);
+            border-color: var(--raiox-outline-border) !important;
+            background: transparent !important;
+            box-shadow: none;
+            backdrop-filter: none;
+            -webkit-backdrop-filter: none;
         }}
         .mapa-major-section {{
             position: relative;
             overflow: hidden;
-            padding: 1.08rem 1.2rem 1.02rem 1.2rem;
-            margin: 1.45rem 0 0.82rem 0;
+            padding: 1.28rem 1.35rem 1.16rem 1.52rem;
+            margin: 1.78rem 0 1rem 0;
             border-radius: 20px;
-            background: linear-gradient(132deg, rgba(12, 29, 56, 0.88) 0%, rgba(9, 22, 43, 0.74) 54%, rgba(8, 20, 40, 0.56) 100%);
+            background:
+                radial-gradient(circle at 14% 0%, rgba(96, 165, 250, 0.18) 0%, rgba(96, 165, 250, 0) 34%),
+                linear-gradient(132deg, rgba(13, 36, 78, 0.94) 0%, rgba(9, 22, 43, 0.78) 54%, rgba(8, 20, 40, 0.58) 100%);
         }}
         .mapa-major-section::before {{
             content: "";
             position: absolute;
             inset: 0 auto 0 0;
-            width: 6px;
-            background: linear-gradient(180deg, rgba(191, 219, 254, 0.98) 0%, rgba(59, 130, 246, 0.92) 40%, rgba(11, 31, 77, 0.94) 100%);
-            box-shadow: 0 0 26px rgba(96, 165, 250, 0.36);
+            width: 9px;
+            background: linear-gradient(180deg, rgba(248, 251, 255, 1) 0%, rgba(96, 165, 250, 0.98) 42%, rgba(37, 99, 235, 0.94) 100%);
+            box-shadow: 0 0 34px rgba(96, 165, 250, 0.52);
         }}
         .mapa-major-section-title {{
             position: relative;
             z-index: 1;
             color: #f8fbff;
-            font-size: 2.06rem;
-            font-weight: 820;
-            line-height: 1.04;
-            letter-spacing: 0.01em;
+            font-size: 2.46rem;
+            font-weight: 900;
+            line-height: 1.02;
+            letter-spacing: 0;
+            text-shadow: 0 0 22px rgba(147, 197, 253, 0.34);
         }}
         .mapa-major-section-subtitle {{
             position: relative;
@@ -227,10 +232,10 @@ def _apply_visual_model() -> None:
         }}
         .mapa-section-title {{
             color: #eaf2ff;
-            font-size: 1.74rem;
-            font-weight: 700;
-            line-height: 1.06;
-            letter-spacing: 0.01em;
+            font-size: 1.54rem;
+            font-weight: 760;
+            line-height: 1.08;
+            letter-spacing: 0;
         }}
         .mapa-section-subtitle {{
             margin-top: 0.17rem;
@@ -284,19 +289,15 @@ def _apply_visual_model() -> None:
             margin-bottom: 1.1rem;
             min-height: 9.4rem;
             padding: 1.18rem 1.35rem 1.05rem 1.35rem;
-            background:
-                linear-gradient(90deg, rgba(11, 31, 77, 0.88) 0%, rgba(7, 24, 54, 0.76) 62%, rgba(6, 20, 46, 0.54) 100%),
-                url("data:image/png;base64,{base64.b64encode(BACKGROUND_PATH.read_bytes()).decode("ascii") if BACKGROUND_PATH.exists() else ""}");
-            background-size: cover;
-            background-position: center;
+            background: transparent;
         }}
         .mapa-kpi-wide-tag {{
             position: absolute;
             top: 1rem;
             right: 1.2rem;
             color: #eaf2ff;
-            background: rgba(11, 31, 77, 0.52);
-            border: 1px solid rgba(59, 130, 246, 0.28);
+            background: transparent;
+            border: 1px solid var(--raiox-outline-border);
             border-radius: 999px;
             padding: 0.38rem 0.78rem;
             font-size: 0.76rem;
@@ -358,13 +359,13 @@ def _apply_visual_model() -> None:
             margin-top: 0.75rem;
         }}
         .raiox-heatmap-kpi {{
-            background: var(--raiox-glass-bg-strong);
-            border: 1px solid var(--raiox-card-border-soft);
+            background: transparent;
+            border: 1px solid var(--raiox-outline-border);
             border-radius: 12px;
             padding: 0.72rem 0.8rem;
-            box-shadow: var(--raiox-glass-shadow);
-            backdrop-filter: blur(12px) saturate(120%);
-            -webkit-backdrop-filter: blur(12px) saturate(120%);
+            box-shadow: none;
+            backdrop-filter: none;
+            -webkit-backdrop-filter: none;
         }}
         .raiox-heatmap-kpi-label {{
             color: #b7c7e6;
