@@ -22,6 +22,9 @@ except Exception:
 
 ASSET_DIR = Path(__file__).resolve().parents[1] / "assets"
 BACKGROUND_PATH = ASSET_DIR / "background.png"
+TERRITORIAL_CONTEXT_KEY = "territorial_context"
+TREEMAP_SELECTION_KEY = "pagina1_treemap_territorial"
+USE_CUSTOM_KPI_CARDS = True
 
 
 def _background_css() -> str:
@@ -43,6 +46,13 @@ def _apply_visual_model() -> None:
         f"""
         <style>
         {_background_css()}
+        :root {{
+            --raiox-card-bg: linear-gradient(145deg, rgba(11, 31, 77, 0.76) 0%, rgba(7, 24, 54, 0.68) 100%);
+            --raiox-card-bg-soft: linear-gradient(145deg, rgba(11, 31, 77, 0.58) 0%, rgba(7, 24, 54, 0.48) 100%);
+            --raiox-card-border: rgba(59, 130, 246, 0.24);
+            --raiox-card-border-soft: rgba(59, 130, 246, 0.20);
+            --raiox-card-shadow: inset 0 1px 0 rgba(191, 219, 254, 0.08), 0 18px 40px rgba(2, 9, 24, 0.30);
+        }}
         .stApp {{
             color: #eaf2ff;
         }}
@@ -150,16 +160,20 @@ def _apply_visual_model() -> None:
         .mapa-kpi-wide-card,
         .raiox-kpi-card,
         .raiox-demografia-card,
-        .raiox-heatmap-card {{
-            border: 1px solid rgba(59, 130, 246, 0.24);
-            box-shadow: inset 0 1px 0 rgba(191, 219, 254, 0.08), 0 18px 40px rgba(2, 9, 24, 0.34);
+        .raiox-heatmap-card,
+        .raiox-concentration-pill {{
+            border: 1px solid var(--raiox-card-border);
+            background: var(--raiox-card-bg);
+            box-shadow: var(--raiox-card-shadow);
             backdrop-filter: blur(6px);
             -webkit-backdrop-filter: blur(6px);
         }}
         .stApp [data-testid="stVerticalBlockBorderWrapper"] {{
-            border-color: rgba(59, 130, 246, 0.24) !important;
-            background: linear-gradient(145deg, rgba(11, 31, 77, 0.34) 0%, rgba(7, 24, 54, 0.24) 100%) !important;
-            box-shadow: inset 0 1px 0 rgba(191, 219, 254, 0.07), 0 16px 34px rgba(2, 9, 24, 0.26);
+            border-color: var(--raiox-card-border) !important;
+            background: var(--raiox-card-bg-soft) !important;
+            box-shadow: var(--raiox-card-shadow);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
         }}
         .mapa-major-section {{
             position: relative;
@@ -199,7 +213,7 @@ def _apply_visual_model() -> None:
             padding: 0.86rem 1rem 0.78rem 1rem;
             margin: 1.35rem 0 0.62rem 0;
             border-radius: 18px;
-            background: linear-gradient(145deg, rgba(11, 31, 77, 0.66) 0%, rgba(7, 24, 54, 0.54) 100%);
+            background: var(--raiox-card-bg-soft);
         }}
         .mapa-section-title {{
             color: #eaf2ff;
@@ -229,7 +243,6 @@ def _apply_visual_model() -> None:
         .mapa-kpi-card,
         .mapa-kpi-wide-card,
         .raiox-kpi-card {{
-            background: linear-gradient(145deg, rgba(11, 31, 77, 0.76) 0%, rgba(7, 24, 54, 0.68) 100%);
             border-radius: 16px;
             padding: 0.82rem 0.9rem 0.72rem 0.9rem;
             min-height: 7.8rem;
@@ -310,7 +323,6 @@ def _apply_visual_model() -> None:
         }}
         .raiox-demografia-card,
         .raiox-heatmap-card {{
-            background: linear-gradient(145deg, rgba(11, 31, 77, 0.72) 0%, rgba(7, 24, 54, 0.58) 100%);
             border-radius: 18px;
             padding: 1rem 1.1rem 0.9rem 1.1rem;
             margin: 0.75rem 0 0.65rem 0;
@@ -336,8 +348,8 @@ def _apply_visual_model() -> None:
             margin-top: 0.75rem;
         }}
         .raiox-heatmap-kpi {{
-            background: rgba(11, 31, 77, 0.48);
-            border: 1px solid rgba(59, 130, 246, 0.22);
+            background: var(--raiox-card-bg-soft);
+            border: 1px solid var(--raiox-card-border-soft);
             border-radius: 12px;
             padding: 0.72rem 0.8rem;
         }}
@@ -397,10 +409,7 @@ def _apply_visual_model() -> None:
             margin: 0.2rem 0 0 0;
         }}
         .raiox-concentration-pill {{
-            border: 1px solid rgba(59, 130, 246, 0.24);
             border-radius: 12px;
-            background: linear-gradient(145deg, rgba(11, 31, 77, 0.76) 0%, rgba(7, 24, 54, 0.70) 100%);
-            box-shadow: inset 0 1px 0 rgba(191, 219, 254, 0.08), 0 14px 28px rgba(2, 9, 24, 0.24);
             padding: 0.78rem 0.82rem;
             min-height: 7.3rem;
         }}
@@ -1123,13 +1132,21 @@ def _render_accumulated_concentration_section(df: pd.DataFrame | None) -> None:
             )
 
 
-def _render_kpis(df: pd.DataFrame | None) -> None:
+def _render_kpis(
+    df: pd.DataFrame | None,
+    context: dict[str, str] | None = None,
+    mesorregiao: str = "Todas",
+) -> None:
     total_votos = "--"
     municipios = "--"
     reduto_nome = "--"
     reduto_votos = "--"
     mesorregiao_nome = "--"
     mesorregiao_votos = "--"
+    context = context or {}
+    has_context = bool(context)
+    votos_caption = "Votos nominais no recorte ativo." if has_context else "Votos nominais no recorte municipal."
+    municipios_caption = "Municípios no recorte ativo." if has_context else "Municípios em que ele foi votado."
 
     if df is not None and not df.empty:
         metric_df = df
@@ -1139,12 +1156,13 @@ def _render_kpis(df: pd.DataFrame | None) -> None:
             ].copy()
             if not municipio_df.empty:
                 metric_df = municipio_df
+        metric_df = _apply_territorial_context(metric_df, context, mesorregiao)
 
-        if "qt_votos" in df.columns:
+        if "qt_votos" in metric_df.columns:
             total_votos = _format_number(pd.to_numeric(metric_df["qt_votos"], errors="coerce").fillna(0).sum())
         if "nm_municipio" in metric_df.columns:
             municipios = _format_number(metric_df["nm_municipio"].dropna().astype(str).str.strip().nunique())
-        if {"nm_municipio", "qt_votos"}.issubset(df.columns):
+        if {"nm_municipio", "qt_votos"}.issubset(metric_df.columns):
             by_city = (
                 metric_df.assign(qt_votos=pd.to_numeric(metric_df["qt_votos"], errors="coerce").fillna(0))
                 .groupby("nm_municipio", as_index=False)["qt_votos"]
@@ -1165,28 +1183,28 @@ def _render_kpis(df: pd.DataFrame | None) -> None:
                 mesorregiao_nome = str(by_meso.iloc[0]["nm_mesorregiao"]).title()
                 mesorregiao_votos = _format_number(by_meso.iloc[0]["qt_votos"])
 
-    if ui is not None:
+    if ui is not None and not USE_CUSTOM_KPI_CARDS:
         kpi_cols = st.columns(3, gap="medium")
         cards = [
             {
                 "label": "Total de votos",
                 "value": total_votos,
-                "description": "Votos nominais no recorte municipal.",
-                "delta": "Base 2022",
+                "description": votos_caption,
+                "delta": "Recorte ativo" if has_context else "Base 2022",
                 "key": "kpi_total_votos",
             },
             {
                 "label": "Município mais votado",
                 "value": reduto_votos,
                 "description": reduto_nome,
-                "delta": "Reduto principal",
+                "delta": "No recorte" if has_context else "Reduto principal",
                 "key": "kpi_municipio_mais_votado",
             },
             {
                 "label": "Municípios com votos",
                 "value": municipios,
-                "description": "Municípios em que ele foi votado.",
-                "delta": "Alcance municipal",
+                "description": municipios_caption,
+                "delta": "Recorte ativo" if has_context else "Alcance municipal",
                 "key": "kpi_municipios_com_votos",
             },
         ]
@@ -1216,7 +1234,7 @@ def _render_kpis(df: pd.DataFrame | None) -> None:
             <div class="mapa-kpi-card">
                 <div class="mapa-kpi-label">Total de votos</div>
                 <div class="mapa-kpi-value">{total_votos}</div>
-                <div class="mapa-kpi-caption">Votos nominais no recorte municipal.</div>
+                <div class="mapa-kpi-caption">{votos_caption}</div>
             </div>
             <div class="mapa-kpi-card">
                 <div class="mapa-kpi-label">Município mais votado</div>
@@ -1226,7 +1244,7 @@ def _render_kpis(df: pd.DataFrame | None) -> None:
             <div class="mapa-kpi-card">
                 <div class="mapa-kpi-label">Municípios com votos</div>
                 <div class="mapa-kpi-value">{municipios}</div>
-                <div class="mapa-kpi-caption">Municípios em que ele foi votado.</div>
+                <div class="mapa-kpi-caption">{municipios_caption}</div>
             </div>
         </div>
         <div class="mapa-kpi-wide-card">
@@ -1677,8 +1695,40 @@ def _apply_territorial_context(df: pd.DataFrame, context: dict[str, str], mesorr
     for column in ("cd_municipio", "cd_bairro", "nm_municipio", "nm_bairro"):
         value = context.get(column)
         if column in result.columns and value:
-            result = result[result[column].astype(str).str.strip() == value]
+                result = result[result[column].astype(str).str.strip() == value]
     return result
+
+
+def _territorial_context() -> dict[str, str]:
+    context = st.session_state.setdefault(TERRITORIAL_CONTEXT_KEY, {})
+    if not isinstance(context, dict):
+        context = {}
+        st.session_state[TERRITORIAL_CONTEXT_KEY] = context
+    return {
+        str(key): str(value)
+        for key, value in context.items()
+        if value not in (None, "")
+    }
+
+
+def _set_territorial_context(context: dict[str, str]) -> bool:
+    normalized = {
+        str(key): str(value)
+        for key, value in context.items()
+        if value not in (None, "")
+    }
+    if normalized == _territorial_context():
+        return False
+    st.session_state[TERRITORIAL_CONTEXT_KEY] = normalized
+    return True
+
+
+def _clear_territorial_context() -> None:
+    st.session_state[TERRITORIAL_CONTEXT_KEY] = {}
+
+
+def _context_label(context: dict[str, str]) -> str:
+    return context.get("nm_bairro") or context.get("nm_municipio") or "recorte selecionado"
 
 
 def _demographic_bar(kind: str, context: dict[str, str], mesorregiao: str) -> go.Figure:
@@ -1757,6 +1807,482 @@ def _demographic_bar(kind: str, context: dict[str, str], mesorregiao: str) -> go
     return fig
 
 
+def _cost_efficiency_frame(df: pd.DataFrame | None, level: str) -> pd.DataFrame:
+    if df is None or df.empty:
+        return pd.DataFrame()
+    required = {"qt_votos"}
+    if not required.issubset(df.columns):
+        return pd.DataFrame()
+
+    label_col_by_level = {
+        "municipio": "nm_municipio",
+        "mesorregiao": "nm_mesorregiao",
+        "bairro": "nm_bairro",
+    }
+    label_col = label_col_by_level[level]
+    if label_col not in df.columns:
+        return pd.DataFrame()
+
+    expense_col = "valor_despesas_rateado" if "valor_despesas_rateado" in df.columns else "valor_total_despesas"
+    if expense_col not in df.columns:
+        return pd.DataFrame()
+
+    result = df.copy()
+    result[label_col] = result[label_col].fillna("Nao informado").astype(str).str.strip()
+    result.loc[result[label_col].eq(""), label_col] = "Nao informado"
+    result["qt_votos"] = pd.to_numeric(result["qt_votos"], errors="coerce").fillna(0)
+    result[expense_col] = pd.to_numeric(result[expense_col], errors="coerce").fillna(0)
+
+    group_cols = [label_col]
+    if level == "bairro" and "nm_municipio" in result.columns:
+        group_cols = ["nm_municipio", label_col]
+
+    result = (
+        result.groupby(group_cols, as_index=False)
+        .agg({"qt_votos": "sum", expense_col: "sum"})
+        .rename(columns={label_col: "territorio", expense_col: "valor_total_despesa"})
+    )
+    if level == "bairro" and "nm_municipio" in result.columns:
+        result["territorio"] = result["territorio"] + " - " + result["nm_municipio"].astype(str).str.title()
+    result = result[result["qt_votos"].gt(0) & result["valor_total_despesa"].gt(0)].copy()
+    if result.empty:
+        return result
+
+    result["custo_por_voto"] = result["valor_total_despesa"] / result["qt_votos"]
+    result = result[np.isfinite(result["custo_por_voto"]) & result["custo_por_voto"].gt(0)].copy()
+    if result.empty:
+        return result
+
+    cost_mid = float(result["custo_por_voto"].median())
+    votes_mid = float(result["qt_votos"].median())
+    result["quadrante"] = np.select(
+        [
+            result["custo_por_voto"].le(cost_mid) & result["qt_votos"].ge(votes_mid),
+            result["custo_por_voto"].gt(cost_mid) & result["qt_votos"].ge(votes_mid),
+            result["custo_por_voto"].gt(cost_mid) & result["qt_votos"].lt(votes_mid),
+            result["custo_por_voto"].le(cost_mid) & result["qt_votos"].lt(votes_mid),
+        ],
+        [
+            "Eficiente / Orgânico",
+            "Alto Investimento / Alto Retorno",
+            "Ineficiente / Carro de Ouro",
+            "Baixa Relevância",
+        ],
+        default="Nao classificado",
+    )
+    return result.sort_values("qt_votos", ascending=False)
+
+
+def _cost_efficiency_chart(chart_df: pd.DataFrame) -> go.Figure:
+    if chart_df.empty:
+        fig = go.Figure()
+        fig.add_annotation(
+            text="Dados de gastos territoriais indisponiveis.",
+            x=0.5,
+            y=0.5,
+            xref="paper",
+            yref="paper",
+            showarrow=False,
+            font={"color": "#eaf2ff", "size": 16},
+        )
+        fig.update_layout(height=560, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+        return fig
+
+    cost_mid = float(chart_df["custo_por_voto"].median())
+    votes_mid = float(chart_df["qt_votos"].median())
+    x_min = max(float(chart_df["custo_por_voto"].min()) * 0.72, 0.01)
+    x_max = float(chart_df["custo_por_voto"].max()) * 1.38
+    y_min = 0.0
+    y_max = float(chart_df["qt_votos"].max()) * 1.16
+
+    quadrant_colors = {
+        "Eficiente / Orgânico": "#22C55E",
+        "Alto Investimento / Alto Retorno": "#38BDF8",
+        "Ineficiente / Carro de Ouro": "#F59E0B",
+        "Baixa Relevância": "#94A3B8",
+    }
+
+    fig = px.scatter(
+        chart_df,
+        x="custo_por_voto",
+        y="qt_votos",
+        size="valor_total_despesa",
+        color="quadrante",
+        color_discrete_map=quadrant_colors,
+        hover_name="territorio",
+        custom_data=["valor_total_despesa", "quadrante"],
+        log_x=True,
+        size_max=46,
+    )
+    fig.update_traces(
+        marker={
+            "line": {"color": "rgba(248,251,255,0.72)", "width": 0.8},
+            "opacity": 0.82,
+        },
+        hovertemplate=(
+            "<b>%{hovertext}</b><br>"
+            "Custo por voto: R$ %{x:,.2f}<br>"
+            "Votos: %{y:,.0f}<br>"
+            "Despesa no território: R$ %{customdata[0]:,.2f}<br>"
+            "Quadrante: %{customdata[1]}<extra></extra>"
+        ),
+    )
+
+    shapes = [
+        ("rect", x_min, cost_mid, votes_mid, y_max, "rgba(34, 197, 94, 0.10)"),
+        ("rect", cost_mid, x_max, votes_mid, y_max, "rgba(56, 189, 248, 0.10)"),
+        ("rect", cost_mid, x_max, y_min, votes_mid, "rgba(245, 158, 11, 0.11)"),
+        ("rect", x_min, cost_mid, y_min, votes_mid, "rgba(148, 163, 184, 0.09)"),
+    ]
+    fig.update_layout(
+        shapes=[
+            {
+                "type": kind,
+                "xref": "x",
+                "yref": "y",
+                "x0": x0,
+                "x1": x1,
+                "y0": y0,
+                "y1": y1,
+                "fillcolor": color,
+                "line": {"width": 0},
+                "layer": "below",
+            }
+            for kind, x0, x1, y0, y1, color in shapes
+        ]
+        + [
+            {
+                "type": "line",
+                "xref": "x",
+                "yref": "paper",
+                "x0": cost_mid,
+                "x1": cost_mid,
+                "y0": 0,
+                "y1": 1,
+                "line": {"color": "rgba(226, 232, 240, 0.34)", "width": 1.4, "dash": "dot"},
+            },
+            {
+                "type": "line",
+                "xref": "paper",
+                "yref": "y",
+                "x0": 0,
+                "x1": 1,
+                "y0": votes_mid,
+                "y1": votes_mid,
+                "line": {"color": "rgba(226, 232, 240, 0.34)", "width": 1.4, "dash": "dot"},
+            },
+        ],
+        annotations=[
+            {"text": "Eficiente / Orgânico", "x": 0.02, "y": 0.96, "xref": "paper", "yref": "paper"},
+            {"text": "Alto Investimento / Alto Retorno", "x": 0.98, "y": 0.96, "xref": "paper", "yref": "paper", "xanchor": "right"},
+            {"text": "Ineficiente / Carro de Ouro", "x": 0.98, "y": 0.06, "xref": "paper", "yref": "paper", "xanchor": "right"},
+            {"text": "Baixa Relevância", "x": 0.02, "y": 0.06, "xref": "paper", "yref": "paper"},
+        ],
+        height=560,
+        margin={"l": 72, "r": 28, "t": 14, "b": 68},
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font={"color": "#eaf2ff", "family": "Segoe UI, Inter, sans-serif"},
+        xaxis={
+            "title": "Custo por Voto (R$/Voto) - escala log",
+            "range": [np.log10(x_min), np.log10(x_max)],
+            "gridcolor": "rgba(255,255,255,0.10)",
+            "tickprefix": "R$ ",
+        },
+        yaxis={
+            "title": "Total de Votos do Candidato",
+            "range": [y_min, y_max],
+            "gridcolor": "rgba(255,255,255,0.10)",
+            "zeroline": False,
+        },
+        legend={
+            "title": {"text": ""},
+            "orientation": "h",
+            "y": -0.18,
+            "x": 0,
+        },
+        hoverlabel={
+            "bgcolor": "rgba(5,12,28,0.95)",
+            "font_color": "#EAF2FF",
+            "bordercolor": "rgba(147,197,253,0.55)",
+        },
+    )
+    for annotation in fig.layout.annotations:
+        annotation.update(
+            showarrow=False,
+            font={"color": "rgba(248,251,255,0.88)", "size": 12},
+            bgcolor="rgba(11, 31, 77, 0.58)",
+            bordercolor="rgba(59, 130, 246, 0.22)",
+            borderpad=4,
+        )
+    return fig
+
+
+def _render_cost_efficiency_section(df: pd.DataFrame | None) -> None:
+    _major_section_header(
+        "Matriz de Eficiência por Custo do Voto",
+        "Relação entre custo por voto, volume eleitoral e despesa territorial.",
+    )
+    header_col, filter_col = st.columns([0.74, 0.26], gap="large")
+    with header_col:
+        _section_header(
+            "Eficiência do investimento eleitoral",
+            "Cada bolha representa um território; quanto maior a bolha, maior a despesa rateada naquele recorte.",
+        )
+    with filter_col:
+        level_label = st.selectbox(
+            "Nível territorial",
+            ["Município", "Mesorregião", "Bairro"],
+            key="pagina1_cost_efficiency_level",
+        )
+    level = {
+        "Município": "municipio",
+        "Mesorregião": "mesorregiao",
+        "Bairro": "bairro",
+    }[level_label]
+    chart_df = _cost_efficiency_frame(df, level)
+    with st.container(border=True):
+        st.plotly_chart(_cost_efficiency_chart(chart_df), use_container_width=True)
+
+
+def _parliamentary_action_frame(
+    votos_df: pd.DataFrame | None,
+    emendas_df: pd.DataFrame | None,
+) -> pd.DataFrame:
+    if votos_df is None or votos_df.empty or emendas_df is None or emendas_df.empty:
+        return pd.DataFrame()
+    if "qt_votos" not in votos_df.columns:
+        return pd.DataFrame()
+
+    geojson_mg, df_tse_ref, df_municipios_ref, df_regioes_ref = _load_geo_reference()
+    if geojson_mg is None or df_tse_ref is None or df_municipios_ref is None:
+        return pd.DataFrame()
+
+    code_col = next(
+        (
+            col
+            for col in (
+                "cd_ibge_municipio",
+                "codigo_ibge",
+                "CD_MUNICIPIO",
+                "cd_municipio",
+                "codigo_tse",
+                "codigo_municipio_tse",
+            )
+            if col in votos_df.columns
+        ),
+        None,
+    )
+    city_col = "nm_municipio" if "nm_municipio" in votos_df.columns else None
+
+    if code_col == "cd_ibge_municipio" or code_col == "codigo_ibge":
+        votos_base = votos_df[[code_col, "qt_votos"] + ([city_col] if city_col else [])].copy()
+        votos_base = votos_base.rename(columns={code_col: "codigo_ibge", city_col or code_col: "municipio"})
+        votos_base["codigo_ibge"] = pd.to_numeric(votos_base["codigo_ibge"], errors="coerce").astype("Int64")
+    elif code_col:
+        votos_base = votos_df[[code_col, "qt_votos"] + ([city_col] if city_col else [])].copy()
+        votos_base = votos_base.rename(columns={code_col: "codigo_tse", city_col or code_col: "municipio"})
+        votos_base["codigo_tse"] = pd.to_numeric(votos_base["codigo_tse"], errors="coerce").astype("Int64")
+        votos_base = votos_base.merge(
+            df_tse_ref[["codigo_tse", "codigo_ibge", "nome_municipio"]],
+            on="codigo_tse",
+            how="left",
+        )
+        votos_base["municipio"] = votos_base["municipio"].fillna(votos_base["nome_municipio"])
+    elif city_col:
+        votos_base = votos_df[[city_col, "qt_votos"]].copy().rename(columns={city_col: "municipio"})
+        votos_base["municipio_norm"] = votos_base["municipio"].map(_normalize_municipio_name)
+        votos_base = votos_base.merge(
+            df_tse_ref[["codigo_ibge", "nome_municipio", "municipio_norm"]],
+            on="municipio_norm",
+            how="left",
+        )
+    else:
+        return pd.DataFrame()
+
+    votos_base["qt_votos"] = pd.to_numeric(votos_base["qt_votos"], errors="coerce").fillna(0)
+    votos_base = (
+        votos_base.dropna(subset=["codigo_ibge"])
+        .groupby("codigo_ibge", as_index=False)
+        .agg({"qt_votos": "sum", "municipio": "first"})
+    )
+
+    emenda_value_col = next(
+        (
+            col
+            for col in ("valor_pago_atualizado", "valor_empenhado_ano", "valor_indicado")
+            if col in emendas_df.columns
+        ),
+        None,
+    )
+    if emenda_value_col is None:
+        return pd.DataFrame()
+
+    emendas = emendas_df.copy()
+    if "cd_ibge_municipio" in emendas.columns:
+        emendas["codigo_ibge"] = pd.to_numeric(emendas["cd_ibge_municipio"], errors="coerce").astype("Int64")
+    elif "nm_municipio" in emendas.columns:
+        emendas["municipio_norm"] = emendas["nm_municipio"].map(_normalize_municipio_name)
+        emendas = emendas.merge(
+            df_tse_ref[["codigo_ibge", "municipio_norm"]],
+            on="municipio_norm",
+            how="left",
+        )
+    elif "municipio" in emendas.columns:
+        emendas["municipio_norm"] = emendas["municipio"].map(_normalize_municipio_name)
+        emendas = emendas.merge(
+            df_tse_ref[["codigo_ibge", "municipio_norm"]],
+            on="municipio_norm",
+            how="left",
+        )
+    else:
+        return pd.DataFrame()
+
+    emendas[emenda_value_col] = pd.to_numeric(emendas[emenda_value_col], errors="coerce").fillna(0)
+    emendas_base = (
+        emendas.dropna(subset=["codigo_ibge"])
+        .groupby("codigo_ibge", as_index=False)[emenda_value_col]
+        .sum()
+        .rename(columns={emenda_value_col: "valor_emendas"})
+    )
+
+    result = votos_base.merge(emendas_base, on="codigo_ibge", how="left")
+    result["valor_emendas"] = result["valor_emendas"].fillna(0)
+    result = result.merge(df_municipios_ref, on="codigo_ibge", how="left")
+    if df_regioes_ref is not None and not df_regioes_ref.empty:
+        result = result.merge(
+            df_regioes_ref[["codigo_ibge", "mesorregiao_nome", "regiao_imediata_nome"]],
+            on="codigo_ibge",
+            how="left",
+        )
+    result["codigo_ibge_str"] = result["codigo_ibge"].astype("Int64").astype(str).str.zfill(7)
+    result["municipio_exibicao"] = result["nome"].fillna(result["municipio"]).fillna("Município")
+    result["votos_color"] = np.where(result["qt_votos"] > 0, np.log10(result["qt_votos"] + 1.0), 0.0)
+    return result
+
+
+def _parliamentary_action_map(action_df: pd.DataFrame) -> go.Figure:
+    if action_df.empty:
+        return _empty_map()
+
+    geojson_mg, _, _, _ = _load_geo_reference()
+    max_votes = float(action_df["qt_votos"].max()) if not action_df.empty else 0.0
+    zmax = float(np.log10(max_votes + 1.0)) if max_votes > 0 else 1.0
+    tickvals, ticktext = _build_log_colorbar_ticks(max_votes)
+
+    fig = px.choropleth(
+        action_df,
+        geojson=geojson_mg,
+        locations="codigo_ibge_str",
+        featureidkey="properties.id",
+        color="votos_color",
+        hover_name="municipio_exibicao",
+        custom_data=["qt_votos", "valor_emendas"],
+        color_continuous_scale=[
+            [0.00, "#FFFFFF"],
+            [0.000001, "#E8F1FF"],
+            [0.16, "#BFD9FF"],
+            [0.42, "#60A5FA"],
+            [0.70, "#2563EB"],
+            [1.00, "#0B1F4D"],
+        ],
+        range_color=[0.0, zmax],
+        title="Votos por município com sobreposição de emendas",
+    )
+    fig.update_traces(
+        marker_line_color="rgba(210,228,255,0.75)",
+        marker_line_width=0.6,
+        hovertemplate=(
+            "<b>%{hovertext}</b><br>"
+            "<span style='color:#93c5fd'>Votos:</span> %{customdata[0]:,.0f}<br>"
+            "<span style='color:#93c5fd'>Emendas:</span> R$ %{customdata[1]:,.2f}<extra></extra>"
+        ),
+    )
+
+    bubble_df = action_df[
+        action_df["valor_emendas"].gt(0)
+        & action_df["latitude"].notna()
+        & action_df["longitude"].notna()
+    ].copy()
+    if not bubble_df.empty:
+        max_emendas = float(bubble_df["valor_emendas"].max())
+        bubble_df["bubble_size"] = 12 + 42 * np.sqrt(bubble_df["valor_emendas"] / max_emendas)
+        fig.add_trace(
+            go.Scattergeo(
+                lon=bubble_df["longitude"],
+                lat=bubble_df["latitude"],
+                mode="markers",
+                marker={
+                    "size": bubble_df["bubble_size"],
+                    "color": bubble_df["valor_emendas"],
+                    "colorscale": [[0, "#93C5FD"], [0.55, "#38BDF8"], [1, "#F8FBFF"]],
+                    "opacity": 0.74,
+                    "line": {"color": "rgba(4, 20, 48, 0.86)", "width": 1.2},
+                    "colorbar": {
+                        "title": {"text": "Emendas", "font": {"color": "#eaf2ff"}},
+                        "tickfont": {"color": "#b7c7e6"},
+                        "x": 1.10,
+                        "thickness": 12,
+                        "len": 0.78,
+                    },
+                },
+                customdata=np.stack(
+                    [bubble_df["municipio_exibicao"], bubble_df["qt_votos"], bubble_df["valor_emendas"]],
+                    axis=-1,
+                ),
+                hovertemplate=(
+                    "<b>%{customdata[0]}</b><br>"
+                    "Votos: %{customdata[1]:,.0f}<br>"
+                    "Emendas: R$ %{customdata[2]:,.2f}<extra></extra>"
+                ),
+                name="Emendas destinadas",
+            )
+        )
+
+    fig.update_geos(fitbounds="locations", visible=False, bgcolor="rgba(0,0,0,0)")
+    fig.update_layout(
+        margin={"l": 6, "r": 96, "t": 52, "b": 6},
+        height=610,
+        coloraxis_colorbar={
+            "title": {"text": "Votos", "font": {"color": "#eaf2ff"}},
+            "tickvals": tickvals,
+            "ticktext": ticktext,
+            "len": 0.78,
+            "thickness": 13,
+            "x": 1.02,
+            "xanchor": "left",
+            "tickfont": {"color": "#b7c7e6"},
+        },
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font={"color": "#eaf2ff", "family": "Segoe UI, Inter, sans-serif"},
+        title={"font": {"size": 20, "color": "#eaf2ff"}},
+        hoverlabel={
+            "bgcolor": "rgba(5,12,28,0.95)",
+            "font_color": "#EAF2FF",
+            "bordercolor": "rgba(147,197,253,0.55)",
+        },
+    )
+    return fig
+
+
+def _render_parliamentary_action_section(
+    votos_df: pd.DataFrame | None,
+    emendas_df: pd.DataFrame | None,
+) -> None:
+    _major_section_header(
+        "Mapa da atuação parlamentar de acordo com os votos",
+        "Cruzamento entre votação municipal e volume de emendas destinadas pelo parlamentar.",
+    )
+    _section_header(
+        "Retorno político territorial",
+        "A base do mapa mostra a votação; as bolhas sobrepostas representam o valor de emendas por município.",
+    )
+    action_df = _parliamentary_action_frame(votos_df, emendas_df)
+    with st.container(border=True):
+        st.plotly_chart(_parliamentary_action_map(action_df), use_container_width=True)
+
+
 _apply_visual_model()
 
 _render_page_header()
@@ -1764,7 +2290,8 @@ _render_page_header()
 _major_section_header("Mapa Territorial da Votação", "Leitura territorial do desempenho eleitoral no recorte ativo.")
 votos_municipio_df = _read_selected_parquet("votos_municipio")
 votos_bairro_df = _read_selected_parquet("votos_bairro")
-_render_kpis(votos_municipio_df)
+territorial_context = _territorial_context()
+_render_kpis(votos_municipio_df, territorial_context)
 header_col, filter_col = st.columns([0.72, 0.28], gap="large")
 with header_col:
     _section_header(
@@ -1776,7 +2303,8 @@ with filter_col:
 votos_df = _territorial_map_view(_read_selected_parquet(territorial_kind), territorial_kind)
 map_col, concentration_col = st.columns([0.68, 0.32], gap="large")
 with map_col:
-    st.plotly_chart(_territorial_map(votos_df), use_container_width=True)
+    with st.container(border=True):
+        st.plotly_chart(_territorial_map(votos_df), use_container_width=True)
 with concentration_col:
     with st.container(border=True):
         st.markdown(
@@ -1803,11 +2331,14 @@ with col_left:
         treemap_event = st.plotly_chart(
             treemap_fig,
             use_container_width=True,
-            key="pagina1_treemap_territorial",
+            key=TREEMAP_SELECTION_KEY,
             on_select="rerun",
             selection_mode="points",
         )
-        territorial_context = _treemap_selection(treemap_event)
+        selected_context = _treemap_selection(treemap_event)
+        if selected_context and _set_territorial_context(selected_context):
+            st.rerun()
+        territorial_context = _territorial_context()
 with col_right:
     with st.container(border=True):
         st.markdown(
@@ -1827,8 +2358,15 @@ with col_right:
             st.markdown("</div>", unsafe_allow_html=True)
         st.plotly_chart(_demographic_bar(perfil_kind, territorial_context, mesorregiao), use_container_width=True)
         if territorial_context:
-            label = territorial_context.get("nm_bairro") or territorial_context.get("nm_municipio")
-            st.caption(f"Recorte do treemap: {label}")
+            label = _context_label(territorial_context)
+            st.caption(f"Recorte territorial ativo: {label}")
+            if st.button("Limpar recorte territorial", key="pagina1_clear_territorial_context"):
+                _clear_territorial_context()
+                st.rerun()
 
 _render_accumulated_concentration_section(votos_municipio_df)
+gastos_territoriais_df = _read_selected_parquet("gastos_territoriais")
+_render_cost_efficiency_section(gastos_territoriais_df)
+emendas_legislativa_df = _read_selected_parquet("emendas_legislativa")
+_render_parliamentary_action_section(votos_municipio_df, emendas_legislativa_df)
 

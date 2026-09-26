@@ -210,6 +210,8 @@ def file_by_kind(files: list[str], kind: str) -> str | None:
         "estado_civil": "demografico/stage02_estado_civil.parquet",
         "genero": "demografico/stage02_genero.parquet",
         "idade": "demografico/stage02_idade.parquet",
+        "gastos_territoriais": "gastos/gastos_territoriais.parquet",
+        "emendas_legislativa": "gastos/emendas_legislativa.parquet",
     }
     if kind in kind_aliases:
         return next(
