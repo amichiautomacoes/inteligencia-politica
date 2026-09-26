@@ -1893,29 +1893,10 @@ def _expense_type_column(df: pd.DataFrame | None) -> str | None:
     return None
 
 
-def _expense_type_options(df: pd.DataFrame | None) -> list[str]:
-    type_col = _expense_type_column(df)
-    if df is None or df.empty or type_col is None:
-        return ["Total"]
-    options = (
-        df[type_col]
-        .dropna()
-        .astype(str)
-        .str.strip()
-        .replace("", np.nan)
-        .dropna()
-        .sort_values()
-        .unique()
-        .tolist()
-    )
-    return ["Total"] + options
-
-
 def _cost_efficiency_frame(
     df: pd.DataFrame | None,
-    level: str,
-    expense_type: str = "Total",
     context: dict[str, str] | None = None,
+    mesorregiao: str | None = None,
 ) -> pd.DataFrame:
     if df is None or df.empty:
         return pd.DataFrame()
@@ -1923,11 +1904,7 @@ def _cost_efficiency_frame(
     if not required.issubset(df.columns):
         return pd.DataFrame()
 
-    label_col_by_level = {
-        "municipio": "nm_municipio",
-        "mesorregiao": "nm_mesorregiao",
-    }
-    label_col = label_col_by_level[level]
+    label_col = "nm_municipio"
     if label_col not in df.columns:
         return pd.DataFrame()
 
@@ -1936,6 +1913,11 @@ def _cost_efficiency_frame(
         return pd.DataFrame()
 
     result = df.copy()
+    if mesorregiao and "nm_mesorregiao" in result.columns:
+        result = result[result["nm_mesorregiao"].astype(str).str.strip().eq(mesorregiao)].copy()
+    if result.empty:
+        return pd.DataFrame()
+
     context = context or {}
     for column in ("nm_municipio", "cd_municipio"):
         value = context.get(column)
@@ -1945,21 +1927,28 @@ def _cost_efficiency_frame(
         return pd.DataFrame()
 
     type_col = _expense_type_column(result)
-    if expense_type != "Total" and type_col is not None:
-        result = result[result[type_col].astype(str).str.strip().eq(expense_type)].copy()
-    if result.empty:
-        return pd.DataFrame()
 
     result[label_col] = result[label_col].fillna("Nao informado").astype(str).str.strip()
     result.loc[result[label_col].eq(""), label_col] = "Nao informado"
+    if type_col is None:
+        result["tipo_despesa_grafico"] = "Total"
+    else:
+        result["tipo_despesa_grafico"] = result[type_col].fillna("Nao informado").astype(str).str.strip()
+        result.loc[result["tipo_despesa_grafico"].eq(""), "tipo_despesa_grafico"] = "Nao informado"
     result["qt_votos"] = pd.to_numeric(result["qt_votos"], errors="coerce").fillna(0)
     result[expense_col] = pd.to_numeric(result[expense_col], errors="coerce").fillna(0)
 
-    group_cols = [label_col]
+    group_cols = [label_col, "tipo_despesa_grafico"]
     result = (
         result.groupby(group_cols, as_index=False)
         .agg({"qt_votos": "sum", expense_col: "sum"})
-        .rename(columns={label_col: "territorio", expense_col: "valor_total_despesa"})
+        .rename(
+            columns={
+                label_col: "territorio",
+                "tipo_despesa_grafico": "tipo_despesa",
+                expense_col: "valor_total_despesa",
+            }
+        )
     )
     result = result[result["qt_votos"].gt(0) & result["valor_total_despesa"].gt(0)].copy()
     if result.empty:
@@ -1972,6 +1961,87 @@ def _cost_efficiency_frame(
 
     result["total_gasto"] = result["valor_total_despesa"].map(lambda value: f"R$ {value:,.2f}")
     return result.sort_values("valor_total_despesa", ascending=False)
+
+
+def _cost_efficiency_mesorregiao_options(df: pd.DataFrame | None) -> list[str]:
+    if df is None or df.empty or "nm_mesorregiao" not in df.columns:
+        return []
+    return (
+        df["nm_mesorregiao"]
+        .dropna()
+        .astype(str)
+        .str.strip()
+        .replace("", np.nan)
+        .dropna()
+        .sort_values()
+        .unique()
+        .tolist()
+    )
+
+
+def _render_cost_efficiency_mesorregiao_buttons(df: pd.DataFrame | None) -> str | None:
+    options = _cost_efficiency_mesorregiao_options(df)
+    if not options:
+        return None
+
+    state_key = "pagina1_cost_efficiency_mesorregiao"
+    selected = st.session_state.get(state_key)
+    if selected not in options:
+        selected = None
+        st.session_state[state_key] = None
+
+    button_options = [None] + options
+    for start in range(0, len(button_options), 6):
+        cols = st.columns(6, gap="small")
+        for col, option in zip(cols, button_options[start : start + 6]):
+            label = "Todas" if option is None else option
+            active = selected == option
+            if col.button(
+                label,
+                key=f"pagina1_cost_efficiency_mesorregiao_{start}_{label}",
+                use_container_width=True,
+                type="primary" if active else "secondary",
+            ):
+                st.session_state[state_key] = option
+                st.rerun()
+    return selected
+
+
+def _cost_efficiency_kpis(chart_df: pd.DataFrame) -> dict[str, str]:
+    if chart_df.empty:
+        return {
+            "custo_por_voto": _format_currency(0),
+            "total_gasto": _format_currency(0),
+        }
+    total_spend = float(pd.to_numeric(chart_df["valor_total_despesa"], errors="coerce").fillna(0).sum())
+    votes_by_territory = chart_df.assign(
+        qt_votos=pd.to_numeric(chart_df["qt_votos"], errors="coerce").fillna(0)
+    ).groupby("territorio")["qt_votos"].max()
+    total_votes = float(votes_by_territory.sum())
+    cost_per_vote = total_spend / total_votes if total_votes > 0 else 0.0
+    return {
+        "custo_por_voto": _format_currency(cost_per_vote),
+        "total_gasto": _format_currency(total_spend),
+    }
+
+
+def _render_cost_efficiency_kpis(chart_df: pd.DataFrame) -> None:
+    kpis = _cost_efficiency_kpis(chart_df)
+    st.markdown(
+        f"""
+        <div class="raiox-heatmap-kpi-row">
+            <div class="raiox-heatmap-kpi">
+                <div class="raiox-heatmap-kpi-label">Custo por voto</div>
+                <div class="raiox-heatmap-kpi-value">{html.escape(kpis["custo_por_voto"])}</div>
+            </div>
+            <div class="raiox-heatmap-kpi">
+                <div class="raiox-heatmap-kpi-label">Total gasto</div>
+                <div class="raiox-heatmap-kpi-value">{html.escape(kpis["total_gasto"])}</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def _cost_efficiency_heatmap(chart_df: pd.DataFrame) -> go.Figure:
@@ -1989,30 +2059,66 @@ def _cost_efficiency_heatmap(chart_df: pd.DataFrame) -> go.Figure:
         fig.update_layout(height=560, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
         return fig
 
-    display_df = chart_df.head(40).sort_values("custo_por_voto", ascending=False).copy()
-    customdata = np.stack(
+    top_territories = (
+        chart_df.groupby("territorio", as_index=False)["valor_total_despesa"]
+        .sum()
+        .sort_values("valor_total_despesa", ascending=False)
+        .head(24)["territorio"]
+        .tolist()
+    )
+    top_expense_types = (
+        chart_df.groupby("tipo_despesa", as_index=False)["valor_total_despesa"]
+        .sum()
+        .sort_values("valor_total_despesa", ascending=False)
+        .head(14)["tipo_despesa"]
+        .tolist()
+    )
+    display_df = chart_df[
+        chart_df["territorio"].isin(top_territories)
+        & chart_df["tipo_despesa"].isin(top_expense_types)
+    ].copy()
+    pivot_cost = display_df.pivot_table(
+        index="territorio",
+        columns="tipo_despesa",
+        values="custo_por_voto",
+        aggfunc="mean",
+    ).reindex(index=top_territories, columns=top_expense_types)
+    pivot_spend = display_df.pivot_table(
+        index="territorio",
+        columns="tipo_despesa",
+        values="valor_total_despesa",
+        aggfunc="sum",
+    ).reindex(index=top_territories, columns=top_expense_types)
+    pivot_votes = display_df.pivot_table(
+        index="territorio",
+        columns="tipo_despesa",
+        values="qt_votos",
+        aggfunc="sum",
+    ).reindex(index=top_territories, columns=top_expense_types)
+    text = pivot_spend.map(lambda value: "" if pd.isna(value) else f"R$ {value:,.0f}").to_numpy()
+    customdata = np.dstack(
         [
-            display_df["valor_total_despesa"],
-            display_df["qt_votos"],
-            display_df["custo_por_voto"],
-        ],
-        axis=-1,
+            pivot_spend.fillna(0).to_numpy(),
+            pivot_votes.fillna(0).to_numpy(),
+            pivot_cost.fillna(0).to_numpy(),
+        ]
     )
     fig = go.Figure(
         data=go.Heatmap(
-            z=display_df[["custo_por_voto"]].to_numpy(),
-            x=["Total gasto"],
-            y=display_df["territorio"],
-            text=display_df[["total_gasto"]].to_numpy(),
+            z=pivot_cost.to_numpy(),
+            x=pivot_cost.columns,
+            y=pivot_cost.index,
+            text=text,
             texttemplate="%{text}",
-            textfont={"color": "#f8fbff", "size": 13},
-            customdata=customdata.reshape(len(display_df), 1, 3),
+            textfont={"color": "#f8fbff", "size": 11},
+            customdata=customdata,
             colorscale=[
                 [0.0, "#16A34A"],
                 [0.46, "#FACC15"],
                 [0.68, "#F97316"],
                 [1.0, "#DC2626"],
             ],
+            hoverongaps=False,
             colorbar={
                 "title": {"text": "Custo por voto"},
                 "tickprefix": "R$ ",
@@ -2022,6 +2128,7 @@ def _cost_efficiency_heatmap(chart_df: pd.DataFrame) -> go.Figure:
             },
             hovertemplate=(
                 "<b>%{y}</b><br>"
+                "Tipo de despesa: %{x}<br>"
                 "Total gasto: R$ %{customdata[0]:,.2f}<br>"
                 "Votos: %{customdata[1]:,.0f}<br>"
                 "Custo por voto: R$ %{customdata[2]:,.2f}<extra></extra>"
@@ -2029,16 +2136,18 @@ def _cost_efficiency_heatmap(chart_df: pd.DataFrame) -> go.Figure:
         )
     )
     fig.update_layout(
-        height=max(460, min(900, 120 + len(display_df) * 28)),
-        margin={"l": 190, "r": 42, "t": 14, "b": 42},
+        height=max(500, min(900, 160 + len(pivot_cost.index) * 30)),
+        margin={"l": 190, "r": 42, "t": 14, "b": 150},
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font={"color": "#eaf2ff", "family": "Segoe UI, Inter, sans-serif"},
         xaxis={
-            "title": "",
+            "title": "Tipo de despesa",
             "side": "top",
-            "tickfont": {"size": 13, "color": "#f8fbff"},
+            "tickfont": {"size": 11, "color": "#f8fbff"},
+            "tickangle": -35,
             "showgrid": False,
+            "automargin": True,
         },
         yaxis={
             "title": "Localidade",
@@ -2060,32 +2169,20 @@ def _render_cost_efficiency_section(df: pd.DataFrame | None) -> None:
         "Matriz de Eficiência por Custo do Voto",
         "Heatmap de eficiência: verde indica menor custo por voto; vermelho indica baixa eficiência.",
     )
+    mesorregiao = st.session_state.get("pagina1_cost_efficiency_mesorregiao")
+    if mesorregiao not in _cost_efficiency_mesorregiao_options(df):
+        mesorregiao = None
+    chart_df = _cost_efficiency_frame(df, _territorial_context(), mesorregiao)
     header_col, filter_col = st.columns([0.58, 0.42], gap="large")
     with header_col:
         _section_header(
             "Eficiência do investimento eleitoral",
-            "Linhas mostram localidades; a coluna exibe o total gasto e a cor indica o custo por voto no recorte.",
+            "Linhas mostram municípios; colunas mostram tipos de despesa e a cor indica o custo por voto no recorte.",
         )
     with filter_col:
-        level_col, expense_col = st.columns(2, gap="small")
-        with level_col:
-            level_label = st.selectbox(
-                "Localidade",
-                ["Mesorregião", "Município"],
-                key="pagina1_cost_efficiency_level",
-            )
-        with expense_col:
-            expense_type = st.selectbox(
-                "Tipo de despesa",
-                _expense_type_options(df),
-                index=0,
-                key="pagina1_cost_efficiency_expense_type",
-            )
-    level = {
-        "Município": "municipio",
-        "Mesorregião": "mesorregiao",
-    }[level_label]
-    chart_df = _cost_efficiency_frame(df, level, expense_type, _territorial_context())
+        _render_cost_efficiency_kpis(chart_df)
+    mesorregiao = _render_cost_efficiency_mesorregiao_buttons(df)
+    chart_df = _cost_efficiency_frame(df, _territorial_context(), mesorregiao)
     with st.container(border=True):
         st.plotly_chart(_cost_efficiency_heatmap(chart_df), use_container_width=True)
 
@@ -2211,9 +2308,13 @@ def _parliamentary_action_frame(
         .rename(columns={emenda_value_col: "valor_emendas"})
     )
 
-    result = votos_base.merge(emendas_base, on="codigo_ibge", how="left")
-    result["valor_emendas"] = result["valor_emendas"].fillna(0)
-    result = result.merge(df_municipios_ref, on="codigo_ibge", how="left")
+    result = df_municipios_ref.copy()
+    result["codigo_ibge"] = pd.to_numeric(result["codigo_ibge"], errors="coerce").astype("Int64")
+    result = result.dropna(subset=["codigo_ibge"]).merge(votos_base, on="codigo_ibge", how="left")
+    result = result.merge(emendas_base, on="codigo_ibge", how="left")
+    result["qt_votos"] = pd.to_numeric(result["qt_votos"], errors="coerce").fillna(0)
+    result["valor_emendas"] = pd.to_numeric(result["valor_emendas"], errors="coerce").fillna(0)
+    result["municipio"] = result["municipio"].fillna(result.get("nome"))
     if df_regioes_ref is not None and not df_regioes_ref.empty:
         result = result.merge(
             df_regioes_ref[["codigo_ibge", "mesorregiao_nome", "regiao_imediata_nome"]],
@@ -2332,7 +2433,7 @@ def _parliamentary_action_map(action_df: pd.DataFrame) -> go.Figure:
 
     fig.update_geos(fitbounds="locations", visible=False, bgcolor="rgba(0,0,0,0)")
     fig.update_layout(
-        margin={"l": 6, "r": 18, "t": 52, "b": 6},
+        margin={"l": 6, "r": 250, "t": 52, "b": 6},
         height=610,
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
@@ -2340,9 +2441,11 @@ def _parliamentary_action_map(action_df: pd.DataFrame) -> go.Figure:
         title={"font": {"size": 20, "color": "#eaf2ff"}},
         legend={
             "title": {"text": "Categorias de Coerência Política"},
-            "orientation": "h",
-            "y": -0.03,
-            "x": 0,
+            "orientation": "v",
+            "y": 0.5,
+            "yanchor": "middle",
+            "x": 1.02,
+            "xanchor": "left",
             "font": {"size": 12, "color": "#dbeafe"},
             "bgcolor": "rgba(7,24,54,0.64)",
             "bordercolor": "rgba(147,197,253,0.28)",
