@@ -85,6 +85,36 @@ def _weighted_dominant(df: pd.DataFrame, value_col: str) -> tuple[str, float]:
     return str(top[value_col]), pct
 
 
+def _market_share_for_value(
+    df: pd.DataFrame,
+    value_col: str,
+    value: str,
+    fallback_pct: float,
+) -> float:
+    """Retorna o market share do valor dominante, com fallback legado."""
+    if df.empty or "market_share" not in df.columns or value in {"", "Nao informado"}:
+        return fallback_pct
+
+    working = df[df[value_col].fillna("").astype(str).str.strip().eq(value)].copy()
+    if working.empty:
+        return fallback_pct
+
+    shares = pd.to_numeric(working["market_share"], errors="coerce")
+    valid = shares.notna()
+    if not valid.any():
+        return fallback_pct
+
+    shares = shares[valid]
+    if shares.abs().max() <= 1:
+        shares = shares * 100
+
+    if "votos_candidato" in working.columns:
+        weights = pd.to_numeric(working.loc[valid, "votos_candidato"], errors="coerce").fillna(0)
+        if weights.gt(0).any():
+            return float((shares * weights).sum() / weights.sum())
+    return float(shares.mean())
+
+
 def _icp_general_row(icp_df: pd.DataFrame) -> pd.DataFrame:
     if icp_df.empty:
         return icp_df
@@ -111,6 +141,7 @@ def _icp_general_row(icp_df: pd.DataFrame) -> pd.DataFrame:
                 "escolaridade_principal",
                 "estado_civil_principal",
                 "confianca_persona",
+                "market_share",
                 "votos_candidato",
             )
             if col in working.columns
@@ -124,8 +155,9 @@ def _icp_general_row(icp_df: pd.DataFrame) -> pd.DataFrame:
                     **{
                         col: "first"
                         for col in keep_cols
-                        if col not in {"cd_municipio", "votos_candidato"}
+                        if col not in {"cd_municipio", "votos_candidato", "market_share"}
                     },
+                    **({"market_share": "first"} if "market_share" in keep_cols else {}),
                     "votos_candidato": "sum",
                 }
             )
@@ -136,6 +168,14 @@ def _icp_general_row(icp_df: pd.DataFrame) -> pd.DataFrame:
     idade, pct_idade = _weighted_dominant(working, "idade_principal")
     escolaridade, pct_escolaridade = _weighted_dominant(working, "escolaridade_principal")
     estado_civil, pct_estado_civil = _weighted_dominant(working, "estado_civil_principal")
+    pct_genero = _market_share_for_value(working, "genero_principal", genero, pct_genero)
+    pct_idade = _market_share_for_value(working, "idade_principal", idade, pct_idade)
+    pct_escolaridade = _market_share_for_value(
+        working, "escolaridade_principal", escolaridade, pct_escolaridade
+    )
+    pct_estado_civil = _market_share_for_value(
+        working, "estado_civil_principal", estado_civil, pct_estado_civil
+    )
     summary, _ = _weighted_dominant(working, "perfil_resumo")
     if summary == "Nao informado":
         summary = persona
