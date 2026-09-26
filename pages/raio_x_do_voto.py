@@ -49,9 +49,13 @@ def _apply_visual_model() -> None:
         :root {{
             --raiox-card-bg: linear-gradient(145deg, rgba(11, 31, 77, 0.76) 0%, rgba(7, 24, 54, 0.68) 100%);
             --raiox-card-bg-soft: linear-gradient(145deg, rgba(11, 31, 77, 0.58) 0%, rgba(7, 24, 54, 0.48) 100%);
+            --raiox-glass-bg: linear-gradient(145deg, rgba(15, 42, 88, 0.46) 0%, rgba(8, 28, 64, 0.32) 100%);
+            --raiox-glass-bg-strong: linear-gradient(145deg, rgba(15, 42, 88, 0.58) 0%, rgba(8, 28, 64, 0.42) 100%);
+            --raiox-control-bg: rgba(13, 39, 82, 0.72);
             --raiox-card-border: rgba(59, 130, 246, 0.24);
-            --raiox-card-border-soft: rgba(59, 130, 246, 0.20);
+            --raiox-card-border-soft: rgba(125, 184, 255, 0.28);
             --raiox-card-shadow: inset 0 1px 0 rgba(191, 219, 254, 0.08), 0 18px 40px rgba(2, 9, 24, 0.30);
+            --raiox-glass-shadow: inset 0 1px 0 rgba(219, 234, 254, 0.12), 0 14px 34px rgba(2, 9, 24, 0.24);
         }}
         .stApp {{
             color: #eaf2ff;
@@ -155,25 +159,31 @@ def _apply_visual_model() -> None:
             }}
         }}
         .mapa-major-section,
-        .mapa-section-card,
-        .mapa-kpi-card,
-        .mapa-kpi-wide-card,
-        .raiox-kpi-card,
-        .raiox-demografia-card,
-        .raiox-heatmap-card,
-        .raiox-concentration-pill {{
+        .mapa-section-card {{
             border: 1px solid var(--raiox-card-border);
             background: var(--raiox-card-bg);
             box-shadow: var(--raiox-card-shadow);
             backdrop-filter: blur(6px);
             -webkit-backdrop-filter: blur(6px);
         }}
+        .mapa-kpi-card,
+        .mapa-kpi-wide-card,
+        .raiox-kpi-card,
+        .raiox-demografia-card,
+        .raiox-heatmap-card,
+        .raiox-concentration-pill {{
+            border: 1px solid var(--raiox-card-border-soft);
+            background: var(--raiox-glass-bg);
+            box-shadow: var(--raiox-glass-shadow);
+            backdrop-filter: blur(14px) saturate(122%);
+            -webkit-backdrop-filter: blur(14px) saturate(122%);
+        }}
         .stApp [data-testid="stVerticalBlockBorderWrapper"] {{
-            border-color: var(--raiox-card-border) !important;
-            background: var(--raiox-card-bg-soft) !important;
-            box-shadow: var(--raiox-card-shadow);
-            backdrop-filter: blur(6px);
-            -webkit-backdrop-filter: blur(6px);
+            border-color: var(--raiox-card-border-soft) !important;
+            background: var(--raiox-glass-bg) !important;
+            box-shadow: var(--raiox-glass-shadow);
+            backdrop-filter: blur(14px) saturate(122%);
+            -webkit-backdrop-filter: blur(14px) saturate(122%);
         }}
         .mapa-major-section {{
             position: relative;
@@ -236,7 +246,7 @@ def _apply_visual_model() -> None:
             margin-bottom: 0.9rem;
         }}
         .raiox-kpi-grid {{
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+            grid-template-columns: repeat(3, minmax(0, 1fr));
             margin-top: 0.95rem;
             margin-bottom: 1.1rem;
         }}
@@ -348,10 +358,13 @@ def _apply_visual_model() -> None:
             margin-top: 0.75rem;
         }}
         .raiox-heatmap-kpi {{
-            background: var(--raiox-card-bg-soft);
+            background: var(--raiox-glass-bg-strong);
             border: 1px solid var(--raiox-card-border-soft);
             border-radius: 12px;
             padding: 0.72rem 0.8rem;
+            box-shadow: var(--raiox-glass-shadow);
+            backdrop-filter: blur(12px) saturate(120%);
+            -webkit-backdrop-filter: blur(12px) saturate(120%);
         }}
         .raiox-heatmap-kpi-label {{
             color: #b7c7e6;
@@ -443,6 +456,50 @@ def _apply_visual_model() -> None:
         .raiox-bar-filter [data-testid="stSelectbox"] {{
             max-width: 16rem;
             margin-left: auto;
+        }}
+        .stApp [data-testid="stSelectbox"] label,
+        .stApp [data-testid="stMultiSelect"] label {{
+            color: #dbeafe !important;
+            font-weight: 700;
+        }}
+        .stApp [data-baseweb="select"] > div,
+        .stApp [data-baseweb="select"] [role="combobox"],
+        .stApp [data-testid="stSelectbox"] div[data-baseweb="select"] > div,
+        .stApp [data-testid="stMultiSelect"] div[data-baseweb="select"] > div {{
+            background: var(--raiox-control-bg) !important;
+            border: 1px solid rgba(125, 184, 255, 0.34) !important;
+            border-radius: 12px !important;
+            color: #f8fbff !important;
+            box-shadow: inset 0 1px 0 rgba(219, 234, 254, 0.12), 0 10px 24px rgba(2, 9, 24, 0.20) !important;
+            backdrop-filter: blur(12px) saturate(120%);
+            -webkit-backdrop-filter: blur(12px) saturate(120%);
+        }}
+        .stApp [data-baseweb="select"] svg {{
+            fill: #bfdbfe !important;
+        }}
+        .stApp [data-baseweb="select"] span,
+        .stApp [data-baseweb="select"] div {{
+            color: #f8fbff !important;
+        }}
+        div[data-baseweb="popover"] {{
+            background: transparent !important;
+        }}
+        div[data-baseweb="popover"] ul,
+        div[role="listbox"] {{
+            background: linear-gradient(145deg, rgba(11, 31, 77, 0.96) 0%, rgba(7, 24, 54, 0.94) 100%) !important;
+            border: 1px solid rgba(125, 184, 255, 0.34) !important;
+            border-radius: 12px !important;
+            box-shadow: 0 18px 42px rgba(2, 9, 24, 0.48) !important;
+            color: #f8fbff !important;
+        }}
+        div[role="option"] {{
+            background: transparent !important;
+            color: #f8fbff !important;
+        }}
+        div[role="option"]:hover,
+        div[role="option"][aria-selected="true"] {{
+            background: rgba(59, 130, 246, 0.28) !important;
+            color: #ffffff !important;
         }}
         @media (max-width: 900px) {{
             .mapa-kpi-grid,
