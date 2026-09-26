@@ -1211,36 +1211,36 @@ def _render_accumulated_concentration_section(df: pd.DataFrame | None) -> None:
                 f"{int(city_row['rank_municipio'])}. {html.escape(str(city_row['nm_municipio']).title())}"
                 for _, city_row in city_rows.iterrows()
             )
-            return f"""
-                <div class="raiox-concentration-pill">
-                    <div class="raiox-concentration-pill-label">{title}</div>
-                    <div class="raiox-concentration-pill-value">{_format_percent(float(row["pct_acumulado"]))}</div>
-                    <div class="raiox-concentration-pill-city">{effective_rank} municípios no recorte</div>
-                    <div class="raiox-concentration-city-list">{city_items}</div>
-                    <div class="raiox-concentration-pill-caption">{_format_number(float(row["votos_acumulados"]))} votos acumulados</div>
-                </div>
-            """
+            return (
+                '<div class="raiox-concentration-pill">'
+                f'<div class="raiox-concentration-pill-label">{title}</div>'
+                f'<div class="raiox-concentration-pill-value">{_format_percent(float(row["pct_acumulado"]))}</div>'
+                f'<div class="raiox-concentration-pill-city">{effective_rank} municípios no recorte</div>'
+                f'<div class="raiox-concentration-city-list">{city_items}</div>'
+                f'<div class="raiox-concentration-pill-caption">{_format_number(float(row["votos_acumulados"]))} votos acumulados</div>'
+                "</div>"
+            )
 
         top1 = row_at(1)
         top15 = row_at(15)
         st.markdown(
-            f"""
-            <div class="raiox-concentration-headline">
-                <div class="raiox-concentration-summary">
-                    {html.escape(str(top1["nm_municipio"]).title())} abre a curva com {_format_percent(float(top1["pct_acumulado"]))} da votação.
-                </div>
-                <div class="raiox-concentration-context">
-                    Os 15 principais municípios acumulam {_format_percent(float(top15["pct_acumulado"]))} dos votos.
-                    Quanto mais rápida a curva sobe, mais concentrada está a base eleitoral do candidato.
-                </div>
-            </div>
-            <div class="raiox-concentration-grid">
-                {card_html(1)}
-                {card_html(5)}
-                {card_html(15)}
-                {card_html(20)}
-            </div>
-            """,
+            (
+                '<div class="raiox-concentration-headline">'
+                '<div class="raiox-concentration-summary">'
+                f'{html.escape(str(top1["nm_municipio"]).title())} abre a curva com {_format_percent(float(top1["pct_acumulado"]))} da votação.'
+                "</div>"
+                '<div class="raiox-concentration-context">'
+                f'Os 15 principais municípios acumulam {_format_percent(float(top15["pct_acumulado"]))} dos votos. '
+                "Quanto mais rápida a curva sobe, mais concentrada está a base eleitoral do candidato."
+                "</div>"
+                "</div>"
+                '<div class="raiox-concentration-grid">'
+                f"{card_html(1)}"
+                f"{card_html(5)}"
+                f"{card_html(15)}"
+                f"{card_html(20)}"
+                "</div>"
+            ),
             unsafe_allow_html=True,
         )
         _, toggle_col = st.columns([0.68, 0.32], gap="large")
