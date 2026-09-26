@@ -12,7 +12,7 @@ from huggingface_hub import HfFileSystem
 DATA_DIR = Path("data") / "deputados"
 SUPPORTED_SUFFIXES = {".csv", ".parquet", ".json", ".jsonl", ".xlsx", ".xls", ".jpg", ".jpeg", ".png"}
 DEFAULT_VISUALIZATION_YEAR = "2022"
-DEFAULT_VISUALIZACAO_PREFIX = "deputados/estaduais/2022/joao_vitor_xavier"
+DEFAULT_VISUALIZACAO_PREFIX = "deputados/estaduais/2022"
 
 
 def load_env(path: str | Path = ".env") -> dict[str, str]:

@@ -778,6 +778,20 @@ def _selected_files() -> list[str]:
     return selected or files
 
 
+def _selected_deputado_label() -> dict[str, str]:
+    filters = st.session_state.get("deputados_filters", {})
+    cargo = str(filters.get("cargo") or "Deputado").replace("_", " ").title()
+    cargo_labels = {
+        "Estaduais": "Deputado Estadual",
+        "Federais": "Deputado Federal",
+    }
+    return {
+        "nome": str(filters.get("nome") or "Todos").upper(),
+        "cargo": cargo_labels.get(cargo, cargo).upper(),
+        "ano": str(filters.get("ano") or "2022"),
+    }
+
+
 @st.cache_data(show_spinner=False)
 def _remote_image_data_url(file_name: str, token: str | None = None) -> str:
     suffix = Path(file_name).suffix.lower()
@@ -792,7 +806,7 @@ def _candidate_photo_data_url() -> str:
     image_file = next(
         (
             file_name
-            for file_name in _current_files()
+            for file_name in _selected_files()
             if Path(file_name).suffix.lower() in {".jpg", ".jpeg", ".png"}
         ),
         "",
@@ -806,6 +820,7 @@ def _candidate_photo_data_url() -> str:
 
 
 def _render_page_header() -> None:
+    deputado = _selected_deputado_label()
     photo_url = _candidate_photo_data_url()
     photo_html = (
         f'<img class="raiox-candidate-photo" src="{photo_url}" alt="Foto do candidato">'
@@ -815,14 +830,13 @@ def _render_page_header() -> None:
     st.markdown(
         f"""
         <section class="raiox-hero">
-            <div class="raiox-hero-title">RAIO X da votação 2022</div>
+            <div class="raiox-hero-title">RAIO X da votação {html.escape(deputado["ano"])}</div>
             <div class="raiox-hero-subtitle">Análises descritivas geográficas e do perfil do eleitor na última eleição.</div>
             <div class="raiox-candidate-row">
                 {photo_html}
                 <div class="raiox-candidate-info">
-                    <div class="raiox-candidate-line">NOME: JOAO VITOR XAVIER</div>
-                    <div class="raiox-candidate-line">CARGO: DEPUTADO ESTADUAL</div>
-                    <div class="raiox-candidate-line">PARTIDO: CIDADANIA</div>
+                    <div class="raiox-candidate-line">NOME: {html.escape(deputado["nome"])}</div>
+                    <div class="raiox-candidate-line">CARGO: {html.escape(deputado["cargo"])}</div>
                 </div>
             </div>
         </section>

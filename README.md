@@ -19,11 +19,11 @@ Os dados sao carregados de um bucket Hugging Face definido por:
 
 ```env
 HF_BUCKET_URL="hf://buckets/..."
-HF_VISUALIZACAO_PREFIX="deputados/estaduais/2022/nome_do_candidato"
+HF_VISUALIZACAO_PREFIX="deputados/estaduais/2022"
 HF_TOKEN="..."
 ```
 
-O app localiza os arquivos a partir do prefixo do candidato e usa aliases em `hf_sync.py` para selecionar cada parquet.
+O app localiza as pastas dos candidatos a partir do prefixo geral da eleicao, lista os deputados na barra lateral e usa aliases em `hf_sync.py` para selecionar cada parquet dentro da pasta escolhida.
 
 ## Parquets utilizados
 
@@ -176,7 +176,7 @@ Crie um arquivo `.env` com as variaveis necessarias:
 
 ```env
 HF_BUCKET_URL="hf://buckets/..."
-HF_VISUALIZACAO_PREFIX="deputados/estaduais/2022/nome_do_candidato"
+HF_VISUALIZACAO_PREFIX="deputados/estaduais/2022"
 HF_TOKEN="..."
 ```
 
