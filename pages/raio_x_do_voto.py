@@ -416,11 +416,22 @@ def _apply_visual_model() -> None:
             line-height: 1.45;
             margin: 0 0 1rem 0;
         }}
+        .raiox-concentration-headline {{
+            display: grid;
+            grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+            gap: 1.2rem;
+            align-items: start;
+            margin: 0.1rem 0 1rem 0;
+        }}
+        .raiox-concentration-headline .raiox-concentration-summary,
+        .raiox-concentration-headline .raiox-concentration-context {{
+            margin: 0;
+        }}
         .raiox-concentration-grid {{
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 0.7rem;
-            margin: 0.2rem 0 0 0;
+            margin: 0.2rem 0 1.05rem 0;
         }}
         .raiox-concentration-pill {{
             display: flex;
@@ -524,6 +535,9 @@ def _apply_visual_model() -> None:
             }}
             .raiox-concentration-grid {{
                 grid-template-columns: repeat(2, minmax(0, 1fr));
+            }}
+            .raiox-concentration-headline {{
+                grid-template-columns: 1fr;
             }}
             .mapa-major-section-title {{
                 font-size: 1.55rem;
@@ -1176,7 +1190,7 @@ def _accumulated_concentration_chart(concentration_df: pd.DataFrame, max_rank: i
 def _render_accumulated_concentration_section(df: pd.DataFrame | None) -> None:
     concentration_df = _municipal_concentration_frame(df)
     _major_section_header(
-        "Concentração Territorial",
+        "Concentração territorial dos votos",
         "Quanto da votação total está concentrada nos municípios onde o candidato mais recebeu votos.",
     )
     with st.container(border=True):
@@ -1209,10 +1223,9 @@ def _render_accumulated_concentration_section(df: pd.DataFrame | None) -> None:
 
         top1 = row_at(1)
         top15 = row_at(15)
-        left_col, right_col = st.columns([0.42, 0.58], gap="large")
-        with left_col:
-            st.markdown(
-                f"""
+        st.markdown(
+            f"""
+            <div class="raiox-concentration-headline">
                 <div class="raiox-concentration-summary">
                     {html.escape(str(top1["nm_municipio"]).title())} abre a curva com {_format_percent(float(top1["pct_acumulado"]))} da votação.
                 </div>
@@ -1220,30 +1233,32 @@ def _render_accumulated_concentration_section(df: pd.DataFrame | None) -> None:
                     Os 15 principais municípios acumulam {_format_percent(float(top15["pct_acumulado"]))} dos votos.
                     Quanto mais rápida a curva sobe, mais concentrada está a base eleitoral do candidato.
                 </div>
-                <div class="raiox-concentration-grid">
-                    {card_html(1)}
-                    {card_html(5)}
-                    {card_html(15)}
-                    {card_html(20)}
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-        with right_col:
+            </div>
+            <div class="raiox-concentration-grid">
+                {card_html(1)}
+                {card_html(5)}
+                {card_html(15)}
+                {card_html(20)}
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        _, toggle_col = st.columns([0.68, 0.32], gap="large")
+        with toggle_col:
             show_all = st.toggle(
                 "Mostrar todos os municípios",
                 value=False,
                 key="pagina1_concentration_show_all",
             )
-            max_rank = None if show_all else min(50, len(concentration_df))
-            if not show_all and len(concentration_df) > 50:
-                st.caption(
-                    f"Visualização focada nos Top 50 de {_format_number(len(concentration_df))} municípios."
-                )
-            st.plotly_chart(
-                _accumulated_concentration_chart(concentration_df, max_rank=max_rank),
-                use_container_width=True,
+        max_rank = None if show_all else min(50, len(concentration_df))
+        if not show_all and len(concentration_df) > 50:
+            st.caption(
+                f"Visualização focada nos Top 50 de {_format_number(len(concentration_df))} municípios."
             )
+        st.plotly_chart(
+            _accumulated_concentration_chart(concentration_df, max_rank=max_rank),
+            use_container_width=True,
+        )
 
 
 def _render_kpis(
