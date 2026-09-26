@@ -391,9 +391,10 @@ def _apply_visual_model() -> None:
             margin: 0.2rem 0 0 0;
         }}
         .raiox-concentration-pill {{
-            border: 1px solid rgba(184, 208, 255, 0.22);
+            border: 1px solid rgba(59, 130, 246, 0.24);
             border-radius: 12px;
-            background: linear-gradient(145deg, rgba(15, 37, 70, 0.70) 0%, rgba(7, 18, 36, 0.64) 100%);
+            background: linear-gradient(145deg, rgba(11, 31, 77, 0.76) 0%, rgba(7, 24, 54, 0.70) 100%);
+            box-shadow: inset 0 1px 0 rgba(191, 219, 254, 0.08), 0 14px 28px rgba(2, 9, 24, 0.24);
             padding: 0.78rem 0.82rem;
             min-height: 7.3rem;
         }}
@@ -411,9 +412,9 @@ def _apply_visual_model() -> None:
             margin-top: 0.12rem;
         }}
         .raiox-concentration-pill-city {{
-            color: #eaf2ff;
+            color: #f8fbff;
             font-size: 0.88rem;
-            font-weight: 720;
+            font-weight: 780;
             line-height: 1.18;
             margin-top: 0.32rem;
         }}
@@ -733,8 +734,8 @@ def _render_page_header() -> None:
     st.markdown(
         f"""
         <section class="raiox-hero">
-            <div class="raiox-hero-title">RAIO X da vota&ccedil;&atilde;o 2022</div>
-            <div class="raiox-hero-subtitle">Analises descritivas geograficas e do perfil do eleitor na ultima eleicao.</div>
+            <div class="raiox-hero-title">RAIO X da votação 2022</div>
+            <div class="raiox-hero-subtitle">Análises descritivas geográficas e do perfil do eleitor na última eleição.</div>
             <div class="raiox-candidate-row">
                 {photo_html}
                 <div class="raiox-candidate-info">
@@ -762,8 +763,8 @@ def _read_selected_parquet(kind: str) -> pd.DataFrame | None:
 
 def _territorial_kind_select() -> str:
     options = {
-        "Mesorregiao": "votos_mesorregiao",
-        "Municipio": "votos_municipio",
+        "Mesorregião": "votos_mesorregiao",
+        "Município": "votos_municipio",
     }
     selected = st.selectbox(
         "Filtro territorial",
@@ -792,7 +793,7 @@ def _territorial_map_view(df: pd.DataFrame | None, kind: str) -> pd.DataFrame | 
 
 def _territorial_concentration_chart(df: pd.DataFrame | None, kind: str) -> go.Figure:
     label_col = "nm_mesorregiao" if kind == "votos_mesorregiao" else "nm_municipio"
-    title = "Top 10 mesorregioes" if kind == "votos_mesorregiao" else "Top 10 municipios"
+    title = "Top 10 mesorregiões" if kind == "votos_mesorregiao" else "Top 10 municípios"
 
     if df is None or df.empty or "qt_votos" not in df.columns or label_col not in df.columns:
         ranking = pd.DataFrame({"territorio": ["Sem dados"], "qt_votos": [0.0], "pct": [0.0]})
@@ -958,10 +959,10 @@ def _accumulated_concentration_chart(concentration_df: pd.DataFrame, max_rank: i
                 axis=-1,
             ),
             hovertemplate=(
-                "<b>Top %{x:.0f} munic&iacute;pios</b><br>"
+                "<b>Top %{x:.0f} municípios</b><br>"
                 "%{customdata[0]:,.0f} votos acumulados<br>"
-                "%{customdata[1]:.1%} da vota&ccedil;&atilde;o total<br>"
-                "Munic&iacute;pio na posi&ccedil;&atilde;o: %{customdata[2]}<extra></extra>"
+                "%{customdata[1]:.1%} da votação total<br>"
+                "Município na posição: %{customdata[2]}<extra></extra>"
             ),
             showlegend=False,
         )
@@ -984,7 +985,7 @@ def _accumulated_concentration_chart(concentration_df: pd.DataFrame, max_rank: i
                 hovertemplate=(
                     "<b>%{text}</b><br>"
                     "%{customdata[0]:,.0f} votos acumulados<br>"
-                    "%{customdata[1]:.1%} da vota&ccedil;&atilde;o total<extra></extra>"
+                    "%{customdata[1]:.1%} da votação total<extra></extra>"
                 ),
                 customdata=np.stack([ref_df["votos_acumulados"], ref_df["pct_acumulado"]], axis=-1),
                 showlegend=False,
@@ -992,18 +993,18 @@ def _accumulated_concentration_chart(concentration_df: pd.DataFrame, max_rank: i
         )
     fig.update_layout(
         height=390,
-        margin={"l": 34, "r": 26, "t": 18, "b": 44},
+        margin={"l": 34, "r": 36, "t": 18, "b": 44},
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font={"color": "#eaf2ff", "family": "Segoe UI, Inter, sans-serif"},
         xaxis={
-            "title": "Municipios acumulados",
+            "title": "Municípios acumulados",
             "range": [0.5, int(chart_df["rank_municipio"].max())],
             "gridcolor": "rgba(255,255,255,0.08)",
             "zeroline": False,
         },
         yaxis={
-            "title": "% da votacao total",
+            "title": "% da Votação Total",
             "range": [0, 100],
             "ticksuffix": "%",
             "gridcolor": "rgba(255,255,255,0.12)",
@@ -1049,8 +1050,8 @@ def _accumulated_concentration_chart(concentration_df: pd.DataFrame, max_rank: i
 def _render_accumulated_concentration_section(df: pd.DataFrame | None) -> None:
     concentration_df = _municipal_concentration_frame(df)
     _major_section_header(
-        "Concentra&ccedil;&atilde;o Territorial",
-        "Quanto da vota&ccedil;&atilde;o total est&aacute; concentrada nos munic&iacute;pios onde o candidato mais recebeu votos.",
+        "Concentração Territorial",
+        "Quanto da votação total está concentrada nos municípios onde o candidato mais recebeu votos.",
     )
     with st.container(border=True):
         if concentration_df.empty:
@@ -1066,7 +1067,7 @@ def _render_accumulated_concentration_section(df: pd.DataFrame | None) -> None:
             effective_rank = int(row["rank_municipio"])
             title = f"Top {rank}" if effective_rank >= rank else "Todos"
             city = str(row["nm_municipio"]).title()
-            city_line = city if rank == 1 else f"At&eacute; {city}"
+            city_line = city if rank == 1 else f"Até {city}"
             return f"""
                 <div class="raiox-concentration-pill">
                     <div class="raiox-concentration-pill-label">{title}</div>
@@ -1083,11 +1084,11 @@ def _render_accumulated_concentration_section(df: pd.DataFrame | None) -> None:
             st.markdown(
                 f"""
                 <div class="raiox-concentration-summary">
-                    {html.escape(str(top1["nm_municipio"]).title())} abre a curva com {_format_percent(float(top1["pct_acumulado"]))} da vota&ccedil;&atilde;o.
+                    {html.escape(str(top1["nm_municipio"]).title())} abre a curva com {_format_percent(float(top1["pct_acumulado"]))} da votação.
                 </div>
                 <div class="raiox-concentration-context">
-                    Os 10 principais munic&iacute;pios acumulam {_format_percent(float(top10["pct_acumulado"]))} dos votos.
-                    Quanto mais r&aacute;pida a curva sobe, mais concentrada est&aacute; a base eleitoral do candidato.
+                    Os 10 principais municípios acumulam {_format_percent(float(top10["pct_acumulado"]))} dos votos.
+                    Quanto mais rápida a curva sobe, mais concentrada está a base eleitoral do candidato.
                 </div>
                 <div class="raiox-concentration-grid">
                     {card_html(1)}
@@ -1107,7 +1108,7 @@ def _render_accumulated_concentration_section(df: pd.DataFrame | None) -> None:
             max_rank = None if show_all else min(50, len(concentration_df))
             if not show_all and len(concentration_df) > 50:
                 st.caption(
-                    f"Visualizacao focada nos Top 50 de {_format_number(len(concentration_df))} municipios."
+                    f"Visualização focada nos Top 50 de {_format_number(len(concentration_df))} municípios."
                 )
             st.plotly_chart(
                 _accumulated_concentration_chart(concentration_df, max_rank=max_rank),
@@ -1211,19 +1212,19 @@ def _render_kpis(df: pd.DataFrame | None) -> None:
                 <div class="mapa-kpi-caption">Votos nominais no recorte municipal.</div>
             </div>
             <div class="mapa-kpi-card">
-                <div class="mapa-kpi-label">Munic&iacute;pio mais votado</div>
+                <div class="mapa-kpi-label">Município mais votado</div>
                 <div class="mapa-kpi-value">{reduto_votos}</div>
                 <div class="mapa-kpi-caption">{html.escape(reduto_nome)}</div>
             </div>
             <div class="mapa-kpi-card">
-                <div class="mapa-kpi-label">Munic&iacute;pios com votos</div>
+                <div class="mapa-kpi-label">Municípios com votos</div>
                 <div class="mapa-kpi-value">{municipios}</div>
-                <div class="mapa-kpi-caption">Munic&iacute;pios em que ele foi votado.</div>
+                <div class="mapa-kpi-caption">Municípios em que ele foi votado.</div>
             </div>
         </div>
         <div class="mapa-kpi-wide-card">
-            <div class="mapa-kpi-wide-tag">Maior concentra&ccedil;&atilde;o</div>
-            <div class="mapa-kpi-label">Territ&oacute;rio l&iacute;der</div>
+            <div class="mapa-kpi-wide-tag">Maior concentração</div>
+            <div class="mapa-kpi-label">Território líder</div>
             <div class="mapa-kpi-wide-value">{html.escape(mesorregiao_nome)}</div>
             <div class="mapa-kpi-caption">{mesorregiao_votos} votos</div>
         </div>
@@ -1247,7 +1248,7 @@ def _mesorregiao_filter(df: pd.DataFrame | None) -> tuple[pd.DataFrame | None, s
         .tolist()
     )
     selected = st.selectbox(
-        "Mesorregiao",
+        "Mesorregião",
         ["Todas", *options],
         key="pagina1_mesorregiao",
     )
@@ -1371,16 +1372,16 @@ def _territorial_map(df: pd.DataFrame | None) -> go.Figure:
     mapa_df["votos_color"] = np.where(mapa_df["qt_votos"] > 0, np.log10(mapa_df["qt_votos"] + 1.0), 0.0)
     mapa_df["CD_MUNICIPIO"] = mapa_df["CD_MUNICIPIO"].fillna(0).astype(int)
     mapa_df["municipio_exibicao"] = (
-        mapa_df["nome"].fillna(mapa_df["nome_municipio"]).fillna(mapa_df["municipio"]).fillna("Municipio sem voto")
+        mapa_df["nome"].fillna(mapa_df["nome_municipio"]).fillna(mapa_df["municipio"]).fillna("Município sem voto")
     )
 
     max_votes = float(mapa_df["qt_votos"].max()) if not mapa_df.empty else 0.0
     zmax = float(np.log10(max_votes + 1.0)) if max_votes > 0 else 1.0
     tickvals, ticktext = _build_log_colorbar_ticks(max_votes)
     map_title = (
-        "ConcentraÃ§Ã£o de Votos por <b>mesorregiÃ£o</b> (MG)"
+        "Concentração de votos por <b>mesorregião</b> (MG)"
         if is_mesorregiao_df
-        else "ConcentraÃ§Ã£o de votos por municÃ­pio (MG)"
+        else "Concentração de votos por município (MG)"
     )
 
     fig = px.choropleth(
@@ -1418,7 +1419,7 @@ def _territorial_map(df: pd.DataFrame | None) -> go.Figure:
         hovertemplate=(
             "<b>%{hovertext}</b><br>"
             "<span style='color:#93c5fd'>Votos:</span> %{customdata[3]:,.0f}<br>"
-            "<span style='color:#93c5fd'>CÃ³d. municÃ­pio (TSE):</span> %{customdata[0]}<br>"
+            "<span style='color:#93c5fd'>Cód. município (TSE):</span> %{customdata[0]}<br>"
             "<span style='color:#93c5fd'>Lat/Lon:</span> %{customdata[1]:.4f}, %{customdata[2]:.4f}<extra></extra>"
         ),
         hoverlabel={
@@ -1520,11 +1521,11 @@ def _territorial_map(df: pd.DataFrame | None) -> go.Figure:
 
 def _territorial_treemap(df: pd.DataFrame | None) -> tuple[go.Figure, pd.DataFrame]:
     if df is None or df.empty or "qt_votos" not in df.columns:
-        return _empty_treemap("Votacao territorial"), pd.DataFrame()
+        return _empty_treemap("Votação territorial"), pd.DataFrame()
 
     group_cols = [col for col in ("nm_municipio", "nm_bairro") if col in df.columns]
     if not group_cols:
-        return _empty_treemap("Votacao territorial"), pd.DataFrame()
+        return _empty_treemap("Votação territorial"), pd.DataFrame()
 
     tree_df = df.copy()
     tree_df["qt_votos"] = pd.to_numeric(tree_df["qt_votos"], errors="coerce").fillna(0)
@@ -1541,7 +1542,7 @@ def _territorial_treemap(df: pd.DataFrame | None) -> tuple[go.Figure, pd.DataFra
         .head(500)
     )
     if tree_df.empty:
-        return _empty_treemap("Votacao territorial"), pd.DataFrame()
+        return _empty_treemap("Votação territorial"), pd.DataFrame()
 
     fig = px.treemap(tree_df, path=group_cols, values="qt_votos")
     code_lookup: dict[tuple[str, str], dict[str, str]] = {}
@@ -1753,15 +1754,15 @@ _apply_visual_model()
 
 _render_page_header()
 
-_major_section_header("Mapa Territorial da Vota&ccedil;&atilde;o", "Leitura territorial do desempenho eleitoral no recorte ativo.")
+_major_section_header("Mapa Territorial da Votação", "Leitura territorial do desempenho eleitoral no recorte ativo.")
 votos_municipio_df = _read_selected_parquet("votos_municipio")
 votos_bairro_df = _read_selected_parquet("votos_bairro")
 _render_kpis(votos_municipio_df)
 header_col, filter_col = st.columns([0.72, 0.28], gap="large")
 with header_col:
     _section_header(
-        "Sua vota&ccedil;&atilde;o no territ&oacute;rio de Minas Gerais",
-        "Concentra&ccedil;&atilde;o territorial dos votos por Messoregi&atilde;o e por Municipio.",
+        "Sua votação no território de Minas Gerais",
+        "Concentração territorial dos votos por mesorregião e por município.",
     )
 with filter_col:
     territorial_kind = _territorial_kind_select()
@@ -1772,7 +1773,7 @@ with map_col:
 with concentration_col:
     with st.container(border=True):
         st.markdown(
-            "<div class='raiox-chart-card-title'>Concentra&ccedil;&atilde;o territorial</div>",
+            "<div class='raiox-chart-card-title'>Concentração territorial</div>",
             unsafe_allow_html=True,
         )
         st.plotly_chart(
@@ -1780,15 +1781,15 @@ with concentration_col:
             use_container_width=True,
         )
 _section_header(
-    "Vota&ccedil;&atilde;o por Bairro de cada munic&iacute;pio e Perfil demogr&aacute;fico",
-    "Treemap territorial e distribuicao demografica conforme parquet selecionado.",
+    "Votação por Bairro de cada município e Perfil demográfico",
+    "Treemap territorial e distribuição demográfica conforme parquet selecionado.",
 )
 treemap_df, mesorregiao = _mesorregiao_filter(votos_bairro_df)
 col_left, col_right = st.columns(2, gap="large")
 with col_left:
     with st.container(border=True):
         st.markdown(
-            "<div class='raiox-chart-card-title'>Votacao por Municipio e Bairro</div>",
+            "<div class='raiox-chart-card-title'>Votação por Município e Bairro</div>",
             unsafe_allow_html=True,
         )
         treemap_fig, _ = _territorial_treemap(treemap_df)
@@ -1803,7 +1804,7 @@ with col_left:
 with col_right:
     with st.container(border=True):
         st.markdown(
-            "<div class='raiox-bar-title'>Distribui&ccedil;&atilde;o por perfil demogr&aacute;fico</div>",
+            "<div class='raiox-bar-title'>Distribuição por perfil demográfico</div>",
             unsafe_allow_html=True,
         )
         _, bar_filter_col = st.columns([0.54, 0.46], gap="medium")
