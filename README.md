@@ -90,7 +90,7 @@ Esta secao traz:
 - filtro de mesorregiao;
 - treemap de votacao por municipio e bairro;
 - selecao interativa no treemap;
-- persistencia do recorte em `st.session_state["territorial_context"]`;
+- persistencia do recorte da secao em `st.session_state["pagina1_demographic_territorial_context"]`;
 - botao para limpar o recorte territorial ativo;
 - grafico de barras do perfil demografico, com filtros por:
   - genero;
@@ -156,19 +156,18 @@ As transformacoes visuais sao recalculadas em reruns, mas a leitura remota dos a
 
 ## Estado interativo
 
-O recorte territorial selecionado no treemap e persistido em:
+O recorte territorial selecionado no treemap e persistido apenas na secao de demografia em:
 
 ```python
-st.session_state["territorial_context"]
+st.session_state["pagina1_demographic_territorial_context"]
 ```
 
-Esse contexto e usado para recalcular:
+Esse contexto e usado para recalcular apenas:
 
-- KPIs territoriais;
 - grafico demografico;
 - legenda do recorte ativo.
 
-A estrutura esta pronta para receber selecao futura pelo mapa coropletico.
+Os demais filtros e selecoes ficam restritos as suas proprias secoes.
 
 ## Configuracao
 

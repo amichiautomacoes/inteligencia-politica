@@ -22,7 +22,7 @@ except Exception:
 
 ASSET_DIR = Path(__file__).resolve().parents[1] / "assets"
 BACKGROUND_PATH = ASSET_DIR / "background.png"
-TERRITORIAL_CONTEXT_KEY = "territorial_context"
+DEMOGRAPHIC_CONTEXT_KEY = "pagina1_demographic_territorial_context"
 TREEMAP_SELECTION_KEY = "pagina1_treemap_territorial"
 USE_CUSTOM_KPI_CARDS = True
 
@@ -927,37 +927,53 @@ def _territorial_concentration_chart(df: pd.DataFrame | None, kind: str) -> go.F
             orientation="h",
             marker={
                 "color": ranking["qt_votos"],
-                "colorscale": "Blues",
-                "line": {"color": "rgba(255,255,255,0.22)", "width": 0.6},
+                "colorscale": [
+                    [0.0, "rgba(96, 165, 250, 0.72)"],
+                    [0.45, "rgba(37, 99, 235, 0.92)"],
+                    [1.0, "rgba(147, 197, 253, 1.0)"],
+                ],
+                "line": {"color": "rgba(239,246,255,0.86)", "width": 1.2},
             },
             customdata=customdata,
             text=trace_text,
             textposition="auto",
+            textfont={"color": "#f8fbff", "size": 12, "family": "Segoe UI, Inter, sans-serif"},
+            insidetextfont={"color": "#ffffff", "size": 12, "family": "Segoe UI, Inter, sans-serif"},
+            outsidetextfont={"color": "#f8fbff", "size": 12, "family": "Segoe UI, Inter, sans-serif"},
             cliponaxis=False,
+            opacity=0.98,
             hovertemplate="<b>%{y}</b><br>Votos: %{customdata[0]:,.0f}<br>Participacao: %{customdata[1]:.1%}<extra></extra>",
         )
     )
     fig.update_layout(
         height=560,
-        margin={"l": 190, "r": 18, "t": 58, "b": 22},
+        margin={"l": 200, "r": 28, "t": 58, "b": 22},
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        font={"color": "#eaf2ff", "family": "Segoe UI, Inter, sans-serif"},
-        title={"text": title, "x": 0.0, "xanchor": "left", "font": {"size": 18, "color": "#eaf2ff"}},
+        font={"color": "#f8fbff", "family": "Segoe UI, Inter, sans-serif"},
+        title={
+            "text": title,
+            "x": 0.0,
+            "xanchor": "left",
+            "font": {"size": 19, "color": "#f8fbff", "family": "Segoe UI, Inter, sans-serif"},
+        },
         xaxis={
             "title": "",
             "showticklabels": False,
             "showgrid": False,
-            "range": [0, max_votes * 1.2] if max_votes > 0 else None,
+            "range": [0, max_votes * 1.12] if max_votes > 0 else None,
+            "zeroline": False,
         },
         yaxis={
             "title": "",
-            "tickfont": {"size": 11},
+            "tickfont": {"size": 11, "color": "#f8fbff"},
             "automargin": True,
             "ticks": "",
+            "showgrid": False,
+            "zeroline": False,
         },
         coloraxis_showscale=False,
-        bargap=0.32,
+        bargap=0.22,
     )
     return fig
 
@@ -1779,11 +1795,11 @@ def _apply_territorial_context(df: pd.DataFrame, context: dict[str, str], mesorr
     return result
 
 
-def _territorial_context() -> dict[str, str]:
-    context = st.session_state.setdefault(TERRITORIAL_CONTEXT_KEY, {})
+def _section_context(key: str) -> dict[str, str]:
+    context = st.session_state.setdefault(key, {})
     if not isinstance(context, dict):
         context = {}
-        st.session_state[TERRITORIAL_CONTEXT_KEY] = context
+        st.session_state[key] = context
     return {
         str(key): str(value)
         for key, value in context.items()
@@ -1791,20 +1807,20 @@ def _territorial_context() -> dict[str, str]:
     }
 
 
-def _set_territorial_context(context: dict[str, str]) -> bool:
+def _set_section_context(key: str, context: dict[str, str]) -> bool:
     normalized = {
         str(key): str(value)
         for key, value in context.items()
         if value not in (None, "")
     }
-    if normalized == _territorial_context():
+    if normalized == _section_context(key):
         return False
-    st.session_state[TERRITORIAL_CONTEXT_KEY] = normalized
+    st.session_state[key] = normalized
     return True
 
 
-def _clear_territorial_context() -> None:
-    st.session_state[TERRITORIAL_CONTEXT_KEY] = {}
+def _clear_section_context(key: str) -> None:
+    st.session_state[key] = {}
 
 
 def _context_label(context: dict[str, str]) -> str:
@@ -1890,26 +1906,34 @@ def _demographic_bar(kind: str, context: dict[str, str], mesorregiao: str) -> go
 def _expense_type_column(df: pd.DataFrame | None) -> str | None:
     if df is None or df.empty:
         return None
-    preferred_cols = (
-        "tipo_despesa",
-        "ds_tipo_despesa",
-        "categoria_despesa",
-        "ds_despesa",
-        "descricao_despesa",
-        "tipo",
+    return "tipo_despesa" if "tipo_despesa" in df.columns else None
+
+
+def _campaign_expense_type_shares(df: pd.DataFrame | None) -> pd.DataFrame:
+    if df is None or df.empty or "tipo_despesa" not in df.columns or "valor_despesa" not in df.columns:
+        return pd.DataFrame()
+
+    result = df[["tipo_despesa", "valor_despesa"]].copy()
+    result["tipo_despesa"] = result["tipo_despesa"].fillna("Nao informado").astype(str).str.strip()
+    result.loc[result["tipo_despesa"].eq(""), "tipo_despesa"] = "Nao informado"
+    result["valor_despesa"] = pd.to_numeric(result["valor_despesa"], errors="coerce").fillna(0)
+    result = (
+        result.groupby("tipo_despesa", as_index=False)["valor_despesa"]
+        .sum()
+        .sort_values("valor_despesa", ascending=False)
     )
-    for col in preferred_cols:
-        if col in df.columns:
-            return col
-    for col in df.columns:
-        normalized = _normalize_municipio_name(col).lower()
-        if "despesa" in normalized and df[col].nunique(dropna=True) <= 80:
-            return col
-    return None
+    result = result[result["valor_despesa"].gt(0)].copy()
+    total = float(result["valor_despesa"].sum())
+    if total <= 0:
+        return pd.DataFrame()
+
+    result["share_despesa"] = result["valor_despesa"] / total
+    return result[["tipo_despesa", "share_despesa"]]
 
 
 def _cost_efficiency_frame(
     df: pd.DataFrame | None,
+    despesas_df: pd.DataFrame | None = None,
     context: dict[str, str] | None = None,
     mesorregiao: str | None = None,
 ) -> pd.DataFrame:
@@ -1953,6 +1977,28 @@ def _cost_efficiency_frame(
     result["qt_votos"] = pd.to_numeric(result["qt_votos"], errors="coerce").fillna(0)
     result[expense_col] = pd.to_numeric(result[expense_col], errors="coerce").fillna(0)
 
+    if type_col is None:
+        expense_shares = _campaign_expense_type_shares(despesas_df)
+        if not expense_shares.empty:
+            territory = (
+                result.groupby(label_col, as_index=False)
+                .agg({"qt_votos": "sum", expense_col: "sum"})
+                .rename(columns={label_col: "territorio", expense_col: "valor_total_despesa"})
+            )
+            territory = territory[territory["qt_votos"].gt(0) & territory["valor_total_despesa"].gt(0)].copy()
+            if territory.empty:
+                return territory
+            territory["_join_key"] = 1
+            expense_shares = expense_shares.copy()
+            expense_shares["_join_key"] = 1
+            result = territory.merge(expense_shares, on="_join_key", how="inner").drop(columns="_join_key")
+            result["valor_total_despesa"] = result["valor_total_despesa"] * result["share_despesa"]
+            result = result.drop(columns="share_despesa")
+            result["custo_por_voto"] = result["valor_total_despesa"] / result["qt_votos"]
+            result = result[np.isfinite(result["custo_por_voto"]) & result["custo_por_voto"].gt(0)].copy()
+            result["total_gasto"] = result["valor_total_despesa"].map(lambda value: f"R$ {value:,.2f}")
+            return result.sort_values("valor_total_despesa", ascending=False)
+
     group_cols = [label_col, "tipo_despesa_grafico"]
     result = (
         result.groupby(group_cols, as_index=False)
@@ -1981,15 +2027,32 @@ def _cost_efficiency_frame(
 def _cost_efficiency_mesorregiao_options(df: pd.DataFrame | None) -> list[str]:
     if df is None or df.empty or "nm_mesorregiao" not in df.columns:
         return []
+
+    expense_col = "valor_despesas_rateado" if "valor_despesas_rateado" in df.columns else "valor_total_despesas"
+    if expense_col not in df.columns:
+        return (
+            df["nm_mesorregiao"]
+            .dropna()
+            .astype(str)
+            .str.strip()
+            .replace("", np.nan)
+            .dropna()
+            .sort_values()
+            .unique()
+            .tolist()
+        )
+
+    ranking = df[["nm_mesorregiao", expense_col]].copy()
+    ranking["nm_mesorregiao"] = ranking["nm_mesorregiao"].fillna("").astype(str).str.strip()
+    ranking[expense_col] = pd.to_numeric(ranking[expense_col], errors="coerce").fillna(0)
+    ranking = ranking[ranking["nm_mesorregiao"].ne("")]
+    if ranking.empty:
+        return []
+
     return (
-        df["nm_mesorregiao"]
-        .dropna()
-        .astype(str)
-        .str.strip()
-        .replace("", np.nan)
-        .dropna()
-        .sort_values()
-        .unique()
+        ranking.groupby("nm_mesorregiao", as_index=False)[expense_col]
+        .sum()
+        .sort_values(expense_col, ascending=False)["nm_mesorregiao"]
         .tolist()
     )
 
@@ -2002,14 +2065,13 @@ def _render_cost_efficiency_mesorregiao_buttons(df: pd.DataFrame | None) -> str 
     state_key = "pagina1_cost_efficiency_mesorregiao"
     selected = st.session_state.get(state_key)
     if selected not in options:
-        selected = None
-        st.session_state[state_key] = None
+        selected = options[0]
+        st.session_state[state_key] = selected
 
-    button_options = [None] + options
-    for start in range(0, len(button_options), 6):
+    for start in range(0, len(options), 6):
         cols = st.columns(6, gap="small")
-        for col, option in zip(cols, button_options[start : start + 6]):
-            label = "Todas" if option is None else option
+        for col, option in zip(cols, options[start : start + 6]):
+            label = option
             active = selected == option
             if col.button(
                 label,
@@ -2179,15 +2241,20 @@ def _cost_efficiency_heatmap(chart_df: pd.DataFrame) -> go.Figure:
     return fig
 
 
-def _render_cost_efficiency_section(df: pd.DataFrame | None) -> None:
+def _render_cost_efficiency_section(
+    df: pd.DataFrame | None,
+    despesas_df: pd.DataFrame | None,
+) -> None:
     _major_section_header(
         "Matriz de Eficiência por Custo do Voto",
         "Heatmap de eficiência: verde indica menor custo por voto; vermelho indica baixa eficiência.",
     )
+    mesorregiao_options = _cost_efficiency_mesorregiao_options(df)
     mesorregiao = st.session_state.get("pagina1_cost_efficiency_mesorregiao")
-    if mesorregiao not in _cost_efficiency_mesorregiao_options(df):
-        mesorregiao = None
-    chart_df = _cost_efficiency_frame(df, _territorial_context(), mesorregiao)
+    if mesorregiao not in mesorregiao_options:
+        mesorregiao = mesorregiao_options[0] if mesorregiao_options else None
+        st.session_state["pagina1_cost_efficiency_mesorregiao"] = mesorregiao
+    chart_df = _cost_efficiency_frame(df, despesas_df, {}, mesorregiao)
     header_col, filter_col = st.columns([0.58, 0.42], gap="large")
     with header_col:
         _section_header(
@@ -2197,7 +2264,7 @@ def _render_cost_efficiency_section(df: pd.DataFrame | None) -> None:
     with filter_col:
         _render_cost_efficiency_kpis(chart_df)
     mesorregiao = _render_cost_efficiency_mesorregiao_buttons(df)
-    chart_df = _cost_efficiency_frame(df, _territorial_context(), mesorregiao)
+    chart_df = _cost_efficiency_frame(df, despesas_df, {}, mesorregiao)
     with st.container(border=True):
         st.plotly_chart(_cost_efficiency_heatmap(chart_df), use_container_width=True)
 
@@ -2316,10 +2383,21 @@ def _parliamentary_action_frame(
         return pd.DataFrame()
 
     emendas[emenda_value_col] = pd.to_numeric(emendas[emenda_value_col], errors="coerce").fillna(0)
+    extra_emenda_cols = [
+        col
+        for col in (
+            "valor_total_emendas_municipio",
+            "total_votos_municipio",
+            "indice_retorno_parlamentar",
+            "classificacao_retorno_parlamentar",
+        )
+        if col in emendas.columns
+    ]
+    emendas_agg = {emenda_value_col: "sum", **{col: "first" for col in extra_emenda_cols}}
     emendas_base = (
         emendas.dropna(subset=["codigo_ibge"])
-        .groupby("codigo_ibge", as_index=False)[emenda_value_col]
-        .sum()
+        .groupby("codigo_ibge", as_index=False)
+        .agg(emendas_agg)
         .rename(columns={emenda_value_col: "valor_emendas"})
     )
 
@@ -2328,6 +2406,18 @@ def _parliamentary_action_frame(
     result = result.dropna(subset=["codigo_ibge"]).merge(votos_base, on="codigo_ibge", how="left")
     result = result.merge(emendas_base, on="codigo_ibge", how="left")
     result["qt_votos"] = pd.to_numeric(result["qt_votos"], errors="coerce").fillna(0)
+    if "total_votos_municipio" in result.columns:
+        result["qt_votos"] = (
+            pd.to_numeric(result["total_votos_municipio"], errors="coerce")
+            .fillna(result["qt_votos"])
+            .fillna(0)
+        )
+    if "valor_total_emendas_municipio" in result.columns:
+        result["valor_emendas"] = (
+            pd.to_numeric(result["valor_total_emendas_municipio"], errors="coerce")
+            .fillna(result["valor_emendas"])
+            .fillna(0)
+        )
     result["valor_emendas"] = pd.to_numeric(result["valor_emendas"], errors="coerce").fillna(0)
     result["municipio"] = result["municipio"].fillna(result.get("nome"))
     if df_regioes_ref is not None and not df_regioes_ref.empty:
@@ -2346,11 +2436,10 @@ def _parliamentary_action_frame(
     )
     total_votes = float(result["qt_votos"].sum())
     result["pct_votos_total"] = np.where(total_votes > 0, result["qt_votos"] / total_votes, 0.0)
-    result["indice_retorno"] = np.where(
-        result["qt_votos"].gt(0),
-        result["valor_emendas"] / result["qt_votos"],
-        0.0,
-    )
+    if "indice_retorno_parlamentar" in result.columns:
+        result["indice_retorno"] = pd.to_numeric(result["indice_retorno_parlamentar"], errors="coerce").fillna(0)
+    else:
+        result["indice_retorno"] = 0.0
     result["indice_retorno"] = pd.to_numeric(result["indice_retorno"], errors="coerce").replace([np.inf, -np.inf], 0).fillna(0)
     if rank_col and rank_col in result.columns:
         result["is_top3_vote"] = pd.to_numeric(result[rank_col], errors="coerce").le(3)
@@ -2358,36 +2447,29 @@ def _parliamentary_action_frame(
         top3_codes = set(result.nlargest(3, "qt_votos")["codigo_ibge"].dropna().astype("Int64").astype(str))
         result["is_top3_vote"] = result["codigo_ibge"].astype("Int64").astype(str).isin(top3_codes)
 
-    vote_threshold = float(result.loc[result["qt_votos"].gt(0), "qt_votos"].median() or 0)
-    positive_emendas = result.loc[result["valor_emendas"].gt(0), "valor_emendas"]
-    emenda_threshold = float(positive_emendas.median() or 0)
-    high_vote = result["qt_votos"].ge(vote_threshold) if vote_threshold > 0 else result["qt_votos"].gt(0)
-    high_emenda = result["valor_emendas"].ge(emenda_threshold) if emenda_threshold > 0 else result["valor_emendas"].gt(0)
-
-    result["categoria_coerencia"] = np.select(
-        [
-            result["valor_emendas"].le(0),
-            high_vote & high_emenda,
-            ~high_vote & high_emenda,
-            high_vote & ~high_emenda,
-        ],
-        [
-            "Sem emendas",
-            "Reduto Atendido (Alto Voto / Alta Emenda)",
-            "Investimento / Conquista (Baixo Voto / Alta Emenda)",
-            "Reduto Desassistido (Alto Voto / Baixa Emenda)",
-        ],
-        default="Sem Expressão (Baixo Voto / Baixa Emenda)",
+    result["categoria_coerencia"] = (
+        result.get("classificacao_retorno_parlamentar", pd.Series(index=result.index, dtype="object"))
+        .fillna("Sem emendas")
+        .astype(str)
+        .str.strip()
+    )
+    result.loc[result["categoria_coerencia"].eq(""), "categoria_coerencia"] = "Sem emendas"
+    result["categoria_coerencia"] = result["categoria_coerencia"].replace(
+        {
+            "Sem Expressao": "Sem Expressão",
+            "sem expressao": "Sem Expressão",
+            "sem expressão": "Sem Expressão",
+        }
     )
     result["motivo_cor"] = result["categoria_coerencia"].map(
         {
-            "Reduto Atendido (Alto Voto / Alta Emenda)": "Alto voto / Alta emenda - fidelidade política.",
-            "Investimento / Conquista (Baixo Voto / Alta Emenda)": "Baixo voto / Alta emenda - tentativa de expansão territorial.",
-            "Reduto Desassistido (Alto Voto / Baixa Emenda)": "Alto voto / Baixa emenda - ponto cego ou dívida política.",
-            "Sem Expressão (Baixo Voto / Baixa Emenda)": "Baixo voto / Baixa emenda - território neutro.",
+            "Reduto Atendido": "Classificação de retorno parlamentar informada no parquet.",
+            "Investimento": "Classificação de retorno parlamentar informada no parquet.",
+            "Reduto Desassistido": "Classificação de retorno parlamentar informada no parquet.",
+            "Sem Expressão": "Classificação de retorno parlamentar informada no parquet.",
             "Sem emendas": "Município sem emendas destinadas.",
         }
-    )
+    ).fillna("Classificação de retorno parlamentar informada no parquet.")
     return result
 
 
@@ -2397,17 +2479,17 @@ def _parliamentary_action_map(action_df: pd.DataFrame) -> go.Figure:
 
     geojson_mg, _, _, _ = _load_geo_reference()
     category_order = [
-        "Reduto Atendido (Alto Voto / Alta Emenda)",
-        "Investimento / Conquista (Baixo Voto / Alta Emenda)",
-        "Reduto Desassistido (Alto Voto / Baixa Emenda)",
-        "Sem Expressão (Baixo Voto / Baixa Emenda)",
+        "Reduto Atendido",
+        "Investimento",
+        "Reduto Desassistido",
+        "Sem Expressão",
         "Sem emendas",
     ]
     category_colors = {
-        "Reduto Atendido (Alto Voto / Alta Emenda)": "#16A34A",
-        "Investimento / Conquista (Baixo Voto / Alta Emenda)": "#FACC15",
-        "Reduto Desassistido (Alto Voto / Baixa Emenda)": "#F97316",
-        "Sem Expressão (Baixo Voto / Baixa Emenda)": "#94A3B8",
+        "Reduto Atendido": "#16A34A",
+        "Investimento": "#FACC15",
+        "Reduto Desassistido": "#F97316",
+        "Sem Expressão": "#94A3B8",
         "Sem emendas": "#FFFFFF",
     }
 
@@ -2455,7 +2537,7 @@ def _parliamentary_action_map(action_df: pd.DataFrame) -> go.Figure:
         font={"color": "#eaf2ff", "family": "Segoe UI, Inter, sans-serif"},
         title={"font": {"size": 20, "color": "#eaf2ff"}},
         legend={
-            "title": {"text": "Categorias de Coerência Política"},
+            "title": {"text": "Classificação do Retorno Parlamentar"},
             "orientation": "v",
             "y": 0.5,
             "yanchor": "middle",
@@ -2582,16 +2664,11 @@ def _render_parliamentary_action_section(
     action_df = _parliamentary_action_frame(votos_df, emendas_df)
     _render_parliamentary_action_kpis(action_df)
     with st.container(border=True):
-        action_event = st.plotly_chart(
+        st.plotly_chart(
             _parliamentary_action_map(action_df),
             use_container_width=True,
             key="pagina1_parliamentary_action_map",
-            on_select="rerun",
-            selection_mode="points",
         )
-        selected_context = _parliamentary_map_selection(action_event)
-        if selected_context and _set_territorial_context(selected_context):
-            st.rerun()
 
 
 _apply_visual_model()
@@ -2601,8 +2678,7 @@ _render_page_header()
 _major_section_header("Mapa Territorial da Votação", "Leitura territorial do desempenho eleitoral no recorte ativo.")
 votos_municipio_df = _read_selected_parquet("votos_municipio")
 votos_bairro_df = _read_selected_parquet("votos_bairro")
-territorial_context = _territorial_context()
-_render_kpis(votos_municipio_df, territorial_context)
+_render_kpis(votos_municipio_df, {})
 header_col, filter_col = st.columns([0.72, 0.28], gap="large")
 with header_col:
     _section_header(
@@ -2612,7 +2688,7 @@ with header_col:
 with filter_col:
     territorial_kind = _territorial_kind_select()
 votos_df = _territorial_map_view(_read_selected_parquet(territorial_kind), territorial_kind)
-map_col, concentration_col = st.columns([0.68, 0.32], gap="large")
+map_col, concentration_col = st.columns([0.60, 0.40], gap="large")
 with map_col:
     with st.container(border=True):
         st.plotly_chart(_territorial_map(votos_df), use_container_width=True)
@@ -2647,9 +2723,9 @@ with col_left:
             selection_mode="points",
         )
         selected_context = _treemap_selection(treemap_event)
-        if selected_context and _set_territorial_context(selected_context):
+        if selected_context and _set_section_context(DEMOGRAPHIC_CONTEXT_KEY, selected_context):
             st.rerun()
-        territorial_context = _territorial_context()
+        demographic_context = _section_context(DEMOGRAPHIC_CONTEXT_KEY)
 with col_right:
     with st.container(border=True):
         st.markdown(
@@ -2667,17 +2743,19 @@ with col_right:
                 label_visibility="collapsed",
             )
             st.markdown("</div>", unsafe_allow_html=True)
-        st.plotly_chart(_demographic_bar(perfil_kind, territorial_context, mesorregiao), use_container_width=True)
-        if territorial_context:
-            label = _context_label(territorial_context)
+        demographic_context = _section_context(DEMOGRAPHIC_CONTEXT_KEY)
+        st.plotly_chart(_demographic_bar(perfil_kind, demographic_context, mesorregiao), use_container_width=True)
+        if demographic_context:
+            label = _context_label(demographic_context)
             st.caption(f"Recorte territorial ativo: {label}")
             if st.button("Limpar recorte territorial", key="pagina1_clear_territorial_context"):
-                _clear_territorial_context()
+                _clear_section_context(DEMOGRAPHIC_CONTEXT_KEY)
                 st.rerun()
 
 _render_accumulated_concentration_section(votos_municipio_df)
 gastos_territoriais_df = _read_selected_parquet("gastos_territoriais")
-_render_cost_efficiency_section(gastos_territoriais_df)
+despesas_campanha_df = _read_selected_parquet("despesas_campanha")
+_render_cost_efficiency_section(gastos_territoriais_df, despesas_campanha_df)
 emendas_legislativa_df = _read_selected_parquet("emendas_legislativa")
 _render_parliamentary_action_section(votos_municipio_df, emendas_legislativa_df)
 
