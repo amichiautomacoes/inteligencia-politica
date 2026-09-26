@@ -693,6 +693,14 @@ def _format_percent(value: float | int | None) -> str:
     return f"{float(value) * 100:.1f}%".replace(".", ",")
 
 
+def _format_currency(value: float | int | None) -> str:
+    if value is None or pd.isna(value):
+        return "R$ 0,00"
+    formatted = f"{float(value):,.2f}"
+    formatted = formatted.replace(",", "X").replace(".", ",").replace("X", ".")
+    return f"R$ {formatted}"
+
+
 def _current_files() -> list[str]:
     files = st.session_state.get("deputados_files", [])
     if files:
@@ -1807,7 +1815,51 @@ def _demographic_bar(kind: str, context: dict[str, str], mesorregiao: str) -> go
     return fig
 
 
-def _cost_efficiency_frame(df: pd.DataFrame | None, level: str) -> pd.DataFrame:
+def _expense_type_column(df: pd.DataFrame | None) -> str | None:
+    if df is None or df.empty:
+        return None
+    preferred_cols = (
+        "tipo_despesa",
+        "ds_tipo_despesa",
+        "categoria_despesa",
+        "ds_despesa",
+        "descricao_despesa",
+        "tipo",
+    )
+    for col in preferred_cols:
+        if col in df.columns:
+            return col
+    for col in df.columns:
+        normalized = _normalize_municipio_name(col).lower()
+        if "despesa" in normalized and df[col].nunique(dropna=True) <= 80:
+            return col
+    return None
+
+
+def _expense_type_options(df: pd.DataFrame | None) -> list[str]:
+    type_col = _expense_type_column(df)
+    if df is None or df.empty or type_col is None:
+        return ["Total"]
+    options = (
+        df[type_col]
+        .dropna()
+        .astype(str)
+        .str.strip()
+        .replace("", np.nan)
+        .dropna()
+        .sort_values()
+        .unique()
+        .tolist()
+    )
+    return ["Total"] + options
+
+
+def _cost_efficiency_frame(
+    df: pd.DataFrame | None,
+    level: str,
+    expense_type: str = "Total",
+    context: dict[str, str] | None = None,
+) -> pd.DataFrame:
     if df is None or df.empty:
         return pd.DataFrame()
     required = {"qt_votos"}
@@ -1817,7 +1869,6 @@ def _cost_efficiency_frame(df: pd.DataFrame | None, level: str) -> pd.DataFrame:
     label_col_by_level = {
         "municipio": "nm_municipio",
         "mesorregiao": "nm_mesorregiao",
-        "bairro": "nm_bairro",
     }
     label_col = label_col_by_level[level]
     if label_col not in df.columns:
@@ -1828,22 +1879,31 @@ def _cost_efficiency_frame(df: pd.DataFrame | None, level: str) -> pd.DataFrame:
         return pd.DataFrame()
 
     result = df.copy()
+    context = context or {}
+    for column in ("nm_municipio", "cd_municipio"):
+        value = context.get(column)
+        if value and column in result.columns:
+            result = result[result[column].astype(str).str.strip() == value]
+    if result.empty:
+        return pd.DataFrame()
+
+    type_col = _expense_type_column(result)
+    if expense_type != "Total" and type_col is not None:
+        result = result[result[type_col].astype(str).str.strip().eq(expense_type)].copy()
+    if result.empty:
+        return pd.DataFrame()
+
     result[label_col] = result[label_col].fillna("Nao informado").astype(str).str.strip()
     result.loc[result[label_col].eq(""), label_col] = "Nao informado"
     result["qt_votos"] = pd.to_numeric(result["qt_votos"], errors="coerce").fillna(0)
     result[expense_col] = pd.to_numeric(result[expense_col], errors="coerce").fillna(0)
 
     group_cols = [label_col]
-    if level == "bairro" and "nm_municipio" in result.columns:
-        group_cols = ["nm_municipio", label_col]
-
     result = (
         result.groupby(group_cols, as_index=False)
         .agg({"qt_votos": "sum", expense_col: "sum"})
         .rename(columns={label_col: "territorio", expense_col: "valor_total_despesa"})
     )
-    if level == "bairro" and "nm_municipio" in result.columns:
-        result["territorio"] = result["territorio"] + " - " + result["nm_municipio"].astype(str).str.title()
     result = result[result["qt_votos"].gt(0) & result["valor_total_despesa"].gt(0)].copy()
     if result.empty:
         return result
@@ -1853,27 +1913,11 @@ def _cost_efficiency_frame(df: pd.DataFrame | None, level: str) -> pd.DataFrame:
     if result.empty:
         return result
 
-    cost_mid = float(result["custo_por_voto"].median())
-    votes_mid = float(result["qt_votos"].median())
-    result["quadrante"] = np.select(
-        [
-            result["custo_por_voto"].le(cost_mid) & result["qt_votos"].ge(votes_mid),
-            result["custo_por_voto"].gt(cost_mid) & result["qt_votos"].ge(votes_mid),
-            result["custo_por_voto"].gt(cost_mid) & result["qt_votos"].lt(votes_mid),
-            result["custo_por_voto"].le(cost_mid) & result["qt_votos"].lt(votes_mid),
-        ],
-        [
-            "Eficiente / Orgânico",
-            "Alto Investimento / Alto Retorno",
-            "Ineficiente / Carro de Ouro",
-            "Baixa Relevância",
-        ],
-        default="Nao classificado",
-    )
-    return result.sort_values("qt_votos", ascending=False)
+    result["total_gasto"] = result["valor_total_despesa"].map(lambda value: f"R$ {value:,.2f}")
+    return result.sort_values("valor_total_despesa", ascending=False)
 
 
-def _cost_efficiency_chart(chart_df: pd.DataFrame) -> go.Figure:
+def _cost_efficiency_heatmap(chart_df: pd.DataFrame) -> go.Figure:
     if chart_df.empty:
         fig = go.Figure()
         fig.add_annotation(
@@ -1888,118 +1932,62 @@ def _cost_efficiency_chart(chart_df: pd.DataFrame) -> go.Figure:
         fig.update_layout(height=560, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
         return fig
 
-    cost_mid = float(chart_df["custo_por_voto"].median())
-    votes_mid = float(chart_df["qt_votos"].median())
-    x_min = max(float(chart_df["custo_por_voto"].min()) * 0.72, 0.01)
-    x_max = float(chart_df["custo_por_voto"].max()) * 1.38
-    y_min = 0.0
-    y_max = float(chart_df["qt_votos"].max()) * 1.16
-
-    quadrant_colors = {
-        "Eficiente / Orgânico": "#22C55E",
-        "Alto Investimento / Alto Retorno": "#38BDF8",
-        "Ineficiente / Carro de Ouro": "#F59E0B",
-        "Baixa Relevância": "#94A3B8",
-    }
-
-    fig = px.scatter(
-        chart_df,
-        x="custo_por_voto",
-        y="qt_votos",
-        size="valor_total_despesa",
-        color="quadrante",
-        color_discrete_map=quadrant_colors,
-        hover_name="territorio",
-        custom_data=["valor_total_despesa", "quadrante"],
-        log_x=True,
-        size_max=46,
+    display_df = chart_df.head(40).sort_values("custo_por_voto", ascending=False).copy()
+    customdata = np.stack(
+        [
+            display_df["valor_total_despesa"],
+            display_df["qt_votos"],
+            display_df["custo_por_voto"],
+        ],
+        axis=-1,
     )
-    fig.update_traces(
-        marker={
-            "line": {"color": "rgba(248,251,255,0.72)", "width": 0.8},
-            "opacity": 0.82,
-        },
-        hovertemplate=(
-            "<b>%{hovertext}</b><br>"
-            "Custo por voto: R$ %{x:,.2f}<br>"
-            "Votos: %{y:,.0f}<br>"
-            "Despesa no território: R$ %{customdata[0]:,.2f}<br>"
-            "Quadrante: %{customdata[1]}<extra></extra>"
-        ),
+    fig = go.Figure(
+        data=go.Heatmap(
+            z=display_df[["custo_por_voto"]].to_numpy(),
+            x=["Total gasto"],
+            y=display_df["territorio"],
+            text=display_df[["total_gasto"]].to_numpy(),
+            texttemplate="%{text}",
+            textfont={"color": "#f8fbff", "size": 13},
+            customdata=customdata.reshape(len(display_df), 1, 3),
+            colorscale=[
+                [0.0, "#16A34A"],
+                [0.46, "#FACC15"],
+                [0.68, "#F97316"],
+                [1.0, "#DC2626"],
+            ],
+            colorbar={
+                "title": {"text": "Custo por voto"},
+                "tickprefix": "R$ ",
+                "len": 0.86,
+                "thickness": 14,
+                "outlinewidth": 0,
+            },
+            hovertemplate=(
+                "<b>%{y}</b><br>"
+                "Total gasto: R$ %{customdata[0]:,.2f}<br>"
+                "Votos: %{customdata[1]:,.0f}<br>"
+                "Custo por voto: R$ %{customdata[2]:,.2f}<extra></extra>"
+            ),
+        )
     )
-
-    shapes = [
-        ("rect", x_min, cost_mid, votes_mid, y_max, "rgba(34, 197, 94, 0.10)"),
-        ("rect", cost_mid, x_max, votes_mid, y_max, "rgba(56, 189, 248, 0.10)"),
-        ("rect", cost_mid, x_max, y_min, votes_mid, "rgba(245, 158, 11, 0.11)"),
-        ("rect", x_min, cost_mid, y_min, votes_mid, "rgba(148, 163, 184, 0.09)"),
-    ]
     fig.update_layout(
-        shapes=[
-            {
-                "type": kind,
-                "xref": "x",
-                "yref": "y",
-                "x0": x0,
-                "x1": x1,
-                "y0": y0,
-                "y1": y1,
-                "fillcolor": color,
-                "line": {"width": 0},
-                "layer": "below",
-            }
-            for kind, x0, x1, y0, y1, color in shapes
-        ]
-        + [
-            {
-                "type": "line",
-                "xref": "x",
-                "yref": "paper",
-                "x0": cost_mid,
-                "x1": cost_mid,
-                "y0": 0,
-                "y1": 1,
-                "line": {"color": "rgba(226, 232, 240, 0.34)", "width": 1.4, "dash": "dot"},
-            },
-            {
-                "type": "line",
-                "xref": "paper",
-                "yref": "y",
-                "x0": 0,
-                "x1": 1,
-                "y0": votes_mid,
-                "y1": votes_mid,
-                "line": {"color": "rgba(226, 232, 240, 0.34)", "width": 1.4, "dash": "dot"},
-            },
-        ],
-        annotations=[
-            {"text": "Eficiente / Orgânico", "x": 0.02, "y": 0.96, "xref": "paper", "yref": "paper"},
-            {"text": "Alto Investimento / Alto Retorno", "x": 0.98, "y": 0.96, "xref": "paper", "yref": "paper", "xanchor": "right"},
-            {"text": "Ineficiente / Carro de Ouro", "x": 0.98, "y": 0.06, "xref": "paper", "yref": "paper", "xanchor": "right"},
-            {"text": "Baixa Relevância", "x": 0.02, "y": 0.06, "xref": "paper", "yref": "paper"},
-        ],
-        height=560,
-        margin={"l": 72, "r": 28, "t": 14, "b": 68},
+        height=max(460, min(900, 120 + len(display_df) * 28)),
+        margin={"l": 190, "r": 42, "t": 14, "b": 42},
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font={"color": "#eaf2ff", "family": "Segoe UI, Inter, sans-serif"},
         xaxis={
-            "title": "Custo por Voto (R$/Voto) - escala log",
-            "range": [np.log10(x_min), np.log10(x_max)],
-            "gridcolor": "rgba(255,255,255,0.10)",
-            "tickprefix": "R$ ",
+            "title": "",
+            "side": "top",
+            "tickfont": {"size": 13, "color": "#f8fbff"},
+            "showgrid": False,
         },
         yaxis={
-            "title": "Total de Votos do Candidato",
-            "range": [y_min, y_max],
-            "gridcolor": "rgba(255,255,255,0.10)",
-            "zeroline": False,
-        },
-        legend={
-            "title": {"text": ""},
-            "orientation": "h",
-            "y": -0.18,
-            "x": 0,
+            "title": "Localidade",
+            "tickfont": {"size": 12, "color": "#dbeafe"},
+            "showgrid": False,
+            "automargin": True,
         },
         hoverlabel={
             "bgcolor": "rgba(5,12,28,0.95)",
@@ -2007,42 +1995,42 @@ def _cost_efficiency_chart(chart_df: pd.DataFrame) -> go.Figure:
             "bordercolor": "rgba(147,197,253,0.55)",
         },
     )
-    for annotation in fig.layout.annotations:
-        annotation.update(
-            showarrow=False,
-            font={"color": "rgba(248,251,255,0.88)", "size": 12},
-            bgcolor="rgba(11, 31, 77, 0.58)",
-            bordercolor="rgba(59, 130, 246, 0.22)",
-            borderpad=4,
-        )
     return fig
 
 
 def _render_cost_efficiency_section(df: pd.DataFrame | None) -> None:
     _major_section_header(
         "Matriz de Eficiência por Custo do Voto",
-        "Relação entre custo por voto, volume eleitoral e despesa territorial.",
+        "Heatmap de eficiência: verde indica menor custo por voto; vermelho indica baixa eficiência.",
     )
-    header_col, filter_col = st.columns([0.74, 0.26], gap="large")
+    header_col, filter_col = st.columns([0.58, 0.42], gap="large")
     with header_col:
         _section_header(
             "Eficiência do investimento eleitoral",
-            "Cada bolha representa um território; quanto maior a bolha, maior a despesa rateada naquele recorte.",
+            "Linhas mostram localidades; a coluna exibe o total gasto e a cor indica o custo por voto no recorte.",
         )
     with filter_col:
-        level_label = st.selectbox(
-            "Nível territorial",
-            ["Município", "Mesorregião", "Bairro"],
-            key="pagina1_cost_efficiency_level",
-        )
+        level_col, expense_col = st.columns(2, gap="small")
+        with level_col:
+            level_label = st.selectbox(
+                "Localidade",
+                ["Mesorregião", "Município"],
+                key="pagina1_cost_efficiency_level",
+            )
+        with expense_col:
+            expense_type = st.selectbox(
+                "Tipo de despesa",
+                _expense_type_options(df),
+                index=0,
+                key="pagina1_cost_efficiency_expense_type",
+            )
     level = {
         "Município": "municipio",
         "Mesorregião": "mesorregiao",
-        "Bairro": "bairro",
     }[level_label]
-    chart_df = _cost_efficiency_frame(df, level)
+    chart_df = _cost_efficiency_frame(df, level, expense_type, _territorial_context())
     with st.container(border=True):
-        st.plotly_chart(_cost_efficiency_chart(chart_df), use_container_width=True)
+        st.plotly_chart(_cost_efficiency_heatmap(chart_df), use_container_width=True)
 
 
 def _parliamentary_action_frame(
@@ -2074,13 +2062,29 @@ def _parliamentary_action_frame(
         None,
     )
     city_col = "nm_municipio" if "nm_municipio" in votos_df.columns else None
+    rank_col = next(
+        (
+            col
+            for col in (
+                "rank_municipio",
+                "ranking_municipio",
+                "posicao_municipio",
+                "posicao_candidato_municipio",
+                "rank_candidato_municipio",
+                "ranking_candidato_municipio",
+            )
+            if col in votos_df.columns
+        ),
+        None,
+    )
+    extra_vote_cols = [rank_col] if rank_col else []
 
     if code_col == "cd_ibge_municipio" or code_col == "codigo_ibge":
-        votos_base = votos_df[[code_col, "qt_votos"] + ([city_col] if city_col else [])].copy()
+        votos_base = votos_df[[code_col, "qt_votos"] + ([city_col] if city_col else []) + extra_vote_cols].copy()
         votos_base = votos_base.rename(columns={code_col: "codigo_ibge", city_col or code_col: "municipio"})
         votos_base["codigo_ibge"] = pd.to_numeric(votos_base["codigo_ibge"], errors="coerce").astype("Int64")
     elif code_col:
-        votos_base = votos_df[[code_col, "qt_votos"] + ([city_col] if city_col else [])].copy()
+        votos_base = votos_df[[code_col, "qt_votos"] + ([city_col] if city_col else []) + extra_vote_cols].copy()
         votos_base = votos_base.rename(columns={code_col: "codigo_tse", city_col or code_col: "municipio"})
         votos_base["codigo_tse"] = pd.to_numeric(votos_base["codigo_tse"], errors="coerce").astype("Int64")
         votos_base = votos_base.merge(
@@ -2090,7 +2094,7 @@ def _parliamentary_action_frame(
         )
         votos_base["municipio"] = votos_base["municipio"].fillna(votos_base["nome_municipio"])
     elif city_col:
-        votos_base = votos_df[[city_col, "qt_votos"]].copy().rename(columns={city_col: "municipio"})
+        votos_base = votos_df[[city_col, "qt_votos"] + extra_vote_cols].copy().rename(columns={city_col: "municipio"})
         votos_base["municipio_norm"] = votos_base["municipio"].map(_normalize_municipio_name)
         votos_base = votos_base.merge(
             df_tse_ref[["codigo_ibge", "nome_municipio", "municipio_norm"]],
@@ -2101,10 +2105,14 @@ def _parliamentary_action_frame(
         return pd.DataFrame()
 
     votos_base["qt_votos"] = pd.to_numeric(votos_base["qt_votos"], errors="coerce").fillna(0)
+    agg_map = {"qt_votos": "sum", "municipio": "first"}
+    if rank_col and rank_col in votos_base.columns:
+        votos_base[rank_col] = pd.to_numeric(votos_base[rank_col], errors="coerce")
+        agg_map[rank_col] = "min"
     votos_base = (
         votos_base.dropna(subset=["codigo_ibge"])
         .groupby("codigo_ibge", as_index=False)
-        .agg({"qt_votos": "sum", "municipio": "first"})
+        .agg(agg_map)
     )
 
     emenda_value_col = next(
@@ -2157,7 +2165,56 @@ def _parliamentary_action_frame(
         )
     result["codigo_ibge_str"] = result["codigo_ibge"].astype("Int64").astype(str).str.zfill(7)
     result["municipio_exibicao"] = result["nome"].fillna(result["municipio"]).fillna("Município")
-    result["votos_color"] = np.where(result["qt_votos"] > 0, np.log10(result["qt_votos"] + 1.0), 0.0)
+    result["municipio_contexto"] = result["municipio"].fillna(result["municipio_exibicao"]).astype(str)
+    result["mesorregiao_exibicao"] = (
+        result.get("mesorregiao_nome", pd.Series(index=result.index, dtype="object"))
+        .fillna("Mesorregião não informada")
+        .astype(str)
+    )
+    total_votes = float(result["qt_votos"].sum())
+    result["pct_votos_total"] = np.where(total_votes > 0, result["qt_votos"] / total_votes, 0.0)
+    result["indice_retorno"] = np.where(
+        result["qt_votos"].gt(0),
+        result["valor_emendas"] / result["qt_votos"],
+        0.0,
+    )
+    result["indice_retorno"] = pd.to_numeric(result["indice_retorno"], errors="coerce").replace([np.inf, -np.inf], 0).fillna(0)
+    if rank_col and rank_col in result.columns:
+        result["is_top3_vote"] = pd.to_numeric(result[rank_col], errors="coerce").le(3)
+    else:
+        top3_codes = set(result.nlargest(3, "qt_votos")["codigo_ibge"].dropna().astype("Int64").astype(str))
+        result["is_top3_vote"] = result["codigo_ibge"].astype("Int64").astype(str).isin(top3_codes)
+
+    vote_threshold = float(result.loc[result["qt_votos"].gt(0), "qt_votos"].median() or 0)
+    positive_emendas = result.loc[result["valor_emendas"].gt(0), "valor_emendas"]
+    emenda_threshold = float(positive_emendas.median() or 0)
+    high_vote = result["qt_votos"].ge(vote_threshold) if vote_threshold > 0 else result["qt_votos"].gt(0)
+    high_emenda = result["valor_emendas"].ge(emenda_threshold) if emenda_threshold > 0 else result["valor_emendas"].gt(0)
+
+    result["categoria_coerencia"] = np.select(
+        [
+            result["valor_emendas"].le(0),
+            high_vote & high_emenda,
+            ~high_vote & high_emenda,
+            high_vote & ~high_emenda,
+        ],
+        [
+            "Sem emendas",
+            "Reduto Atendido (Alto Voto / Alta Emenda)",
+            "Investimento / Conquista (Baixo Voto / Alta Emenda)",
+            "Reduto Desassistido (Alto Voto / Baixa Emenda)",
+        ],
+        default="Sem Expressão (Baixo Voto / Baixa Emenda)",
+    )
+    result["motivo_cor"] = result["categoria_coerencia"].map(
+        {
+            "Reduto Atendido (Alto Voto / Alta Emenda)": "Alto voto / Alta emenda - fidelidade política.",
+            "Investimento / Conquista (Baixo Voto / Alta Emenda)": "Baixo voto / Alta emenda - tentativa de expansão territorial.",
+            "Reduto Desassistido (Alto Voto / Baixa Emenda)": "Alto voto / Baixa emenda - ponto cego ou dívida política.",
+            "Sem Expressão (Baixo Voto / Baixa Emenda)": "Baixo voto / Baixa emenda - território neutro.",
+            "Sem emendas": "Município sem emendas destinadas.",
+        }
+    )
     return result
 
 
@@ -2166,97 +2223,74 @@ def _parliamentary_action_map(action_df: pd.DataFrame) -> go.Figure:
         return _empty_map()
 
     geojson_mg, _, _, _ = _load_geo_reference()
-    max_votes = float(action_df["qt_votos"].max()) if not action_df.empty else 0.0
-    zmax = float(np.log10(max_votes + 1.0)) if max_votes > 0 else 1.0
-    tickvals, ticktext = _build_log_colorbar_ticks(max_votes)
+    category_order = [
+        "Reduto Atendido (Alto Voto / Alta Emenda)",
+        "Investimento / Conquista (Baixo Voto / Alta Emenda)",
+        "Reduto Desassistido (Alto Voto / Baixa Emenda)",
+        "Sem Expressão (Baixo Voto / Baixa Emenda)",
+        "Sem emendas",
+    ]
+    category_colors = {
+        "Reduto Atendido (Alto Voto / Alta Emenda)": "#16A34A",
+        "Investimento / Conquista (Baixo Voto / Alta Emenda)": "#FACC15",
+        "Reduto Desassistido (Alto Voto / Baixa Emenda)": "#F97316",
+        "Sem Expressão (Baixo Voto / Baixa Emenda)": "#94A3B8",
+        "Sem emendas": "#FFFFFF",
+    }
 
     fig = px.choropleth(
         action_df,
         geojson=geojson_mg,
         locations="codigo_ibge_str",
         featureidkey="properties.id",
-        color="votos_color",
+        color="categoria_coerencia",
+        category_orders={"categoria_coerencia": category_order},
+        color_discrete_map=category_colors,
         hover_name="municipio_exibicao",
-        custom_data=["qt_votos", "valor_emendas"],
-        color_continuous_scale=[
-            [0.00, "#FFFFFF"],
-            [0.000001, "#E8F1FF"],
-            [0.16, "#BFD9FF"],
-            [0.42, "#60A5FA"],
-            [0.70, "#2563EB"],
-            [1.00, "#0B1F4D"],
+        custom_data=[
+            "codigo_ibge_str",
+            "municipio_exibicao",
+            "mesorregiao_exibicao",
+            "qt_votos",
+            "pct_votos_total",
+            "valor_emendas",
+            "indice_retorno",
+            "motivo_cor",
+            "municipio_contexto",
         ],
-        range_color=[0.0, zmax],
-        title="Votos por município com sobreposição de emendas",
+        title="Índice de Retorno Parlamentar por município",
     )
     fig.update_traces(
         marker_line_color="rgba(210,228,255,0.75)",
         marker_line_width=0.6,
         hovertemplate=(
-            "<b>%{hovertext}</b><br>"
-            "<span style='color:#93c5fd'>Votos:</span> %{customdata[0]:,.0f}<br>"
-            "<span style='color:#93c5fd'>Emendas:</span> R$ %{customdata[1]:,.2f}<extra></extra>"
+            "<b>📍 %{hovertext} - %{customdata[2]}</b><br>"
+            "────────────────────────────<br>"
+            "🗳️ <b>Votos Recebidos:</b> %{customdata[3]:,.0f} (%{customdata[4]:.1%} do total)<br>"
+            "💰 <b>Emendas Destinadas:</b> R$ %{customdata[5]:,.2f}<br>"
+            "📊 <b>Retorno por Voto:</b> R$ %{customdata[6]:,.2f} / voto<br>"
+            "<br><span style='color:#b7c7e6'>%{customdata[7]}</span><extra></extra>"
         ),
     )
 
-    bubble_df = action_df[
-        action_df["valor_emendas"].gt(0)
-        & action_df["latitude"].notna()
-        & action_df["longitude"].notna()
-    ].copy()
-    if not bubble_df.empty:
-        max_emendas = float(bubble_df["valor_emendas"].max())
-        bubble_df["bubble_size"] = 12 + 42 * np.sqrt(bubble_df["valor_emendas"] / max_emendas)
-        fig.add_trace(
-            go.Scattergeo(
-                lon=bubble_df["longitude"],
-                lat=bubble_df["latitude"],
-                mode="markers",
-                marker={
-                    "size": bubble_df["bubble_size"],
-                    "color": bubble_df["valor_emendas"],
-                    "colorscale": [[0, "#93C5FD"], [0.55, "#38BDF8"], [1, "#F8FBFF"]],
-                    "opacity": 0.74,
-                    "line": {"color": "rgba(4, 20, 48, 0.86)", "width": 1.2},
-                    "colorbar": {
-                        "title": {"text": "Emendas", "font": {"color": "#eaf2ff"}},
-                        "tickfont": {"color": "#b7c7e6"},
-                        "x": 1.10,
-                        "thickness": 12,
-                        "len": 0.78,
-                    },
-                },
-                customdata=np.stack(
-                    [bubble_df["municipio_exibicao"], bubble_df["qt_votos"], bubble_df["valor_emendas"]],
-                    axis=-1,
-                ),
-                hovertemplate=(
-                    "<b>%{customdata[0]}</b><br>"
-                    "Votos: %{customdata[1]:,.0f}<br>"
-                    "Emendas: R$ %{customdata[2]:,.2f}<extra></extra>"
-                ),
-                name="Emendas destinadas",
-            )
-        )
-
     fig.update_geos(fitbounds="locations", visible=False, bgcolor="rgba(0,0,0,0)")
     fig.update_layout(
-        margin={"l": 6, "r": 96, "t": 52, "b": 6},
+        margin={"l": 6, "r": 18, "t": 52, "b": 6},
         height=610,
-        coloraxis_colorbar={
-            "title": {"text": "Votos", "font": {"color": "#eaf2ff"}},
-            "tickvals": tickvals,
-            "ticktext": ticktext,
-            "len": 0.78,
-            "thickness": 13,
-            "x": 1.02,
-            "xanchor": "left",
-            "tickfont": {"color": "#b7c7e6"},
-        },
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font={"color": "#eaf2ff", "family": "Segoe UI, Inter, sans-serif"},
         title={"font": {"size": 20, "color": "#eaf2ff"}},
+        legend={
+            "title": {"text": "Categorias de Coerência Política"},
+            "orientation": "h",
+            "y": -0.03,
+            "x": 0,
+            "font": {"size": 12, "color": "#dbeafe"},
+            "bgcolor": "rgba(7,24,54,0.64)",
+            "bordercolor": "rgba(147,197,253,0.28)",
+            "borderwidth": 1,
+        },
         hoverlabel={
             "bgcolor": "rgba(5,12,28,0.95)",
             "font_color": "#EAF2FF",
@@ -2266,21 +2300,123 @@ def _parliamentary_action_map(action_df: pd.DataFrame) -> go.Figure:
     return fig
 
 
+def _parliamentary_action_kpis(action_df: pd.DataFrame) -> dict[str, str]:
+    if action_df.empty:
+        return {
+            "reciprocidade": "0,0%",
+            "reciprocidade_caption": "Sem dados de emendas para calcular",
+            "beneficiado": "Sem dados",
+            "beneficiado_caption": "R$ 0,00 | 0 votos",
+            "media_retorno": "R$ 0,00",
+            "media_retorno_caption": "Média estadual por voto recebido",
+        }
+
+    total_emendas = float(pd.to_numeric(action_df["valor_emendas"], errors="coerce").fillna(0).sum())
+    top3_emendas = float(
+        pd.to_numeric(action_df.loc[action_df["is_top3_vote"], "valor_emendas"], errors="coerce").fillna(0).sum()
+    )
+    reciprocidade = top3_emendas / total_emendas if total_emendas > 0 else 0.0
+
+    total_votes = float(pd.to_numeric(action_df["qt_votos"], errors="coerce").fillna(0).sum())
+    media_retorno = total_emendas / total_votes if total_votes > 0 else 0.0
+
+    beneficiary = action_df.sort_values("valor_emendas", ascending=False).head(1)
+    if beneficiary.empty or float(beneficiary["valor_emendas"].iloc[0]) <= 0:
+        beneficiado = "Sem emendas"
+        beneficiado_caption = "R$ 0,00 | 0 votos"
+    else:
+        row = beneficiary.iloc[0]
+        beneficiado = str(row.get("municipio_exibicao", "Município"))
+        beneficiado_caption = (
+            f"{_format_currency(float(row.get('valor_emendas', 0) or 0))} | "
+            f"{_format_number(float(row.get('qt_votos', 0) or 0))} votos"
+        )
+
+    return {
+        "reciprocidade": _format_percent(reciprocidade),
+        "reciprocidade_caption": "Das emendas foram para municípios Top 3 do candidato",
+        "beneficiado": beneficiado,
+        "beneficiado_caption": beneficiado_caption,
+        "media_retorno": _format_currency(media_retorno),
+        "media_retorno_caption": "Valor médio de emendas por voto no estado",
+    }
+
+
+def _render_parliamentary_action_kpis(action_df: pd.DataFrame) -> None:
+    kpis = _parliamentary_action_kpis(action_df)
+    st.markdown(
+        f"""
+        <div class="raiox-kpi-grid">
+            <div class="raiox-kpi-card">
+                <div class="mapa-kpi-label">Taxa de Reciprocidade</div>
+                <div class="mapa-kpi-value">{html.escape(kpis["reciprocidade"])}</div>
+                <div class="mapa-kpi-caption">{html.escape(kpis["reciprocidade_caption"])}</div>
+            </div>
+            <div class="raiox-kpi-card">
+                <div class="mapa-kpi-label">Maior Beneficiado (R$)</div>
+                <div class="mapa-kpi-value">{html.escape(kpis["beneficiado"])}</div>
+                <div class="mapa-kpi-caption">{html.escape(kpis["beneficiado_caption"])}</div>
+            </div>
+            <div class="raiox-kpi-card">
+                <div class="mapa-kpi-label">Média R$/Voto</div>
+                <div class="mapa-kpi-value">{html.escape(kpis["media_retorno"])}</div>
+                <div class="mapa-kpi-caption">{html.escape(kpis["media_retorno_caption"])}</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _parliamentary_map_selection(event: object | None) -> dict[str, str]:
+    if event is None:
+        return {}
+    if hasattr(event, "selection"):
+        selection = getattr(event, "selection")
+    elif isinstance(event, dict):
+        selection = event.get("selection", {})
+    else:
+        selection = {}
+    if isinstance(selection, dict):
+        points = selection.get("points", [])
+    else:
+        points = getattr(selection, "points", [])
+    if not points:
+        return {}
+    point = points[0]
+    customdata = point.get("customdata") if isinstance(point, dict) else getattr(point, "customdata", None)
+    if customdata is None or len(customdata) < 9:
+        return {}
+    return {
+        "nm_municipio": str(customdata[8]),
+    }
+
+
 def _render_parliamentary_action_section(
     votos_df: pd.DataFrame | None,
     emendas_df: pd.DataFrame | None,
 ) -> None:
     _major_section_header(
         "Mapa da atuação parlamentar de acordo com os votos",
-        "Cruzamento entre votação municipal e volume de emendas destinadas pelo parlamentar.",
+        "Índice de Retorno Parlamentar: valor total de emendas no município dividido pelos votos recebidos.",
     )
     _section_header(
-        "Retorno político territorial",
-        "A base do mapa mostra a votação; as bolhas sobrepostas representam o valor de emendas por município.",
+        "Coerência política territorial",
+        "Mapa único por categoria: verde atende redutos, amarelo indica investimento territorial, laranja marca reduto desassistido, cinza é baixa expressão e branco significa ausência de emendas.",
     )
     action_df = _parliamentary_action_frame(votos_df, emendas_df)
+    _render_parliamentary_action_kpis(action_df)
     with st.container(border=True):
-        st.plotly_chart(_parliamentary_action_map(action_df), use_container_width=True)
+        action_event = st.plotly_chart(
+            _parliamentary_action_map(action_df),
+            use_container_width=True,
+            key="pagina1_parliamentary_action_map",
+            on_select="rerun",
+            selection_mode="points",
+        )
+        selected_context = _parliamentary_map_selection(action_event)
+        if selected_context and _set_territorial_context(selected_context):
+            st.rerun()
 
 
 _apply_visual_model()
