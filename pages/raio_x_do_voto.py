@@ -810,25 +810,30 @@ def _territorial_concentration_chart(df: pd.DataFrame | None, kind: str) -> go.F
             },
             customdata=customdata,
             text=trace_text,
-            textposition="outside",
+            textposition="auto",
             cliponaxis=False,
             hovertemplate="<b>%{y}</b><br>Votos: %{customdata[0]:,.0f}<br>Participacao: %{customdata[1]:.1%}<extra></extra>",
         )
     )
     fig.update_layout(
         height=560,
-        margin={"l": 8, "r": 68, "t": 54, "b": 22},
+        margin={"l": 190, "r": 18, "t": 58, "b": 22},
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font={"color": "#eaf2ff", "family": "Segoe UI, Inter, sans-serif"},
-        title={"text": title, "font": {"size": 18, "color": "#eaf2ff"}},
+        title={"text": title, "x": 0.0, "xanchor": "left", "font": {"size": 18, "color": "#eaf2ff"}},
         xaxis={
             "title": "",
             "showticklabels": False,
             "showgrid": False,
-            "range": [0, max_votes * 1.42] if max_votes > 0 else None,
+            "range": [0, max_votes * 1.2] if max_votes > 0 else None,
         },
-        yaxis={"title": "", "tickfont": {"size": 11}},
+        yaxis={
+            "title": "",
+            "tickfont": {"size": 11},
+            "automargin": True,
+            "ticks": "",
+        },
         coloraxis_showscale=False,
         bargap=0.32,
     )
@@ -1547,47 +1552,68 @@ def _demographic_bar(kind: str, context: dict[str, str], mesorregiao: str) -> go
     prefix = prefix_by_kind[kind]
 
     if df is None or df.empty:
-        bar_df = pd.DataFrame({"categoria": ["Parquet pendente"], "votos": [0]})
+        bar_df = pd.DataFrame({"categoria": ["Parquet pendente"], "percentual": [0.0]})
     else:
         df = _apply_territorial_context(df, context, mesorregiao)
         value_cols = [col for col in df.columns if col.startswith(prefix)]
         if value_cols:
             weight_col = "QT_VOTOS_TOTAL" if "QT_VOTOS_TOTAL" in df.columns else "qt_votos"
             weights = pd.to_numeric(df.get(weight_col, 0), errors="coerce").fillna(0)
+            total_weight = float(weights.sum())
+            if total_weight > 0:
+                percentages = [
+                    (pd.to_numeric(df[col], errors="coerce").fillna(0) * weights).sum() / total_weight
+                    for col in value_cols
+                ]
+            else:
+                percentages = [
+                    pd.to_numeric(df[col], errors="coerce").fillna(0).mean()
+                    for col in value_cols
+                ]
             bar_df = pd.DataFrame(
                 {
                     "categoria": [_demographic_label(col, prefix) for col in value_cols],
-                    "votos": [
-                        (pd.to_numeric(df[col], errors="coerce").fillna(0) * weights / 100).sum()
-                        for col in value_cols
-                    ],
+                    "percentual": percentages,
                 }
-            ).sort_values("votos", ascending=False)
+            ).sort_values("percentual", ascending=False)
         else:
-            bar_df = pd.DataFrame({"categoria": ["Colunas nao encontradas"], "votos": [0]})
+            bar_df = pd.DataFrame({"categoria": ["Colunas nao encontradas"], "percentual": [0.0]})
+
+    bar_df["percentual"] = pd.to_numeric(bar_df["percentual"], errors="coerce").fillna(0)
+    bar_df["rotulo"] = bar_df["percentual"].map(lambda value: f"{value:.1f}%".replace(".", ","))
 
     fig = px.bar(
         bar_df,
-        x="votos",
+        x="percentual",
         y="categoria",
-        text="votos",
-        color="votos",
+        text="rotulo",
+        color="percentual",
         color_continuous_scale="Blues",
         orientation="h",
     )
-    max_votes = float(pd.to_numeric(bar_df["votos"], errors="coerce").fillna(0).max() or 0)
-    x_range = [0, max_votes * 1.18] if max_votes > 0 else None
+    max_percent = float(bar_df["percentual"].max() or 0)
+    x_range = [0, min(110, max_percent * 1.18)] if max_percent > 0 else [0, 100]
     fig.update_layout(
         height=430,
-        margin={"l": 100, "r": 88, "t": 8, "b": 42},
+        margin={"l": 180, "r": 88, "t": 8, "b": 42},
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font={"color": "#eaf2ff"},
-        xaxis={"title": "Votos", "gridcolor": "rgba(255,255,255,0.12)", "range": x_range},
+        xaxis={
+            "title": "% do perfil",
+            "gridcolor": "rgba(255,255,255,0.12)",
+            "range": x_range,
+            "ticksuffix": "%",
+        },
         yaxis={"title": "", "categoryorder": "total ascending"},
         coloraxis_showscale=False,
     )
-    fig.update_traces(texttemplate="%{text:,.0f}", textposition="outside", cliponaxis=False)
+    fig.update_traces(
+        texttemplate="%{text}",
+        textposition="outside",
+        cliponaxis=False,
+        hovertemplate="<b>%{y}</b><br>Participacao: %{x:.1f}%<extra></extra>",
+    )
     return fig
 
 
@@ -1621,9 +1647,6 @@ with concentration_col:
             _territorial_concentration_chart(votos_df, territorial_kind),
             use_container_width=True,
         )
-
-_render_accumulated_concentration_section(votos_municipio_df)
-
 _section_header(
     "Vota&ccedil;&atilde;o por Bairro de cada munic&iacute;pio e Perfil demogr&aacute;fico",
     "Treemap territorial e distribuicao demografica conforme parquet selecionado.",
@@ -1648,7 +1671,7 @@ with col_left:
 with col_right:
     with st.container(border=True):
         st.markdown(
-            "<div class='raiox-bar-title'>DistribuiÃ§Ã£o por perfil demogrÃ¡fico</div>",
+            "<div class='raiox-bar-title'>Distribui&ccedil;&atilde;o por perfil demogr&aacute;fico</div>",
             unsafe_allow_html=True,
         )
         _, bar_filter_col = st.columns([0.54, 0.46], gap="medium")
@@ -1666,4 +1689,6 @@ with col_right:
         if territorial_context:
             label = territorial_context.get("nm_bairro") or territorial_context.get("nm_municipio")
             st.caption(f"Recorte do treemap: {label}")
+
+_render_accumulated_concentration_section(votos_municipio_df)
 
