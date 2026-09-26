@@ -1081,6 +1081,10 @@ def _accumulated_concentration_chart(concentration_df: pd.DataFrame, max_rank: i
         chart_df = concentration_df.head(1).copy()
 
     ref_df = _concentration_reference_rows(chart_df)
+    max_rank_value = int(chart_df["rank_municipio"].max())
+    max_pct_value = float((chart_df["pct_acumulado"] * 100).max())
+    y_axis_max = min(100, max(82, np.ceil((max_pct_value + 4) / 5) * 5))
+    x_axis_padding = max(1.5, max_rank_value * 0.035)
     fig = go.Figure()
     fig.add_trace(
         go.Scatter(
@@ -1108,20 +1112,28 @@ def _accumulated_concentration_chart(concentration_df: pd.DataFrame, max_rank: i
         )
     )
     if not ref_df.empty:
+        marker_positions = []
+        for rank in ref_df["rank_municipio"]:
+            if int(rank) == 1:
+                marker_positions.append("middle right")
+            elif int(rank) == max_rank_value:
+                marker_positions.append("middle left")
+            else:
+                marker_positions.append("top center")
         fig.add_trace(
             go.Scatter(
                 x=ref_df["rank_municipio"],
                 y=ref_df["pct_acumulado"] * 100,
                 mode="markers+text",
                 marker={
-                    "size": 13,
+                    "size": 15,
                     "color": "#FFFFFF",
-                    "line": {"color": "#38BDF8", "width": 3},
+                    "line": {"color": "#38BDF8", "width": 3.5},
                     "symbol": "circle",
                 },
                 text=ref_df["referencia"],
-                textposition="top center",
-                textfont={"color": "#FFFFFF", "size": 12, "family": "Segoe UI, Inter, sans-serif"},
+                textposition=marker_positions,
+                textfont={"color": "#FFFFFF", "size": 13, "family": "Segoe UI, Inter, sans-serif"},
                 hovertemplate=(
                     "<b>%{text}</b><br>"
                     "%{customdata[0]:,.0f} votos acumulados<br>"
@@ -1132,25 +1144,39 @@ def _accumulated_concentration_chart(concentration_df: pd.DataFrame, max_rank: i
             )
         )
     fig.update_layout(
-        height=390,
-        margin={"l": 34, "r": 36, "t": 18, "b": 44},
+        height=430,
+        margin={"l": 46, "r": 78, "t": 20, "b": 48},
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font={"color": "#eaf2ff", "family": "Segoe UI, Inter, sans-serif"},
         xaxis={
             "title": "Municípios acumulados",
-            "range": [0.5, int(chart_df["rank_municipio"].max())],
+            "range": [0, max_rank_value + x_axis_padding],
             "gridcolor": "rgba(255,255,255,0.08)",
             "zeroline": False,
         },
         yaxis={
             "title": "% da Votação Total",
-            "range": [0, 100],
+            "range": [0, y_axis_max],
             "ticksuffix": "%",
             "gridcolor": "rgba(255,255,255,0.12)",
             "zeroline": False,
         },
         shapes=[
+            {
+                "type": "rect",
+                "xref": "paper",
+                "x0": 0,
+                "x1": 1,
+                "yref": "y",
+                "y0": 0,
+                "y1": 80,
+                "fillcolor": "rgba(56, 189, 248, 0.055)",
+                "line": {"width": 0},
+                "layer": "below",
+            },
+        ]
+        + [
             {
                 "type": "line",
                 "xref": "paper",
@@ -1159,9 +1185,13 @@ def _accumulated_concentration_chart(concentration_df: pd.DataFrame, max_rank: i
                 "yref": "y",
                 "y0": level,
                 "y1": level,
-                "line": {"color": "rgba(226, 232, 240, 0.18)", "width": 1, "dash": "dot"},
+                "line": {
+                    "color": "rgba(125, 211, 252, 0.72)" if level == 80 else "rgba(226, 232, 240, 0.16)",
+                    "width": 2.4 if level == 80 else 1,
+                    "dash": "solid" if level == 80 else "dot",
+                },
             }
-            for level in (25, 50, 75, 90)
+            for level in (25, 50, 75, 80)
         ],
         annotations=[
             {
@@ -1172,11 +1202,14 @@ def _accumulated_concentration_chart(concentration_df: pd.DataFrame, max_rank: i
                 "y": level,
                 "text": f"{level}%",
                 "showarrow": False,
-                "font": {"color": "rgba(226, 232, 240, 0.72)", "size": 10},
-                "bgcolor": "rgba(5, 12, 28, 0.62)",
-                "borderpad": 2,
+                "font": {
+                    "color": "#E0F2FE" if level == 80 else "rgba(226, 232, 240, 0.72)",
+                    "size": 12 if level == 80 else 10,
+                },
+                "bgcolor": "rgba(8, 47, 73, 0.82)" if level == 80 else "rgba(5, 12, 28, 0.62)",
+                "borderpad": 3 if level == 80 else 2,
             }
-            for level in (25, 50, 75, 90)
+            for level in (25, 50, 75, 80)
         ],
         hoverlabel={
             "bgcolor": "rgba(5,12,28,0.95)",
