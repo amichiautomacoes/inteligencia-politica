@@ -2351,28 +2351,41 @@ def _parliamentary_action_map(action_df: pd.DataFrame) -> go.Figure:
         return _empty_map()
 
     geojson_mg, _, _, _ = _load_geo_reference()
+    legend_labels = {
+        "Reduto Atendido": "Reduto atendido | muitos votos + muitas emendas",
+        "Investimento": "Investimento | poucas urnas + muitas emendas",
+        "Reduto Desassistido": "Reduto desassistido | muitos votos + poucas emendas",
+        "Sem Expressão": "Baixa expressão | poucos votos + poucas emendas",
+        "Sem emendas": "Sem emendas destinadas",
+    }
     category_order = [
-        "Reduto Atendido",
-        "Investimento",
-        "Reduto Desassistido",
-        "Sem Expressão",
-        "Sem emendas",
+        legend_labels["Reduto Atendido"],
+        legend_labels["Investimento"],
+        legend_labels["Reduto Desassistido"],
+        legend_labels["Sem Expressão"],
+        legend_labels["Sem emendas"],
     ]
     category_colors = {
-        "Reduto Atendido": "#16A34A",
-        "Investimento": "#FACC15",
-        "Reduto Desassistido": "#F97316",
-        "Sem Expressão": "#94A3B8",
-        "Sem emendas": "#FFFFFF",
+        legend_labels["Reduto Atendido"]: "#16A34A",
+        legend_labels["Investimento"]: "#FACC15",
+        legend_labels["Reduto Desassistido"]: "#F97316",
+        legend_labels["Sem Expressão"]: "#94A3B8",
+        legend_labels["Sem emendas"]: "#FFFFFF",
     }
+    plot_df = action_df.copy()
+    plot_df["categoria_legenda"] = (
+        plot_df["categoria_coerencia"]
+        .map(legend_labels)
+        .fillna(plot_df["categoria_coerencia"].astype(str))
+    )
 
     fig = px.choropleth(
-        action_df,
+        plot_df,
         geojson=geojson_mg,
         locations="codigo_ibge_str",
         featureidkey="properties.id",
-        color="categoria_coerencia",
-        category_orders={"categoria_coerencia": category_order},
+        color="categoria_legenda",
+        category_orders={"categoria_legenda": category_order},
         color_discrete_map=category_colors,
         hover_name="municipio_exibicao",
         custom_data=[
@@ -2403,23 +2416,28 @@ def _parliamentary_action_map(action_df: pd.DataFrame) -> go.Figure:
 
     fig.update_geos(fitbounds="locations", visible=False, bgcolor="rgba(0,0,0,0)")
     fig.update_layout(
-        margin={"l": 6, "r": 250, "t": 52, "b": 6},
+        margin={"l": 6, "r": 390, "t": 52, "b": 6},
         height=610,
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font={"color": "#eaf2ff", "family": "Segoe UI, Inter, sans-serif"},
         title={"font": {"size": 20, "color": "#eaf2ff"}},
         legend={
-            "title": {"text": "Classificação do Retorno Parlamentar"},
+            "title": {
+                "text": "<b>O que cada cor representa</b>",
+                "font": {"size": 16, "color": "#f8fbff"},
+            },
             "orientation": "v",
             "y": 0.5,
             "yanchor": "middle",
             "x": 1.02,
             "xanchor": "left",
-            "font": {"size": 12, "color": "#dbeafe"},
-            "bgcolor": "rgba(7,24,54,0.64)",
-            "bordercolor": "rgba(147,197,253,0.28)",
-            "borderwidth": 1,
+            "font": {"size": 14, "color": "#f8fbff"},
+            "itemsizing": "constant",
+            "itemwidth": 38,
+            "bgcolor": "rgba(7,24,54,0.88)",
+            "bordercolor": "rgba(219,234,254,0.52)",
+            "borderwidth": 1.4,
         },
         hoverlabel={
             "bgcolor": "rgba(5,12,28,0.95)",
