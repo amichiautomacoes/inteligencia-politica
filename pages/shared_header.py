@@ -37,7 +37,7 @@ def background_css() -> str:
 
 def apply_shared_visual_model() -> None:
     background_url = _background_data_url()
-    st.markdown(
+    st.html(
         dedent(f"""
         <style>
         {background_css()}
@@ -401,8 +401,7 @@ def apply_shared_visual_model() -> None:
             }}
         }}
         </style>
-        """),
-        unsafe_allow_html=True,
+        """)
     )
 
 
@@ -496,7 +495,7 @@ def render_page_header(active_page: str) -> None:
         if photo_url
         else '<div class="raiox-candidate-photo"></div>'
     )
-    st.markdown(
+    st.html(
         dedent(f"""
         <section class="raiox-hero">
             {_page_switch(active_page)}
@@ -510,30 +509,27 @@ def render_page_header(active_page: str) -> None:
                 </div>
             </div>
         </section>
-        """),
-        unsafe_allow_html=True,
+        """)
     )
 
 
 def major_section_header(title: str, subtitle: str) -> None:
-    st.markdown(
+    st.html(
         dedent(f"""
         <div class="mapa-major-section">
             <div class="mapa-major-section-title">{html.escape(title)}</div>
             <div class="mapa-major-section-subtitle">{html.escape(subtitle)}</div>
         </div>
-        """),
-        unsafe_allow_html=True,
+        """)
     )
 
 
 def visualization_placeholder(label: str = "Área reservada para visualização") -> None:
-    st.markdown(
+    st.html(
         dedent(f"""
         <div class="dna-placeholder-card">
             <div class="dna-placeholder-label">{html.escape(label)}</div>
             <div class="dna-placeholder-text">As visualizações desta seção serão inseridas aqui.</div>
         </div>
-        """),
-        unsafe_allow_html=True,
+        """)
     )

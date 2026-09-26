@@ -200,7 +200,7 @@ def _render_icp_geral_card(icp_df: pd.DataFrame | None) -> None:
             """)
         )
 
-    st.markdown(
+    st.html(
         dedent(f"""
         <div class="dna-icp-card">
             <div class="dna-icp-header">
@@ -215,8 +215,7 @@ def _render_icp_geral_card(icp_df: pd.DataFrame | None) -> None:
                 {''.join(kpi_html)}
             </div>
         </div>
-        """),
-        unsafe_allow_html=True,
+        """)
     )
 
 
