@@ -13,7 +13,7 @@ import streamlit as st
 from hf_sync import file_by_kind, load_env, load_parquet
 from pages.cluster_cards import cluster_cards_html
 from pages.dna_copy import sentence_label
-from pages.geo_reference import load_geo_reference
+from pages.dna_geo_reference import load_geo_reference
 from pages.shared_header import (
     apply_shared_visual_model,
     major_section_header,
@@ -270,7 +270,8 @@ def _canonical_text(value: object) -> str:
 
 def _municipality_codes(values: pd.Series) -> pd.Series:
     digits = values.fillna("").astype(str).str.replace(r"\D", "", regex=True)
-    return digits.str[:7].where(digits.str.len().ge(7))
+    codes = digits.str[:7]
+    return codes.str.zfill(7).where(digits.str.len().ge(7))
 
 
 def _census_demographics(
@@ -409,9 +410,11 @@ def _candidate_votes_by_ibge(source_rows: pd.DataFrame) -> pd.DataFrame:
     _, df_tse, _, _ = load_geo_reference()
     if df_tse is None or df_tse.empty:
         return pd.DataFrame(columns=["codigo_ibge", "votos_candidato"])
-    return votes.merge(
+    result = votes.merge(
         df_tse[["codigo_tse", "codigo_ibge"]], left_on="cd_municipio", right_on="codigo_tse", how="left"
-    ).groupby("codigo_ibge", as_index=False)["votos_candidato"].sum()
+    )
+    result["codigo_ibge"] = _municipality_codes(result["codigo_ibge"])
+    return result.groupby("codigo_ibge", as_index=False)["votos_candidato"].sum()
 
 
 def _potential_map(
@@ -424,8 +427,10 @@ def _potential_map(
     if not geo_ids:
         return None, "A malha municipal de Minas Gerais está vazia."
     frame = pd.DataFrame({"codigo_ibge_str": geo_ids})
-    frame["codigo_ibge"] = pd.to_numeric(frame["codigo_ibge_str"], errors="coerce").astype("Int64")
-    frame = frame.merge(municipalities[["codigo_ibge", "nome"]], on="codigo_ibge", how="left")
+    frame["codigo_ibge"] = _municipality_codes(frame["codigo_ibge_str"])
+    municipality_names = municipalities[["codigo_ibge", "nome"]].copy()
+    municipality_names["codigo_ibge"] = _municipality_codes(municipality_names["codigo_ibge"])
+    frame = frame.merge(municipality_names, on="codigo_ibge", how="left")
     score_columns = []
     for dimension in ("genero", "idade", "escolaridade"):
         census_frame = census.get(dimension, pd.DataFrame())
@@ -437,6 +442,7 @@ def _potential_map(
             frame[f"censo_{dimension}_pct"] = np.nan
         else:
             local = census_frame.copy()
+            local["codigo_ibge"] = _municipality_codes(local["codigo_ibge"])
             local["categoria_key"] = local["categoria"].map(lambda value: _census_category(dimension, str(value)))
             local = local[local["categoria_key"].eq(profile_category)][["codigo_ibge", "percentual"]]
             local = local.groupby("codigo_ibge", as_index=False)["percentual"].mean()

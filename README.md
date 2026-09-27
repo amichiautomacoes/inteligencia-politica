@@ -15,7 +15,7 @@ O app consome arquivos remotos do Hugging Face, configurados pelo `.env`, e apre
 - `pages/cluster_cards.py`: HTML e estilos dos cards de classificacao e dos ICPs.
 - `pages/dna_copy.py`: padronizacao editorial de categorias e personas.
 - `pages/shared_header.py`: componente compartilhado de cabecalho, fundo, foto do candidato, seletor entre paginas e helpers visuais comuns.
-- `pages/geo_reference.py`: referencia compartilhada de malha e codigos municipais de MG.
+- `pages/dna_geo_reference.py`: malha e codigos municipais de MG usados pela matriz do DNA Eleitoral.
 - `hf_sync.py`: leitura de `.env`, listagem remota no Hugging Face, cache e mapeamento dos parquets por tipo.
 - `assets/background.png`: imagem de fundo usada no modelo visual.
 - `Visual.md`: briefing visual do produto, separado da documentacao tecnica.

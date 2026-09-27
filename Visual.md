@@ -357,7 +357,7 @@ Essa secao deve ser comparativa. A visualizacao precisa deixar claro quando um g
 
 Composicao atual:
 
-- mapa coropletico municipal de Minas Gerais, usando a mesma malha municipal dos mapas da pagina 1;
+- mapa coropletico municipal proprio de Minas Gerais, com a linguagem visual dos mapas da pagina 1;
 - seletor no canto superior direito com **ELEITOR IDEAL** e as classificacoes existentes em `cluster_strategy_label`;
 - cruzamento conjunto de genero, faixa etaria e escolaridade, sem estado civil;
 - referencia populacional dos parquets `IBGE/censo/genero_apond.parquet`, `idade_apond.parquet` e `escolaridade_apond.parquet`;
