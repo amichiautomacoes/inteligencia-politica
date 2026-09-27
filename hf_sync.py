@@ -218,6 +218,8 @@ def file_by_kind(files: list[str], kind: str) -> str | None:
         "censo_escolaridade": "IBGE/censo/escolaridade_apond.parquet",
         "censo_genero": "IBGE/censo/genero_apond.parquet",
         "censo_idade": "IBGE/censo/idade_apond.parquet",
+        "potencial_geral": "potencial_demografico/stage07c_potencial_demografico_icp_geral.parquet",
+        "potencial_clusters": "potencial_demografico/stage07c_potencial_demografico_icp_clusters.parquet",
     }
     if kind in kind_aliases:
         return next(

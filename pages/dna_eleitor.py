@@ -13,6 +13,7 @@ import streamlit as st
 from hf_sync import file_by_kind, load_env, load_parquet
 from pages.cluster_cards import cluster_cards_html
 from pages.dna_copy import sentence_label
+from pages.dna_expansion import render_vote_expansion
 from pages.dna_geo_reference import load_geo_reference
 from pages.shared_header import (
     apply_shared_visual_model,
@@ -606,5 +607,7 @@ for index, (section_title, section_subtitle) in enumerate(DNA_SECTIONS):
         _render_cluster_profiles(icp_clusters_df)
     elif index == 1:
         _render_demographic_potential()
+    elif index == 3:
+        render_vote_expansion()
     else:
         visualization_placeholder()

@@ -14,6 +14,7 @@ O app consome arquivos remotos do Hugging Face, configurados pelo `.env`, e apre
 - `pages/dna_eleitor.py`: pagina do DNA Eleitor, com secoes estruturadas para as visualizacoes da segunda experiencia.
 - `pages/cluster_cards.py`: HTML e estilos dos cards de classificacao e dos ICPs.
 - `pages/dna_copy.py`: padronizacao editorial de categorias e personas.
+- `pages/dna_expansion.py`: agregacao municipal e classes taticas do mapa de expansao.
 - `pages/shared_header.py`: componente compartilhado de cabecalho, fundo, foto do candidato, seletor entre paginas e helpers visuais comuns.
 - `pages/dna_geo_reference.py`: malha e codigos municipais de MG usados pela matriz do DNA Eleitoral.
 - `hf_sync.py`: leitura de `.env`, listagem remota no Hugging Face, cache e mapeamento dos parquets por tipo.
@@ -84,6 +85,13 @@ Esses arquivos sao cruzados com os ICPs no nivel municipal. Genero e idade usam 
   - alimenta **BASE ELEITORAL DO CANDIDATO**;
   - contem `perfil_eleitor`, `cluster_strategy_label`, `persona_executiva`, `cluster_strategy_reason` e os atributos demograficos dos clusters;
   - preserva cada `perfil_eleitor`, mesmo quando dois perfis possuem a mesma classificacao estrategica.
+
+### Potencial demografico
+
+- `potencial_demografico/stage07c_potencial_demografico_icp_geral.parquet`
+- `potencial_demografico/stage07c_potencial_demografico_icp_clusters.parquet`
+
+Os arquivos guardam a diferenca em pontos percentuais entre o perfil ICP e a populacao do Censo, por area ponderada e dimensao. A secao de expansao combina esse sinal com a populacao local, os votos da base territorial e os parquets Censo de genero, idade e escolaridade para classificar os municipios.
 
 ### Gastos e atuacao parlamentar
 
@@ -261,7 +269,10 @@ A pagina possui quatro secoes em `pages/dna_eleitor.py`. A estrutura e o status 
 - **Segmentacao & Acao Tatica**: card reservado para visualizacao futura.
   - subtitulo: `Identificacao de frentes de conversao, consolidacao e expansao do eleitorado.`
 
-- **Expansao & Oportunidades para 2030**: card reservado para visualizacao futura.
+- **Expansao & Oportunidades para 2030**: mapa municipal de protecao de base e expansao.
+  - mapa municipal com quatro classes: verde (oportunidade alta e perfil aderente), azul (bases com muitos votos), amarelo (oportunidade com aderencia menor) e cinza (baixa similaridade, sem oportunidade relevante ou sem dados completos);
+  - seletor para Eleitor Ideal ou classificacao do ICP clusters;
+  - os cortes de potencial, similaridade e votos sao relativos ao ICP escolhido;
   - subtitulo: `Mapeamento em nivel de bairro e area ponderada. Localizacao dos clusters taticos e visualizacao de manchas de potencial de crescimento.`
 
 ### 4. Helpers visuais e renderizacao

@@ -398,6 +398,8 @@ Direcao:
 
 Essa e a secao mais prospectiva. O mapa volta a ser protagonista, mas com foco em oportunidade futura. As manchas de potencial devem comunicar prioridade territorial sem confundir potencial demografico com voto ja conquistado.
 
+Implementacao atual: mapa municipal com classes **VERDE** (potencial demografico alto e perfil aderente), **AZUL** (base de votos a proteger), **AMARELO** (oportunidade com menor aderencia) e **CINZA** (baixa similaridade, sem oportunidade relevante ou sem dados completos). Os cortes sao relativos ao ICP selecionado e o potencial nao representa previsao de votos.
+
 ## Estados Interativos
 
 ### Recorte territorial ativo
@@ -495,7 +497,7 @@ Mapas com multiplas camadas, especialmente votos + emendas, precisam de legendas
 | BASE ELEITORAL DO CANDIDATO | Resumo por classificacao e cards por ICP com barras demograficas | Quais perfis sustentam a candidatura e qual o peso de cada um? |
 | Matriz de Potencial Demografico | Mapa municipal verde de compatibilidade demografica e presenca de votos | Quais municipios combinam perfil populacional compativel e votos do candidato? |
 | Segmentacao & Acao Tatica | Secao estruturada com card reservado | Quais frentes exigem conversao, consolidacao e expansao? |
-| Expansao & Oportunidades 2030 | Secao estruturada com card reservado | Onde estao os clusters e manchas de crescimento? |
+| Expansao & Oportunidades 2030 | Mapa municipal com quatro classes taticas de protecao e expansao | Onde proteger base, buscar eleitor aderente ou evitar investimento? |
 
 ## Briefing Curto
 
