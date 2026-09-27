@@ -215,6 +215,9 @@ def file_by_kind(files: list[str], kind: str) -> str | None:
         "emendas_legislativa": "gastos/emendas_legislativa.parquet",
         "icp_geral": "perfil/stage04_icp_geral_geo.parquet",
         "icp_clusters": "perfil/stage04_icp_clusters_geo.parquet",
+        "censo_escolaridade": "IBGE/censo/escolaridade_apond.parquet",
+        "censo_genero": "IBGE/censo/genero_apond.parquet",
+        "censo_idade": "IBGE/censo/idade_apond.parquet",
     }
     if kind in kind_aliases:
         return next(

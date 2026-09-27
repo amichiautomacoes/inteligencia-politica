@@ -285,43 +285,63 @@ Subtitulo:
 
 **Quem e o eleitor-chave e quais atributos definem o perfil do seu eleitor.**
 
-Direcao:
+A secao organiza a leitura em dois cards de subsecao: identidade geral e perfis estrategicos. Sunburst, Heatmap e a composição demográfica por pontos não fazem mais parte da composição atual.
 
-Essa secao deve parecer uma leitura de identidade: clara, sintetica e hierarquica. O primeiro elemento e um card horizontal de **ICP Geral**, que sintetiza a persona dominante da candidatura.
+#### 1.1 Eleitor ideal do candidato
 
-Composicao do card ICP:
+Pergunta: **Quem caracteriza a base eleitoral do candidato?**
 
-- cabecalho com o nome da persona executiva em caixa alta;
-- badge numerico de confianca do modelo;
-- badge qualitativo do nivel de confianca;
-- resumo analitico em uma faixa de leitura ampla;
-- quatro KPIs alinhados: genero, faixa etaria, escolaridade e estado civil;
-- percentual em azul claro como informacao secundaria de cada KPI.
+- Titulo fixo: **Eleitor ideal do candidato**.
+- Subtitulo: **Síntese do perfil demográfico predominante na base eleitoral do candidato.**
+- Persona abaixo do titulo, com peso e tamanho equilibrados, sem obrigar caixa alta.
+- Emoji de pessoa preservado; resumo com emoji de fala quando acrescenta informacao.
+- Ocultar o resumo quando ele apenas repete a persona.
+- Badges de confianca numerica e qualitativa, identificados como confianca do modelo.
+- Quatro KPIs: genero, faixa etaria, escolaridade e estado civil.
+- Manter os emojis coloridos dos atributos; eles identificam dimensoes, nao magnitude.
+- Categorias com inicial maiuscula, valores legiveis e percentuais em azul claro.
 
-Direcao visual do card:
+Legenda: **Os percentuais indicam a participação de cada categoria dominante no perfil geral. As quatro dimensões são independentes e não somam 100%.**
 
-- manter o formato horizontal em telas amplas;
-- usar fundo azul profundo translucido, borda clara e sombra sutil;
-- separar o resumo dos KPIs sem criar cards aninhados visualmente pesados;
-- usar os marcadores verde, azul, roxo e amarelo apenas para diferenciar os quatro atributos;
-- preservar destaque maior para a persona e para os valores, deixando labels e percentuais em hierarquia secundaria;
-- empilhar os KPIs em duas colunas em telas medias e uma coluna no mobile.
+O titulo da subsecao deve ser visualmente superior ao nome da persona. Em telas amplas, os quatro KPIs ficam alinhados; em telas menores, passam para duas colunas e depois uma.
 
-### 2. Segmentacao & Acao Tatica
+#### 1.2 BASE ELEITORAL DO CANDIDATO
 
-Funcao visual:
+Pergunta: **Quais perfis sustentam a candidatura e qual o peso de cada um?**
 
-Identificar frentes de conversao, consolidacao e expansao do eleitorado.
+Titulo solicitado: **BASE ELEITORAL DO CANDIDATO**.
 
-Subtitulo:
+Subtitulo: **Classificações estratégicas, participação na votação e identidade demográfica de cada ICP.**
 
-**Identificacao de frentes de conversao, consolidacao e expansao do eleitorado.**
+Composicao:
 
-Direcao:
+- card externo azul profundo, borda discreta e cantos arredondados;
+- resumo superior para Base eleitoral, Eleitor consolidado e Eleitor emergente;
+- participacao de cada classificacao na votacao do candidato;
+- grade com um card por ICP, agrupada por classificacao;
+- classificacao e identificador do ICP, seguidos pela persona;
+- destaque para participacao na votacao e votos absolutos;
+- quatro barras independentes com categoria demografica e percentual;
+- bloco **Leitura estrategica** visivel, sem exigir clique ou hover.
 
-Essa secao deve ter aparencia mais operacional. As visualizacoes devem ajudar a separar onde a candidatura defende base consolidada, onde pode converter eleitores semelhantes e onde pode expandir para segmentos ainda pouco explorados.
+Dois ICPs com a mesma classificacao devem continuar em cards separados. Classificacao ausente exibe traco e mensagem de ausencia, sem simular um perfil.
 
-### 3. Matriz de Potencial Demografico
+Os cards usam duas colunas em telas amplas e uma abaixo de 1000 px. Abaixo de 600 px, resumo de classificacoes e atributos internos tambem empilham.
+
+#### Padrao editorial da secao 1
+
+- Separar titulo, frase de contexto, conteudo e legenda de interpretacao.
+- Usar inicial maiuscula em categorias e classificacoes; preservar siglas como ICP.
+- Manter o titulo em caixa alta da segunda subsecao conforme solicitado.
+- Preservar emojis existentes com funcao de identificacao.
+- Identificar o denominador: **da votacao do candidato** para participacao eleitoral; **no perfil** para percentuais demograficos.
+- A confianca do modelo e uma terceira medida, distinta dessas participacoes.
+- Usar virgula decimal e simbolo de percentual. Valores abaixo de 1% continuam abaixo de 1%.
+- Nao repetir a persona no resumo nem preencher recomendacoes ausentes com texto inventado.
+- As barras de genero, idade, escolaridade e estado civil nao devem ser empilhadas em uma soma de 100%.
+- Mostrar categorias dominantes; nao sugerir que os dados contem a distribuicao completa da populacao.
+
+### 2. Matriz de Potencial Demografico
 
 Funcao visual:
 
@@ -334,6 +354,35 @@ Subtitulo:
 Direcao:
 
 Essa secao deve ser comparativa. A visualizacao precisa deixar claro quando um grupo aparece acima do esperado na base do candidato e quando ha espaco de crescimento frente ao peso demografico local.
+
+Composicao atual:
+
+- mapa coropletico municipal de Minas Gerais, usando a mesma malha municipal dos mapas da pagina 1;
+- seletor no canto superior direito com **ELEITOR IDEAL** e as classificacoes existentes em `cluster_strategy_label`;
+- cruzamento conjunto de genero, faixa etaria e escolaridade, sem estado civil;
+- referencia populacional dos parquets `IBGE/censo/genero_apond.parquet`, `idade_apond.parquet` e `escolaridade_apond.parquet`;
+- genero e idade agregados pelas contagens populacionais das areas ponderadas; escolaridade usa nivel de instrucao para 25 anos ou mais, com percentuais ponderados pela populacao total da area, obtida nos parquets de genero ou idade (`qt_votos_demografico` fica como fallback);
+- aderencia por dimensao: `100 - diferenca absoluta em pontos percentuais` entre a categoria e percentual do ICP e o percentual municipal do Censo;
+- aderencia demografica e compatibilidade final: media da semelhanca nas tres dimensoes, com escala de cor logaritmica;
+- municipios sem votos do candidato ou sem os tres cruzamentos completos ficam no valor minimo da escala;
+- escala continua verde: maior compatibilidade em verde escuro, menor compatibilidade em verde claro;
+- todos os municipios da malha continuam preenchidos. Sem votos ou sem os tres cruzamentos completos, o municipio recebe o valor minimo (verde mais claro), com detalhes no hover.
+
+A cor representa a semelhanca demografica entre o ICP e a populacao municipal, condicionada a haver votos do candidato naquele municipio. O volume de votos aparece no hover e nao altera a cor.
+
+### 3. Segmentacao & Acao Tatica
+
+Funcao visual:
+
+Identificar frentes de conversao, consolidacao e expansao do eleitorado.
+
+Subtitulo:
+
+**Identificacao de frentes de conversao, consolidacao e expansao do eleitorado.**
+
+Direcao:
+
+Essa secao deve ter aparencia mais operacional. As visualizacoes devem ajudar a separar onde a candidatura defende base consolidada, onde pode converter eleitores semelhantes e onde pode expandir para segmentos ainda pouco explorados.
 
 ### 4. Expansao & Oportunidades para 2030
 
@@ -353,11 +402,10 @@ Essa e a secao mais prospectiva. O mapa volta a ser protagonista, mas com foco e
 
 ### Recorte territorial ativo
 
-O treemap alimenta um contexto persistente. Visualmente, esse estado deve ser entendido como uma selecao global.
+O treemap alimenta um contexto persistente local a secao demografica. A legenda deve deixar claro o alcance desse recorte.
 
 Hoje ele afeta:
 
-- KPIs;
 - grafico demografico;
 - legenda do recorte ativo.
 
@@ -443,9 +491,10 @@ Mapas com multiplas camadas, especialmente votos + emendas, precisam de legendas
 | Curva acumulada | Linha/area com marcadores | Quanta votacao se concentra nos top municipios? |
 | Matriz de custo do voto | Ranking/Pareto por tipo de despesa | Quais despesas mais pesaram no custo por voto? |
 | Mapa de atuacao parlamentar | Coropletico + bolhas de emendas | Onde votos e emendas se cruzam? |
-| Identidade da Base Eleitoral | Card horizontal de ICP Geral com persona, confianca, resumo e quatro KPIs | Quem e o eleitor-chave da candidatura? |
+| Eleitor ideal do candidato | Card geral com persona, confianca e quatro KPIs demograficos | Quem caracteriza a base eleitoral? |
+| BASE ELEITORAL DO CANDIDATO | Resumo por classificacao e cards por ICP com barras demograficas | Quais perfis sustentam a candidatura e qual o peso de cada um? |
+| Matriz de Potencial Demografico | Mapa municipal verde de compatibilidade demografica e presenca de votos | Quais municipios combinam perfil populacional compativel e votos do candidato? |
 | Segmentacao & Acao Tatica | Secao estruturada com card reservado | Quais frentes exigem conversao, consolidacao e expansao? |
-| Matriz de Potencial Demografico | Secao estruturada com card reservado | Onde o eleitor do candidato esta sobre ou sub-representado? |
 | Expansao & Oportunidades 2030 | Secao estruturada com card reservado | Onde estao os clusters e manchas de crescimento? |
 
 ## Briefing Curto

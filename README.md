@@ -12,7 +12,10 @@ O app consome arquivos remotos do Hugging Face, configurados pelo `.env`, e apre
 - `app.py`: ponto de entrada Streamlit, configuracao de pagina e navegacao.
 - `pages/raio_x_do_voto.py`: pagina principal da visualizacao.
 - `pages/dna_eleitor.py`: pagina do DNA Eleitor, com secoes estruturadas para as visualizacoes da segunda experiencia.
+- `pages/cluster_cards.py`: HTML e estilos dos cards de classificacao e dos ICPs.
+- `pages/dna_copy.py`: padronizacao editorial de categorias e personas.
 - `pages/shared_header.py`: componente compartilhado de cabecalho, fundo, foto do candidato, seletor entre paginas e helpers visuais comuns.
+- `pages/geo_reference.py`: referencia compartilhada de malha e codigos municipais de MG.
 - `hf_sync.py`: leitura de `.env`, listagem remota no Hugging Face, cache e mapeamento dos parquets por tipo.
 - `assets/background.png`: imagem de fundo usada no modelo visual.
 - `Visual.md`: briefing visual do produto, separado da documentacao tecnica.
@@ -60,13 +63,27 @@ O app localiza as pastas dos candidatos a partir do prefixo geral da eleicao, li
 
 Esses arquivos alimentam o grafico de perfil demografico, recortado por mesorregiao e pela selecao ativa do treemap.
 
+### Censo para a Matriz de Potencial Demografico
+
+- `IBGE/censo/genero_apond.parquet`
+- `IBGE/censo/idade_apond.parquet`
+- `IBGE/censo/escolaridade_apond.parquet`
+
+Esses arquivos sao cruzados com os ICPs no nivel municipal. Genero e idade usam as contagens populacionais por area ponderada, agregadas pelo prefixo municipal do codigo da area. Escolaridade usa `nivel_instrucao` para pessoas com 25 anos ou mais e agrega os percentuais das areas ponderados pela populacao total da area, obtida dos parquets de genero ou idade. `qt_votos_demografico` e usado apenas como fallback se essa populacao nao estiver disponivel.
+
 ### Perfil estrategico
 
 - `perfil/stage04_icp_geral_geo.parquet`
   - alias `icp_geral` em `hf_sync.py`;
-  - alimenta o card **ICP Geral** da secao **Identidade da Base Eleitoral**;
+  - alimenta **Eleitor ideal do candidato**;
   - contem persona, resumo, confianca do modelo e atributos demograficos principais por territorio;
   - usa `votos_candidato` como peso na consolidacao do perfil geral.
+
+- `perfil/stage04_icp_clusters_geo.parquet`
+  - alias `icp_clusters` em `hf_sync.py`;
+  - alimenta **BASE ELEITORAL DO CANDIDATO**;
+  - contem `perfil_eleitor`, `cluster_strategy_label`, `persona_executiva`, `cluster_strategy_reason` e os atributos demograficos dos clusters;
+  - preserva cada `perfil_eleitor`, mesmo quando dois perfis possuem a mesma classificacao estrategica.
 
 ### Gastos e atuacao parlamentar
 
@@ -175,40 +192,74 @@ Usa o mesmo componente visual da pagina 1, com alteracao apenas do titulo e subt
 
 ### 2. Identidade da Base Eleitoral
 
-A primeira secao apresenta o card horizontal **ICP Geral**, carregado de `perfil/stage04_icp_geral_geo.parquet`.
+A secao possui duas subsecoes, nesta ordem. Os antigos Sunburst, Heatmap e a composição demográfica por pontos não fazem parte da experiência atual.
 
-Campos exibidos:
+#### 2.1 Eleitor ideal do candidato
 
-- titulo da persona: `persona_executiva`;
-- confianca do modelo: `confianca_persona`;
-- resumo da persona: `perfil_resumo`;
-- genero principal: `genero_principal`;
-- faixa etaria principal: `idade_principal`;
-- escolaridade principal: `escolaridade_principal`;
-- estado civil principal: `estado_civil_principal`.
+Fonte: `perfil/stage04_icp_geral_geo.parquet`.
 
-Para formar o ICP geral, o processamento:
+- Titulo: **Eleitor ideal do candidato**.
+- Subtitulo: `Síntese do perfil demográfico predominante na base eleitoral do candidato.`
+- Persona: `persona_executiva`, com capitalizacao editorial e emoji preservado.
+- Resumo: `perfil_resumo`, ocultado se apenas repetir a persona, ignorando caixa, espacos e ponto final.
+- Badges: confianca numerica do modelo e classificacao qualitativa.
+- Quatro KPIs: categoria dominante e seu respectivo `pct_*_principal`.
 
-1. prioriza as linhas com `nivel_territorial = municipio`;
-2. consolida registros por `cd_municipio`;
-3. soma `votos_candidato` por municipio;
-4. identifica persona e categorias dominantes pela soma ponderada dos votos municipais;
-5. calcula a confianca geral por media ponderada de `confianca_persona`, usando os votos como peso.
+`_icp_general_row()` identifica persona e categorias dominantes pelo volume de `votos_candidato`. `_demographic_percent()` calcula a media ponderada dos percentuais da categoria escolhida, usando os votos como peso. Nos parquets inspecionados, os percentuais gerais se repetem entre territorios; nao devem ser somados. A confianca tambem usa media ponderada, com valores validos e pesos positivos.
 
-O card exibe a persona dominante, dois badges de confianca, o resumo analitico e quatro KPIs demograficos.
+#### 2.2 BASE ELEITORAL DO CANDIDATO
+
+Fonte: `perfil/stage04_icp_clusters_geo.parquet`.
+
+`_cluster_profiles()` agrupa por `perfil_eleitor`. `cluster_cards_html()` apresenta:
+
+- resumo por **Base eleitoral**, **Eleitor consolidado** e **Eleitor emergente**;
+- card independente para cada ICP, com classificacao, identificador e persona;
+- votos absolutos e participacao na votacao do candidato;
+- quatro barras demograficas independentes, com categoria e percentual;
+- justificativa em `cluster_strategy_reason`, visivel sem selecao.
+
+A participacao soma `pct_market_share` por ICP e depois por classificacao. Se o campo estiver ausente ou nulo, o fallback e `votos_candidato / total_votos_candidato * 100`. Na ausencia do total do candidato, usa-se a soma de votos do nivel territorial selecionado. `total_votos_candidato` e um denominador repetido, nunca uma coluna a somar.
+
+Uma classificacao sem perfis exibe traco e mensagem explicita, sem criar um ICP ficticio. Perfis distintos com o mesmo rotulo estrategico permanecem separados.
+
+#### Regras de granularidade e percentuais
+
+`_territorial_rows()` usa apenas `nivel_territorial = municipio`; se nao houver municipios, usa bairros. Nunca combina os dois niveis na mesma soma. Sem a coluna de nivel, preserva as linhas recebidas; com niveis desconhecidos, retorna vazio.
+
+| Campo do parquet | Significado | Uso na pagina |
+| --- | --- | --- |
+| `votos_candidato` | Votos do registro territorial/perfil | Volumes e pesos |
+| `total_votos_candidato` | Votacao geral do candidato | Denominador, sem soma |
+| `pct_market_share` | Participacao do registro na votacao geral, em 0-100 | Soma por ICP, em um unico nivel territorial |
+| `pct_votos` | Participacao no `total_votos_territorio`, em 0-100 | Nao usado para participacao geral |
+| `pct_genero_principal` | Percentual do genero dominante | KPI e barra de genero |
+| `pct_idade_principal` | Percentual da faixa etaria dominante | KPI e barra de idade |
+| `pct_escolaridade_principal` | Percentual da escolaridade dominante | KPI e barra de escolaridade |
+| `pct_estado_civil_principal` | Percentual do estado civil dominante | KPI e barra de estado civil |
+
+Os campos percentuais ja usam 0-100: `0.5` significa 0,5%. Apenas a confianca aceita explicitamente a conversao de fracao para percentual. Percentuais demograficos ausentes ou fora de 0-100 nao sao inventados: os cards informam a ausencia.
+
+Os quatro atributos sao dimensoes independentes, nao parcelas de uma soma de 100%. Os parquets descrevem categorias dominantes; nao permitem reconstruir a distribuicao completa de todas as categorias.
 
 ### 3. Demais secoes estruturadas
 
 A pagina possui quatro secoes em `pages/dna_eleitor.py`. A estrutura e o status atual de cada uma sao:
 
-- **Identidade da Base Eleitoral**: implementada com o card ICP Geral.
+- **Identidade da Base Eleitoral**: implementada com Eleitor ideal do candidato e cards da base eleitoral.
   - subtitulo: `Quem e o eleitor-chave e quais atributos definem o perfil do seu eleitor.`
+
+- **Matriz de Potencial Demografico**: mapa coropletico municipal comparando genero, idade e escolaridade do ICP com o Censo.
+  - mapa coropletico municipal de MG;
+  - seletor para **ELEITOR IDEAL** ou classificacao estrategica do ICP clusters;
+  - aderencia demografica calculada pela proximidade, em pontos percentuais, nas tres dimensoes;
+  - compatibilidade final e a media da aderencia demografica nas tres dimensoes, em escala de cor logaritmica;
+  - municipios sem votos recebem zero de compatibilidade;
+  - municipios sem votos ou sem dados completos continuam preenchidos com o verde mais claro.
+  - subtitulo: `Comparativo entre o perfil do eleitor do candidato e a populacao local. Identificacao de sobre-representacao e frentes de expansao.`
 
 - **Segmentacao & Acao Tatica**: card reservado para visualizacao futura.
   - subtitulo: `Identificacao de frentes de conversao, consolidacao e expansao do eleitorado.`
-
-- **Matriz de Potencial Demografico**: card reservado para visualizacao futura.
-  - subtitulo: `Comparativo entre o perfil do eleitor do candidato e a populacao local. Identificacao de sobre-representacao e frentes de expansao.`
 
 - **Expansao & Oportunidades para 2030**: card reservado para visualizacao futura.
   - subtitulo: `Mapeamento em nivel de bairro e area ponderada. Localizacao dos clusters taticos e visualizacao de manchas de potencial de crescimento.`
@@ -222,7 +273,7 @@ A pagina 2 usa:
 - `major_section_header(...)`: renderiza os blocos de titulo/subtitulo no padrao da pagina 1;
 - `visualization_placeholder()`: cria card reservado para cada visualizacao futura.
 
-Os componentes HTML compartilhados e o card ICP sao renderizados com `st.html`. Essa escolha evita que estruturas HTML aninhadas sejam interpretadas como blocos de codigo pelo parser Markdown.
+Os componentes HTML compartilhados, o card geral e os cards de clusters sao renderizados com `st.html`.
 
 ## Cache e performance
 
@@ -278,5 +329,9 @@ streamlit run app.py
 ## Verificacao rapida
 
 ```powershell
-python -m py_compile app.py hf_sync.py pages\shared_header.py pages\raio_x_do_voto.py pages\dna_eleitor.py
+python -m py_compile app.py hf_sync.py pages\shared_header.py pages\raio_x_do_voto.py pages\dna_eleitor.py pages\cluster_cards.py pages\demographic_comparison.py pages\dna_copy.py
 ```
+
+### Validacao da secao DNA
+
+Foram verificadas as somas de votos e participacoes e os percentuais demograficos com os parquets de Beatriz Cerqueira e Joao Vitor Xavier. O comparativo foi exercitado com `streamlit.testing.v1.AppTest`, incluindo as quatro dimensoes e fontes parciais. Essas verificacoes foram executadas durante o desenvolvimento, sem suite persistida no repositorio. A inspecao visual em navegador continua necessaria para validar layout desktop e mobile.

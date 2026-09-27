@@ -1,15 +1,19 @@
 from __future__ import annotations
 
 import html
+import re
+import unicodedata
 from textwrap import dedent
 
+import numpy as np
 import pandas as pd
+import plotly.express as px
 import streamlit as st
 
 from hf_sync import file_by_kind, load_env, load_parquet
 from pages.cluster_cards import cluster_cards_html
 from pages.dna_copy import sentence_label
-from pages.demographic_comparison import render_comparison
+from pages.geo_reference import load_geo_reference
 from pages.shared_header import (
     apply_shared_visual_model,
     major_section_header,
@@ -249,37 +253,319 @@ def _render_cluster_profiles(clusters_df: pd.DataFrame | None) -> None:
     st.html(cluster_cards_html(_cluster_profiles(clusters_df)))
 
 
-def _demographic_frame(df: pd.DataFrame | None, source: str) -> pd.DataFrame:
+def _municipal_rows(df: pd.DataFrame | None) -> pd.DataFrame:
     if df is None or df.empty:
         return pd.DataFrame()
-    working = _territorial_rows(df)
-    if working.empty:
-        return pd.DataFrame()
-    if "votos_candidato" not in working:
-        working["votos_candidato"] = 0.0
-    if source == "ICP geral":
-        working["_profile"] = "ICP geral"
-    elif "perfil_eleitor" in working:
-        working["_profile"] = "ICP " + working["perfil_eleitor"].astype(str)
-    else:
-        return pd.DataFrame()
-    rows = []
-    for profile, group in working.groupby("_profile", sort=True):
-        for dimension, column in [("Gênero", "genero_principal"), ("Faixa etária", "idade_principal"), ("Escolaridade", "escolaridade_principal"), ("Estado civil", "estado_civil_principal")]:
-            category, _ = _weighted_dominant(group, column)
-            pct = _demographic_percent(group, column, category)
-            if pd.isna(pct):
+    if "nivel_territorial" not in df:
+        return df.iloc[:0].copy()
+    levels = df["nivel_territorial"].astype(str).str.strip().str.casefold()
+    return df.loc[levels.eq("municipio")].copy()
+
+
+def _canonical_text(value: object) -> str:
+    text = unicodedata.normalize("NFKD", str(value or "").casefold())
+    text = "".join(char for char in text if not unicodedata.combining(char))
+    return re.sub(r"[^a-z0-9]+", " ", text).strip()
+
+
+def _municipality_codes(values: pd.Series) -> pd.Series:
+    digits = values.fillna("").astype(str).str.replace(r"\D", "", regex=True)
+    return digits.str[:7].where(digits.str.len().ge(7))
+
+
+def _census_demographics(
+    gender: pd.DataFrame | None,
+    age: pd.DataFrame | None,
+    schooling: pd.DataFrame | None,
+) -> dict[str, pd.DataFrame]:
+    result: dict[str, pd.DataFrame] = {}
+
+    for dimension, frame, prefix, excluded in (
+        ("genero", gender, "populacao_genero_", {"nao_informado"}),
+        ("idade", age, "populacao_idade_", {"invalido"}),
+    ):
+        if frame is None or frame.empty or "cd_area_ponderada" not in frame:
+            result[dimension] = pd.DataFrame(columns=["codigo_ibge", "categoria", "percentual"])
+            continue
+        code = _municipality_codes(frame["cd_area_ponderada"])
+        total_cols = [column for column in frame if column.startswith(prefix)]
+        pieces = []
+        for column in total_cols:
+            category = column.removeprefix(prefix)
+            if category in excluded:
                 continue
-            rows.append({"cluster": profile, "dimension": dimension, "value": category,
-                         "pct_votos": pct, "strategy_label": _first_value(group, "cluster_strategy_label"),
-                         "reason": _first_value(group, "cluster_strategy_reason", "Recomendação estratégica não informada para esta fonte."),
-                         "source": source})
-    return pd.DataFrame(rows)
+            values = pd.to_numeric(frame[column], errors="coerce").fillna(0)
+            pieces.append(pd.DataFrame({"codigo_ibge": code, "categoria": category, "populacao": values}))
+        if pieces:
+            totals = pd.concat(pieces, ignore_index=True).groupby(
+                ["codigo_ibge", "categoria"], as_index=False
+            )["populacao"].sum()
+            denom = totals.groupby("codigo_ibge")["populacao"].transform("sum")
+            totals["percentual"] = np.where(denom.gt(0), totals["populacao"] / denom * 100, np.nan)
+            result[dimension] = totals[["codigo_ibge", "categoria", "percentual"]]
+        else:
+            result[dimension] = pd.DataFrame(columns=["codigo_ibge", "categoria", "percentual"])
+
+    frame = schooling
+    if frame is not None and not frame.empty and {"cd_municipio", "categoria", "pct_populacao_categoria"}.issubset(frame.columns):
+        working = frame.copy()
+        if "indicador" in working:
+            working = working[
+                working["indicador"].map(_canonical_text).eq("nivel instrucao")
+            ]
+        if "faixa_etaria" in working:
+            working = working[
+                working["faixa_etaria"].map(_canonical_text).eq("25 anos ou mais")
+            ]
+        working["codigo_ibge"] = _municipality_codes(working["cd_municipio"])
+        working["percentual"] = pd.to_numeric(working["pct_populacao_categoria"], errors="coerce")
+        population_weights = None
+        for population_frame in (gender, age):
+            if population_frame is not None and {"cd_area_ponderada", "populacao_total_ibge"}.issubset(population_frame.columns):
+                population_weights = population_frame[["cd_area_ponderada", "populacao_total_ibge"]].drop_duplicates("cd_area_ponderada")
+                break
+        if population_weights is not None and "cd_area_ponderada" in working:
+            working = working.merge(population_weights, on="cd_area_ponderada", how="left")
+            working["peso"] = pd.to_numeric(working["populacao_total_ibge"], errors="coerce").fillna(0)
+        elif "qt_votos_demografico" in working:
+            working["peso"] = pd.to_numeric(working["qt_votos_demografico"], errors="coerce").fillna(0)
+        else:
+            working["peso"] = 1.0
+        working = working[working["percentual"].between(0, 100)]
+        working["ponderado"] = working["percentual"] * working["peso"]
+        grouped = working.groupby(["codigo_ibge", "categoria"], as_index=False).agg(
+            ponderado=("ponderado", "sum"), peso=("peso", "sum"), media=("percentual", "mean")
+        )
+        grouped["percentual"] = np.where(grouped["peso"].gt(0), grouped["ponderado"] / grouped["peso"], grouped["media"])
+        result["escolaridade"] = grouped[["codigo_ibge", "categoria", "percentual"]]
+    else:
+        result["escolaridade"] = pd.DataFrame(columns=["codigo_ibge", "categoria", "percentual"])
+    return result
 
 
-def _render_demographic_comparison(icp_general: pd.DataFrame | None, icp_clusters: pd.DataFrame | None) -> None:
-    frames = [_demographic_frame(icp_general, "ICP geral"), _demographic_frame(icp_clusters, "ICP clusters")]
-    render_comparison(pd.concat(frames, ignore_index=True))
+def _census_category(dimension: str, profile_category: str) -> str:
+    key = _canonical_text(profile_category)
+    if dimension == "genero":
+        if key in {"feminino", "mulher", "mulheres"}:
+            return "feminino"
+        if key in {"masculino", "homem", "homens"}:
+            return "masculino"
+    if dimension == "escolaridade":
+        if "superior completo" in key:
+            return "superior_completo"
+        if "superior incompleto" in key or "medio completo" in key:
+            return "medio_completo_superior_incompleto"
+        if "medio incompleto" in key or "fundamental completo" in key:
+            return "fundamental_completo_medio_incompleto"
+        if "fundamental incompleto" in key or "sem instrucao" in key:
+            return "sem_instrucao_fundamental_incompleto"
+    return key.replace(" ", "_")
+
+
+def _profile_snapshot(
+    profile_kind: str,
+    selected_label: str,
+    icp_general: pd.DataFrame | None,
+    icp_clusters: pd.DataFrame | None,
+) -> tuple[dict[str, object], pd.DataFrame]:
+    if profile_kind == "icp_geral":
+        profile_df = _icp_general_row(icp_general.copy()) if icp_general is not None and not icp_general.empty else pd.DataFrame()
+        source_rows = _municipal_rows(icp_general)
+    else:
+        source_rows = _municipal_rows(icp_clusters)
+        if "cluster_strategy_label" in source_rows:
+            source_rows = source_rows[source_rows["cluster_strategy_label"].fillna("").astype(str).str.strip().eq(selected_label)]
+        profile_df = pd.DataFrame()
+        if not source_rows.empty:
+            profile_df = pd.DataFrame([{
+                "genero_principal": _weighted_dominant(source_rows, "genero_principal")[0],
+                "pct_genero_principal": _demographic_percent(source_rows, "genero_principal", _weighted_dominant(source_rows, "genero_principal")[0]),
+                "idade_principal": _weighted_dominant(source_rows, "idade_principal")[0],
+                "pct_idade_principal": _demographic_percent(source_rows, "idade_principal", _weighted_dominant(source_rows, "idade_principal")[0]),
+                "escolaridade_principal": _weighted_dominant(source_rows, "escolaridade_principal")[0],
+                "pct_escolaridade_principal": _demographic_percent(source_rows, "escolaridade_principal", _weighted_dominant(source_rows, "escolaridade_principal")[0]),
+            }])
+    snapshot: dict[str, object] = {"label": selected_label}
+    for dimension, category_col, pct_col in (
+        ("genero", "genero_principal", "pct_genero_principal"),
+        ("idade", "idade_principal", "pct_idade_principal"),
+        ("escolaridade", "escolaridade_principal", "pct_escolaridade_principal"),
+    ):
+        category = _first_value(profile_df, category_col, "")
+        pct = pd.to_numeric(pd.Series([_first_value(profile_df, pct_col, "")]), errors="coerce").iloc[0]
+        snapshot[dimension] = _census_category(dimension, category) if category else ""
+        snapshot[f"{dimension}_label"] = category
+        snapshot[f"{dimension}_pct"] = float(pct) if pd.notna(pct) else np.nan
+    return snapshot, source_rows
+
+
+def _candidate_votes_by_ibge(source_rows: pd.DataFrame) -> pd.DataFrame:
+    if source_rows.empty or "votos_candidato" not in source_rows or "cd_municipio" not in source_rows:
+        return pd.DataFrame(columns=["codigo_ibge", "votos_candidato"])
+    votes = source_rows.copy()
+    votes["cd_municipio"] = pd.to_numeric(votes["cd_municipio"], errors="coerce").astype("Int64")
+    votes["votos_candidato"] = pd.to_numeric(votes["votos_candidato"], errors="coerce").fillna(0)
+    votes = votes.groupby("cd_municipio", as_index=False)["votos_candidato"].sum()
+    _, df_tse, _, _ = load_geo_reference()
+    if df_tse is None or df_tse.empty:
+        return pd.DataFrame(columns=["codigo_ibge", "votos_candidato"])
+    return votes.merge(
+        df_tse[["codigo_tse", "codigo_ibge"]], left_on="cd_municipio", right_on="codigo_tse", how="left"
+    ).groupby("codigo_ibge", as_index=False)["votos_candidato"].sum()
+
+
+def _potential_map(
+    census: dict[str, pd.DataFrame], profile: dict[str, object], source_rows: pd.DataFrame
+) -> tuple[object | None, str]:
+    geojson_mg, _, municipalities, _ = load_geo_reference()
+    if not geojson_mg or municipalities is None or municipalities.empty:
+        return None, "A referência geográfica de Minas Gerais não está disponível."
+    geo_ids = sorted({str(feature.get("properties", {}).get("id", "")).zfill(7) for feature in geojson_mg.get("features", [])})
+    if not geo_ids:
+        return None, "A malha municipal de Minas Gerais está vazia."
+    frame = pd.DataFrame({"codigo_ibge_str": geo_ids})
+    frame["codigo_ibge"] = pd.to_numeric(frame["codigo_ibge_str"], errors="coerce").astype("Int64")
+    frame = frame.merge(municipalities[["codigo_ibge", "nome"]], on="codigo_ibge", how="left")
+    score_columns = []
+    for dimension in ("genero", "idade", "escolaridade"):
+        census_frame = census.get(dimension, pd.DataFrame())
+        profile_category = str(profile.get(dimension, ""))
+        profile_pct = pd.to_numeric(pd.Series([profile.get(f"{dimension}_pct")]), errors="coerce").iloc[0]
+        score_col = f"aderencia_{dimension}"
+        if census_frame.empty or not profile_category or pd.isna(profile_pct):
+            frame[score_col] = np.nan
+            frame[f"censo_{dimension}_pct"] = np.nan
+        else:
+            local = census_frame.copy()
+            local["categoria_key"] = local["categoria"].map(lambda value: _census_category(dimension, str(value)))
+            local = local[local["categoria_key"].eq(profile_category)][["codigo_ibge", "percentual"]]
+            local = local.groupby("codigo_ibge", as_index=False)["percentual"].mean()
+            local = local.rename(columns={"percentual": f"censo_{dimension}_pct"})
+            local[score_col] = (100 - (local[f"censo_{dimension}_pct"] - float(profile_pct)).abs()).clip(0, 100)
+            frame = frame.merge(local[["codigo_ibge", f"censo_{dimension}_pct", score_col]], on="codigo_ibge", how="left")
+        score_columns.append(score_col)
+    available = frame[score_columns].notna().sum(axis=1)
+    frame["aderencia_demografica"] = frame[score_columns].mean(axis=1, skipna=True)
+    frame.loc[available.lt(3), "aderencia_demografica"] = np.nan
+
+    votes = _candidate_votes_by_ibge(source_rows)
+    frame = frame.merge(votes, on="codigo_ibge", how="left")
+    frame["votos_candidato"] = frame["votos_candidato"].fillna(0.0)
+    frame["compatibilidade"] = np.where(
+        frame["votos_candidato"].gt(0), frame["aderencia_demografica"].fillna(0), 0.0
+    )
+    positive_scores = frame.loc[frame["compatibilidade"].gt(0), "compatibilidade"]
+    colorbar_tickvals = [0.0]
+    colorbar_ticktext = ["0"]
+    frame["compatibilidade_log"] = 0.0
+    if not positive_scores.empty:
+        low_score = float(positive_scores.min())
+        high_score = float(positive_scores.max())
+        if high_score > low_score:
+            log_low, log_high = np.log1p(low_score), np.log1p(high_score)
+            frame.loc[frame["compatibilidade"].gt(0), "compatibilidade_log"] = 0.08 + 0.92 * (
+                np.log1p(positive_scores) - log_low
+            ) / (log_high - log_low)
+            tick_scores = np.unique(np.round(np.linspace(low_score, high_score, 4)).astype(int))
+            colorbar_tickvals += [
+                float(0.08 + 0.92 * (np.log1p(score) - log_low) / (log_high - log_low))
+                for score in tick_scores
+            ]
+            colorbar_ticktext += [str(score) for score in tick_scores]
+        else:
+            frame.loc[frame["compatibilidade"].gt(0), "compatibilidade_log"] = 0.85
+            colorbar_tickvals.append(0.85)
+            colorbar_ticktext.append(f"{low_score:.0f}")
+    frame["municipio"] = frame["nome"].fillna("Município")
+
+    fig = px.choropleth(
+        frame,
+        geojson=geojson_mg,
+        locations="codigo_ibge_str",
+        featureidkey="properties.id",
+        color="compatibilidade_log",
+        hover_name="municipio",
+        color_continuous_scale=[[0, "#e8f5e9"], [0.25, "#c8e6c9"], [0.5, "#81c784"], [0.75, "#43a047"], [1, "#14532d"]],
+        range_color=[0, 1],
+        labels={
+            "compatibilidade": "Compatibilidade final (0–100)",
+            "aderencia_demografica": "Aderência demográfica (0–100)",
+            "aderencia_genero": "Aderência de gênero (0–100)",
+            "aderencia_idade": "Aderência de idade (0–100)",
+            "aderencia_escolaridade": "Aderência de escolaridade (0–100)",
+            "votos_candidato": "Votos do candidato",
+        },
+    )
+    fig.update_traces(
+        marker_line_color="rgba(210,228,255,0.75)", marker_line_width=0.55,
+        hovertemplate=(
+            "<b>%{hovertext}</b><br>Compatibilidade final: %{customdata[0]:.1f}/100"
+            "<br>Aderência demográfica: %{customdata[1]:.1f}/100"
+            "<br>Gênero — ICP: %{customdata[2]:.1f}% · Censo municipal: %{customdata[3]:.1f}% · Aderência: %{customdata[4]:.1f}"
+            "<br>Idade — ICP: %{customdata[5]:.1f}% · Censo municipal: %{customdata[6]:.1f}% · Aderência: %{customdata[7]:.1f}"
+            "<br>Escolaridade — ICP: %{customdata[8]:.1f}% · Censo municipal: %{customdata[9]:.1f}% · Aderência: %{customdata[10]:.1f}"
+            "<br>Votos do candidato: %{customdata[11]:,.0f}<extra></extra>"
+        ),
+        customdata=np.column_stack([
+            frame["compatibilidade"], frame["aderencia_demografica"],
+            np.full(len(frame), float(profile.get("genero_pct", np.nan))), frame["censo_genero_pct"], frame["aderencia_genero"],
+            np.full(len(frame), float(profile.get("idade_pct", np.nan))), frame["censo_idade_pct"], frame["aderencia_idade"],
+            np.full(len(frame), float(profile.get("escolaridade_pct", np.nan))), frame["censo_escolaridade_pct"], frame["aderencia_escolaridade"],
+            frame["votos_candidato"],
+        ]),
+        hoverlabel={"bgcolor": "rgba(5,12,28,0.95)", "font": {"color": "#EAF2FF"}},
+    )
+    fig.update_geos(fitbounds="locations", visible=False, bgcolor="rgba(0,0,0,0)")
+    fig.update_layout(
+        title="Compatibilidade demográfica por município (MG)", height=620,
+        margin={"l": 0, "r": 0, "t": 55, "b": 0},
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        font={"color": "#eaf2ff"}, coloraxis_colorbar={
+            "title": "Compatibilidade", "tickvals": colorbar_tickvals,
+            "ticktext": colorbar_ticktext,
+        },
+    )
+    note = "A compatibilidade é a média das aderências de gênero, idade e escolaridade. Municípios sem votos ou sem os três cruzamentos completos ficam no valor mínimo; a escala de cor é logarítmica."
+    return fig, note
+
+
+def _render_demographic_potential() -> None:
+    icp_general = _read_selected_parquet("icp_geral")
+    icp_clusters = _read_selected_parquet("icp_clusters")
+    labels = ["ELEITOR IDEAL"]
+    if icp_clusters is not None and "cluster_strategy_label" in icp_clusters:
+        labels += sorted(
+            value for value in icp_clusters["cluster_strategy_label"].dropna().astype(str).str.strip().unique() if value
+        )
+    _, right = st.columns([0.64, 0.36], vertical_alignment="bottom")
+    with right:
+        selected_label = st.selectbox(
+            "Perfil de eleitor", labels, key="dna_demographic_potential_profile"
+        )
+    if selected_label == "ELEITOR IDEAL":
+        profile_kind = "icp_geral"
+    else:
+        profile_kind = "icp_clusters"
+
+    profile, source_rows = _profile_snapshot(profile_kind, selected_label, icp_general, icp_clusters)
+    census = {
+        "genero": _read_selected_parquet("censo_genero"),
+        "idade": _read_selected_parquet("censo_idade"),
+        "escolaridade": _read_selected_parquet("censo_escolaridade"),
+    }
+    census = _census_demographics(census["genero"], census["idade"], census["escolaridade"])
+    fig, note = _potential_map(census, profile, source_rows)
+    if fig is None:
+        st.info(note)
+        return
+    st.caption(
+        "Perfil comparado: " + " · ".join(
+            f"{label}: {profile.get(dimension + '_label', 'não informado')} ({_format_percent_value(str(profile.get(dimension + '_pct', '')))} no perfil)"
+            for dimension, label in (("genero", "Gênero"), ("idade", "Idade"), ("escolaridade", "Escolaridade"))
+        )
+    )
+    st.plotly_chart(fig, use_container_width=True, key="dna_demographic_potential_map", config={"displayModeBar": False, "scrollZoom": False})
+    st.caption(note)
 
 
 apply_shared_visual_model()
@@ -291,12 +577,12 @@ DNA_SECTIONS = [
         "Quem é o eleitor-chave e quais atributos definem o perfil do seu eleitor.",
     ),
     (
-        "Segmentação & Ação Tática",
-        "Identificação de frentes de conversão, consolidação e expansão do eleitorado.",
-    ),
-    (
         "Matriz de Potencial Demográfico",
         "Comparativo entre o perfil do eleitor do candidato e a população local. Identificação de sobre-representação e frentes de expansão.",
+    ),
+    (
+        "Segmentação & Ação Tática",
+        "Identificação de frentes de conversão, consolidação e expansão do eleitorado.",
     ),
     (
         "Expansão & Oportunidades para 2030",
@@ -312,6 +598,7 @@ for index, (section_title, section_subtitle) in enumerate(DNA_SECTIONS):
         icp_clusters_df = _read_selected_parquet("icp_clusters")
         _render_icp_geral_card(icp_general_df)
         _render_cluster_profiles(icp_clusters_df)
-        _render_demographic_comparison(icp_general_df, icp_clusters_df)
+    elif index == 1:
+        _render_demographic_potential()
     else:
         visualization_placeholder()
