@@ -4,10 +4,12 @@ import html
 from textwrap import dedent
 
 import pandas as pd
-import plotly.graph_objects as go
 import streamlit as st
 
 from hf_sync import file_by_kind, load_env, load_parquet
+from pages.cluster_cards import cluster_cards_html
+from pages.dna_copy import sentence_label
+from pages.demographic_comparison import render_comparison
 from pages.shared_header import (
     apply_shared_visual_model,
     major_section_header,
@@ -163,7 +165,7 @@ def _icp_general_row(icp_df: pd.DataFrame) -> pd.DataFrame:
 
 def _render_icp_geral_card(icp_df: pd.DataFrame | None) -> None:
     if icp_df is None or icp_df.empty:
-        visualization_placeholder("ICP geral indisponivel")
+        st.html('<div class="dna-icp-card"><h3 class="dna-subsection-title">Eleitor ideal do candidato</h3><p class="dna-subsection-description">Perfil geral indisponível para este candidato.</p></div>')
         return
 
     icp_df = _icp_general_row(icp_df)
@@ -171,15 +173,19 @@ def _render_icp_geral_card(icp_df: pd.DataFrame | None) -> None:
     confidence = _format_percent_value(_first_value(icp_df, "confianca_persona", "Nao informado"), fraction=True)
     confidence_level = _confidence_level(_first_value(icp_df, "confianca_persona", ""))
     summary = _first_value(icp_df, "perfil_resumo", "Resumo analitico da persona nao informado.")
+    persona = sentence_label(persona)
+    summary = sentence_label(summary)
+    normalize = lambda text: " ".join(text.casefold().split()).rstrip(".")
+    summary_html = "" if normalize(summary) == normalize(persona) else f'<div class="dna-icp-summary">💬 {html.escape(summary)}</div>'
     kpis = [
-        ("🟢 Gênero principal", "genero_principal", "pct_genero_principal"),
+        ("🟢 Gênero", "genero_principal", "pct_genero_principal"),
         ("🔵 Faixa etária", "idade_principal", "pct_idade_principal"),
         ("🟣 Escolaridade", "escolaridade_principal", "pct_escolaridade_principal"),
         ("🟡 Estado civil", "estado_civil_principal", "pct_estado_civil_principal"),
     ]
     kpi_html = []
     for label, value_col, pct_col in kpis:
-        value = _first_value(icp_df, value_col)
+        value = sentence_label(_first_value(icp_df, value_col))
         pct = _format_percent_value(_first_value(icp_df, pct_col, ""))
         pct_html = "" if pct == "Nao informado" else f'<div class="dna-icp-kpi-pct">{html.escape(pct)}</div>'
         kpi_html.append(
@@ -195,136 +201,55 @@ def _render_icp_geral_card(icp_df: pd.DataFrame | None) -> None:
     st.html(
         dedent(f"""
         <div class="dna-icp-card">
+            <h3 class="dna-subsection-title">Eleitor ideal do candidato</h3>
+            <p class="dna-subsection-description">Síntese do perfil demográfico predominante na base eleitoral do candidato.</p>
             <div class="dna-icp-header">
                 <div class="dna-icp-title">👤 {html.escape(persona)}</div>
                 <div class="dna-icp-badges">
-                    <div class="dna-icp-badge strong">Confiança {html.escape(confidence)}</div>
+                    <div class="dna-icp-badge strong">Confiança do modelo: {html.escape(confidence)}</div>
                     <div class="dna-icp-badge">{html.escape(confidence_level)}</div>
                 </div>
             </div>
-            <div class="dna-icp-summary">💬 {html.escape(summary)}</div>
+            {summary_html}
             <div class="dna-icp-kpi-grid">
                 {''.join(kpi_html)}
             </div>
+            <p class="dna-subsection-note">Os percentuais indicam a participação de cada categoria dominante no perfil geral. As quatro dimensões são independentes e não somam 100%.</p>
         </div>
         """)
     )
 
 
-def _sunburst_selection(event: object | None) -> dict[str, str]:
-    if not event:
-        return {}
-    selection = getattr(event, "selection", {}) if hasattr(event, "selection") else event.get("selection", {}) if isinstance(event, dict) else {}
-    points = selection.get("points", []) if isinstance(selection, dict) else getattr(selection, "points", [])
-    if not points:
-        return {}
-    point = points[0]
-    customdata = point.get("customdata") if isinstance(point, dict) else getattr(point, "customdata", None)
-    if not customdata:
-        return {}
-    values = list(customdata) if not isinstance(customdata, str) else [customdata]
-    return {
-        "perfil_eleitor": str(values[0] or ""),
-        "cluster_strategy_label": str(values[1] or ""),
-        "persona_executiva": str(values[2] or ""),
-        "cluster_strategy_reason": str(values[3] or ""),
-    }
-
-
-def _cluster_sunburst_frame(clusters_df: pd.DataFrame) -> tuple[pd.DataFrame, float]:
+def _cluster_profiles(clusters_df: pd.DataFrame | None) -> list[dict]:
     if clusters_df is None or clusters_df.empty:
-        return pd.DataFrame(), 0.0
+        return []
     df = _territorial_rows(clusters_df)
-    aliases = {
-        "perfil_eleitor": ("perfil_eleitor", "perfil", "perfil_eleitoral"),
-        "cluster_strategy_label": ("cluster_strategy_label", "cluster_label", "cluster"),
-        "persona_executiva": ("persona_executiva", "persona", "persona_label"),
-        "cluster_strategy_reason": ("cluster_strategy_reason", "cluster_reason", "justificativa"),
-        "votos_candidato": ("votos_candidato", "votos", "total_votos"),
-        "cd_municipio": ("cd_municipio", "codigo_municipio", "cod_municipio"),
-    }
-    for target, candidates in aliases.items():
-        if target not in df.columns:
-            source = next((column for column in candidates if column in df.columns), None)
-            df[target] = df[source] if source else ""
+    if df.empty or not {"perfil_eleitor", "votos_candidato"}.issubset(df.columns):
+        return []
     df["votos_candidato"] = pd.to_numeric(df["votos_candidato"], errors="coerce").fillna(0)
-    for column in ("perfil_eleitor", "cluster_strategy_label", "persona_executiva", "cluster_strategy_reason"):
-        df[column] = df[column].fillna("Nao informado").astype(str).str.strip().replace("", "Nao informado")
-
-    municipality_total = float(df["votos_candidato"].sum())
-    denominator = pd.to_numeric(df.get("total_votos_candidato", pd.Series(dtype=float)), errors="coerce").dropna()
-    total_candidate = float(denominator.iloc[0]) if not denominator.empty else municipality_total
-    df["share"] = pd.to_numeric(df["pct_market_share"], errors="coerce") if "pct_market_share" in df else df["votos_candidato"] / total_candidate * 100 if total_candidate else 0.0
-    grouped = (
-        df.groupby(["perfil_eleitor", "cluster_strategy_label", "persona_executiva", "cluster_strategy_reason"], dropna=False, as_index=False)[["votos_candidato", "share"]]
-        .sum()
-        .rename(columns={"votos_candidato": "votos"})
-    )
-    return grouped, float(municipality_total)
-
-
-def _cluster_sunburst(df: pd.DataFrame, total_votes: float) -> go.Figure:
-    if df.empty:
-        return go.Figure()
-    rows = [{"ids": "total", "labels": "Votação total", "parents": "", "values": total_votes, "custom": ["", "", "", "", float(df["share"].sum())]}]
-    profile_totals = df.groupby("perfil_eleitor", as_index=False)[["votos", "share"]].sum()
-    for _, row in profile_totals.iterrows():
-        profile = str(row["perfil_eleitor"])
-        rows.append({"ids": f"perfil::{profile}", "labels": profile, "parents": "total", "values": row["votos"], "custom": [profile, "", "", "", row["share"]]})
-    for _, row in df.iterrows():
-        profile = str(row["perfil_eleitor"])
-        cluster = str(row["cluster_strategy_label"])
-        persona = str(row["persona_executiva"])
-        label = f"{cluster} · {persona}"
-        rows.append({"ids": f"persona::{profile}::{cluster}::{persona}", "labels": label, "parents": f"perfil::{profile}", "values": row["votos"], "custom": [profile, cluster, persona, row["cluster_strategy_reason"], row["share"]]})
-    chart = pd.DataFrame(rows)
-    fig = go.Figure(go.Sunburst(ids=chart["ids"], labels=chart["labels"], parents=chart["parents"], values=chart["values"], customdata=chart["custom"], branchvalues="total", maxdepth=3, insidetextorientation="radial", textinfo="label+percent root", hovertemplate="%{label}<br>%{value:,.0f} votos<br>%{customdata[4]:.2f}% da votação geral<extra></extra>"))
-    fig.update_layout(height=520, margin={"l": 8, "r": 8, "t": 18, "b": 8}, paper_bgcolor="rgba(0,0,0,0)", font={"color": "#eaf2ff"})
-    return fig
+    totals = pd.to_numeric(df.get("total_votos_candidato", pd.Series(dtype=float)), errors="coerce").dropna()
+    total = float(totals.iloc[0]) if not totals.empty else float(df["votos_candidato"].sum())
+    fallback = df["votos_candidato"] / total * 100 if total > 0 else pd.Series(0.0, index=df.index)
+    df["share"] = pd.to_numeric(df["pct_market_share"], errors="coerce").fillna(fallback) if "pct_market_share" in df else fallback
+    profiles = []
+    for profile, group in df.groupby("perfil_eleitor", sort=True):
+        demographics = []
+        for label, column in [("Gênero", "genero_principal"), ("Faixa etária", "idade_principal"), ("Escolaridade", "escolaridade_principal"), ("Estado civil", "estado_civil_principal")]:
+            category, _ = _weighted_dominant(group, column)
+            demographics.append((label, category, _demographic_percent(group, column, category)))
+        profiles.append({"id": str(profile), "classification": _first_value(group, "cluster_strategy_label").strip().upper(),
+                         "persona": _first_value(group, "persona_executiva"),
+                         "reason": _first_value(group, "cluster_strategy_reason", "Recomendação estratégica não informada."),
+                         "votes": float(group["votos_candidato"].sum()), "share": float(group["share"].sum()),
+                         "demographics": demographics})
+    return profiles
 
 
-def _render_cluster_sunburst(clusters_df: pd.DataFrame | None) -> None:
-    grouped, total_votes = _cluster_sunburst_frame(clusters_df)
-    if grouped.empty:
-        visualization_placeholder("Composição do voto indisponível")
-        return
-    chart_col, detail_col = st.columns([1.6, 1], gap="large")
-    with chart_col:
-        st.markdown("<div class='raiox-chart-card-title'>Sunburst de composição do voto</div>", unsafe_allow_html=True)
-        event = st.plotly_chart(_cluster_sunburst(grouped, total_votes), use_container_width=True, key="dna_cluster_sunburst", on_select="rerun", selection_mode="points")
-    selected = _sunburst_selection(event)
-    with detail_col:
-        st.markdown("<div class='raiox-chart-card-title'>Detalhe do cluster selecionado</div>", unsafe_allow_html=True)
-        if selected.get("persona_executiva"):
-            st.markdown(f"**{html.escape(selected['cluster_strategy_label'])} · {html.escape(selected['persona_executiva'])}**", unsafe_allow_html=True)
-            st.caption(f"Perfil: {selected['perfil_eleitor']}")
-            st.info(selected.get("cluster_strategy_reason") or "Justificativa não informada.")
-        else:
-            st.caption("Selecione uma fatia do anel externo para ver a justificativa estratégica do cluster.")
+def _render_cluster_profiles(clusters_df: pd.DataFrame | None) -> None:
+    st.html(cluster_cards_html(_cluster_profiles(clusters_df)))
 
 
-def _heatmap_selection(event: object | None) -> dict[str, str]:
-    if not event:
-        return {}
-    selection = getattr(event, "selection", {}) if hasattr(event, "selection") else event.get("selection", {}) if isinstance(event, dict) else {}
-    points = selection.get("points", []) if isinstance(selection, dict) else getattr(selection, "points", [])
-    if not points:
-        return {}
-    point = points[0]
-    customdata = point.get("customdata") if isinstance(point, dict) else getattr(point, "customdata", None)
-    if not customdata:
-        return {}
-    values = list(customdata) if not isinstance(customdata, str) else [customdata]
-    return {
-        "cluster": str(values[0] or ""),
-        "dimension": str(values[1] or ""),
-        "value": str(values[2] or ""),
-        "label": str(values[3] or ""),
-        "reason": str(values[4] or ""),
-    }
-
-
-def _heatmap_frame(df: pd.DataFrame | None, source: str) -> pd.DataFrame:
+def _demographic_frame(df: pd.DataFrame | None, source: str) -> pd.DataFrame:
     if df is None or df.empty:
         return pd.DataFrame()
     working = _territorial_rows(df)
@@ -352,57 +277,9 @@ def _heatmap_frame(df: pd.DataFrame | None, source: str) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def _heatmap_chart(df: pd.DataFrame) -> go.Figure:
-    clusters = list(dict.fromkeys(df["cluster"].tolist()))
-    dimensions = list(dict.fromkeys(df["dimension"].tolist()))
-    pivot = df.pivot_table(index="dimension", columns="cluster", values="pct_votos", aggfunc="first").reindex(index=dimensions, columns=clusters)
-    custom = []
-    for dimension in dimensions:
-        row = []
-        for cluster in clusters:
-            match = df[(df["dimension"] == dimension) & (df["cluster"] == cluster)]
-            if match.empty:
-                row.append([cluster, dimension, 0, "", ""])
-            else:
-                item = match.sort_values("pct_votos", ascending=False).iloc[0]
-                row.append([cluster, dimension, item["value"], item["strategy_label"], item["reason"]])
-        custom.append(row)
-    fig = go.Figure(go.Heatmap(
-        z=pivot.values,
-        x=clusters,
-        y=dimensions,
-        customdata=custom,
-        colorscale=[[0, "#0B1F4D"], [0.5, "#2563EB"], [1, "#EAF2FF"]],
-        zmin=0, zmax=100, hoverongaps=False,
-        colorbar={"title": "% no perfil"},
-        hovertemplate="Cluster: %{x}<br>%{y}: %{customdata[2]}<br>%{z:.1f}% no perfil<extra></extra>",
-    ))
-    fig.update_layout(height=430, margin={"l": 12, "r": 12, "t": 18, "b": 70}, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font={"color": "#eaf2ff"}, xaxis={"tickangle": -35})
-    return fig
-
-
-def _render_cluster_heatmap(icp_general: pd.DataFrame | None, icp_clusters: pd.DataFrame | None) -> None:
-    _, selector_col = st.columns([0.68, 0.32])
-    with selector_col:
-        source = st.selectbox("Base do heatmap", ["ICP geral", "ICP clusters"], key="dna_heatmap_source")
-    selected_df = icp_general if source == "ICP geral" else icp_clusters
-    heatmap_df = _heatmap_frame(selected_df, source)
-    if heatmap_df.empty:
-        visualization_placeholder("Heatmap demográfico indisponível")
-        return
-    chart_col, detail_col = st.columns([1.65, 1], gap="large")
-    with chart_col:
-        st.markdown("<div class='raiox-chart-card-title'>Mapa de calor / matriz de afinidade dos clusters</div>", unsafe_allow_html=True)
-        event = st.plotly_chart(_heatmap_chart(heatmap_df), use_container_width=True, key="dna_cluster_heatmap", on_select="rerun", selection_mode="points")
-    selected = _heatmap_selection(event)
-    with detail_col:
-        st.markdown("<div class='raiox-chart-card-title'>Recomendação tática</div>", unsafe_allow_html=True)
-        if selected.get("cluster"):
-            st.markdown(f"**{html.escape(selected['cluster'])}**")
-            st.caption(f"{selected['dimension']}: {selected['value']} · {selected['label']}")
-            st.info(selected.get("reason") or "Recomendação não informada.")
-        else:
-            st.caption("Clique em uma célula para ver o rótulo e a recomendação tática.")
+def _render_demographic_comparison(icp_general: pd.DataFrame | None, icp_clusters: pd.DataFrame | None) -> None:
+    frames = [_demographic_frame(icp_general, "ICP geral"), _demographic_frame(icp_clusters, "ICP clusters")]
+    render_comparison(pd.concat(frames, ignore_index=True))
 
 
 apply_shared_visual_model()
@@ -434,7 +311,7 @@ for index, (section_title, section_subtitle) in enumerate(DNA_SECTIONS):
         icp_general_df = _read_selected_parquet("icp_geral")
         icp_clusters_df = _read_selected_parquet("icp_clusters")
         _render_icp_geral_card(icp_general_df)
-        _render_cluster_sunburst(icp_clusters_df)
-        _render_cluster_heatmap(icp_general_df, icp_clusters_df)
+        _render_cluster_profiles(icp_clusters_df)
+        _render_demographic_comparison(icp_general_df, icp_clusters_df)
     else:
         visualization_placeholder()

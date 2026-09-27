@@ -272,13 +272,25 @@ def apply_shared_visual_model() -> None:
             justify-content: space-between;
             gap: 1rem;
         }}
+        .dna-subsection-title {{
+            color: #f8fbff;
+            font-size: 1.35rem;
+            font-weight: 700;
+            line-height: 1.35;
+            margin: 0 0 8px;
+        }}
+        .dna-subsection-description, .dna-subsection-note {{
+            color: #b7c7e6;
+            font-size: .86rem;
+            line-height: 1.5;
+            margin: 0 0 24px;
+        }}
+        .dna-subsection-note {{ margin: 18px 0 0; }}
         .dna-icp-title {{
             color: #f8fbff;
-            font-size: 1.5rem;
-            font-weight: 900;
-            line-height: 1.05;
-            text-transform: uppercase;
-            text-shadow: 0 0 16px rgba(147, 197, 253, 0.25);
+            font-size: 1.15rem;
+            font-weight: 700;
+            line-height: 1.5;
         }}
         .dna-icp-badges {{
             display: flex;
@@ -331,16 +343,15 @@ def apply_shared_visual_model() -> None:
         .dna-icp-kpi-label {{
             color: #b7c7e6;
             font-size: 0.76rem;
-            font-weight: 850;
-            letter-spacing: 0.07em;
-            text-transform: uppercase;
+            font-weight: 650;
+            letter-spacing: 0.02em;
         }}
         .dna-icp-kpi-value {{
             margin-top: 0.5rem;
             color: #f8fbff;
-            font-size: 1.22rem;
-            font-weight: 900;
-            line-height: 1.12;
+            font-size: 1.05rem;
+            font-weight: 700;
+            line-height: 1.4;
             overflow-wrap: anywhere;
         }}
         .dna-icp-kpi-pct {{
