@@ -41,13 +41,13 @@ def _first_value(df: pd.DataFrame, column: str, fallback: str = "Nao informado")
     return text or fallback
 
 
-def _format_percent_value(value: str) -> str:
+def _format_percent_value(value: str, *, fraction: bool = False) -> str:
     if value in {"", "Nao informado"}:
         return "Nao informado"
     number = pd.to_numeric(pd.Series([value]), errors="coerce").iloc[0]
     if pd.isna(number):
-        return value
-    if abs(float(number)) <= 1:
+        return "Nao informado"
+    if fraction and abs(float(number)) <= 1:
         number = float(number) * 100
     return f"{float(number):.1f}%".replace(".", ",")
 
@@ -85,97 +85,48 @@ def _weighted_dominant(df: pd.DataFrame, value_col: str) -> tuple[str, float]:
     return str(top[value_col]), pct
 
 
-def _market_share_for_value(
-    df: pd.DataFrame,
-    value_col: str,
-    value: str,
-    fallback_pct: float,
-) -> float:
-    """Retorna o market share do valor dominante, com fallback legado."""
-    if df.empty or "market_share" not in df.columns or value in {"", "Nao informado"}:
-        return fallback_pct
+def _territorial_rows(df: pd.DataFrame) -> pd.DataFrame:
+    """Use a single territorial level: municipalities, or neighborhoods as fallback."""
+    if "nivel_territorial" not in df:
+        return df.copy()
+    levels = df["nivel_territorial"].astype(str).str.strip().str.lower()
+    for level in ("municipio", "bairro"):
+        if levels.eq(level).any():
+            return df.loc[levels.eq(level)].copy()
+    return df.iloc[:0].copy()
 
-    working = df[df[value_col].fillna("").astype(str).str.strip().eq(value)].copy()
-    if working.empty:
-        return fallback_pct
 
-    shares = pd.to_numeric(working["market_share"], errors="coerce")
-    valid = shares.notna()
+def _demographic_percent(df: pd.DataFrame, column: str, category: str) -> float:
+    pct_column = f"pct_{column}"
+    if pct_column not in df or column not in df:
+        return float("nan")
+    # These percentages describe the category, not the profile's electoral share.
+    rows = df.loc[df[column].eq(category)]
+    values = pd.to_numeric(rows[pct_column], errors="coerce")
+    valid = values.between(0, 100)
     if not valid.any():
-        return fallback_pct
-
-    shares = shares[valid]
-    if shares.abs().max() <= 1:
-        shares = shares * 100
-
-    if "votos_candidato" in working.columns:
-        weights = pd.to_numeric(working.loc[valid, "votos_candidato"], errors="coerce").fillna(0)
-        if weights.gt(0).any():
-            return float((shares * weights).sum() / weights.sum())
-    return float(shares.mean())
+        return float("nan")
+    weights = pd.to_numeric(rows.loc[valid, "votos_candidato"], errors="coerce").fillna(0)
+    return float((values[valid] * weights).sum() / weights.sum()) if weights.sum() > 0 else float(values[valid].mean())
 
 
 def _icp_general_row(icp_df: pd.DataFrame) -> pd.DataFrame:
     if icp_df.empty:
         return icp_df
-    working = icp_df.copy()
-    if "votos_candidato" in working.columns:
-        working["votos_candidato"] = pd.to_numeric(working["votos_candidato"], errors="coerce").fillna(0)
-    if "nivel_territorial" in working.columns:
-        municipio_rows = working[
-            working["nivel_territorial"].astype(str).str.lower().str.strip().eq("municipio")
-        ]
-        if not municipio_rows.empty:
-            working = municipio_rows.copy()
-
-    if "cd_municipio" in working.columns and "votos_candidato" in working.columns:
-        keep_cols = [
-            col
-            for col in (
-                "cd_municipio",
-                "nm_municipio",
-                "persona_executiva",
-                "perfil_resumo",
-                "genero_principal",
-                "idade_principal",
-                "escolaridade_principal",
-                "estado_civil_principal",
-                "confianca_persona",
-                "market_share",
-                "votos_candidato",
-            )
-            if col in working.columns
-        ]
-        working = working[keep_cols].copy()
-        working = (
-            working.sort_values("votos_candidato", ascending=False)
-            .groupby("cd_municipio", as_index=False)
-            .agg(
-                {
-                    **{
-                        col: "first"
-                        for col in keep_cols
-                        if col not in {"cd_municipio", "votos_candidato", "market_share"}
-                    },
-                    **({"market_share": "first"} if "market_share" in keep_cols else {}),
-                    "votos_candidato": "sum",
-                }
-            )
-        )
+    working = _territorial_rows(icp_df)
+    if "votos_candidato" not in working:
+        working["votos_candidato"] = 0.0
+    working["votos_candidato"] = pd.to_numeric(working["votos_candidato"], errors="coerce").fillna(0)
 
     persona, _ = _weighted_dominant(working, "persona_executiva")
     genero, pct_genero = _weighted_dominant(working, "genero_principal")
     idade, pct_idade = _weighted_dominant(working, "idade_principal")
     escolaridade, pct_escolaridade = _weighted_dominant(working, "escolaridade_principal")
     estado_civil, pct_estado_civil = _weighted_dominant(working, "estado_civil_principal")
-    pct_genero = _market_share_for_value(working, "genero_principal", genero, pct_genero)
-    pct_idade = _market_share_for_value(working, "idade_principal", idade, pct_idade)
-    pct_escolaridade = _market_share_for_value(
-        working, "escolaridade_principal", escolaridade, pct_escolaridade
-    )
-    pct_estado_civil = _market_share_for_value(
-        working, "estado_civil_principal", estado_civil, pct_estado_civil
-    )
+    pct_genero = _demographic_percent(working, "genero_principal", genero)
+    pct_idade = _demographic_percent(working, "idade_principal", idade)
+    pct_escolaridade = _demographic_percent(working, "escolaridade_principal", escolaridade)
+    pct_estado_civil = _demographic_percent(working, "estado_civil_principal", estado_civil)
     summary, _ = _weighted_dominant(working, "perfil_resumo")
     if summary == "Nao informado":
         summary = persona
@@ -217,7 +168,7 @@ def _render_icp_geral_card(icp_df: pd.DataFrame | None) -> None:
 
     icp_df = _icp_general_row(icp_df)
     persona = _first_value(icp_df, "persona_executiva", "Persona executiva dominante")
-    confidence = _format_percent_value(_first_value(icp_df, "confianca_persona", "Nao informado"))
+    confidence = _format_percent_value(_first_value(icp_df, "confianca_persona", "Nao informado"), fraction=True)
     confidence_level = _confidence_level(_first_value(icp_df, "confianca_persona", ""))
     summary = _first_value(icp_df, "perfil_resumo", "Resumo analitico da persona nao informado.")
     kpis = [
@@ -283,7 +234,7 @@ def _sunburst_selection(event: object | None) -> dict[str, str]:
 def _cluster_sunburst_frame(clusters_df: pd.DataFrame) -> tuple[pd.DataFrame, float]:
     if clusters_df is None or clusters_df.empty:
         return pd.DataFrame(), 0.0
-    df = clusters_df.copy()
+    df = _territorial_rows(clusters_df)
     aliases = {
         "perfil_eleitor": ("perfil_eleitor", "perfil", "perfil_eleitoral"),
         "cluster_strategy_label": ("cluster_strategy_label", "cluster_label", "cluster"),
@@ -300,14 +251,12 @@ def _cluster_sunburst_frame(clusters_df: pd.DataFrame) -> tuple[pd.DataFrame, fl
     for column in ("perfil_eleitor", "cluster_strategy_label", "persona_executiva", "cluster_strategy_reason"):
         df[column] = df[column].fillna("Nao informado").astype(str).str.strip().replace("", "Nao informado")
 
-    # O total central deve contar cada município uma única vez, mesmo que o parquet
-    # traga mais de uma linha de cluster para o mesmo município.
-    if df["cd_municipio"].astype(str).str.strip().ne("").any():
-        municipality_total = df.groupby("cd_municipio", as_index=False)["votos_candidato"].max()["votos_candidato"].sum()
-    else:
-        municipality_total = float(df["votos_candidato"].sum())
+    municipality_total = float(df["votos_candidato"].sum())
+    denominator = pd.to_numeric(df.get("total_votos_candidato", pd.Series(dtype=float)), errors="coerce").dropna()
+    total_candidate = float(denominator.iloc[0]) if not denominator.empty else municipality_total
+    df["share"] = pd.to_numeric(df["pct_market_share"], errors="coerce") if "pct_market_share" in df else df["votos_candidato"] / total_candidate * 100 if total_candidate else 0.0
     grouped = (
-        df.groupby(["perfil_eleitor", "cluster_strategy_label", "persona_executiva", "cluster_strategy_reason"], dropna=False, as_index=False)["votos_candidato"]
+        df.groupby(["perfil_eleitor", "cluster_strategy_label", "persona_executiva", "cluster_strategy_reason"], dropna=False, as_index=False)[["votos_candidato", "share"]]
         .sum()
         .rename(columns={"votos_candidato": "votos"})
     )
@@ -317,19 +266,19 @@ def _cluster_sunburst_frame(clusters_df: pd.DataFrame) -> tuple[pd.DataFrame, fl
 def _cluster_sunburst(df: pd.DataFrame, total_votes: float) -> go.Figure:
     if df.empty:
         return go.Figure()
-    rows = [{"ids": "total", "labels": "Votação total", "parents": "", "values": total_votes, "custom": ["", "", "", ""]}]
-    profile_totals = df.groupby("perfil_eleitor", as_index=False)["votos"].sum()
+    rows = [{"ids": "total", "labels": "Votação total", "parents": "", "values": total_votes, "custom": ["", "", "", "", float(df["share"].sum())]}]
+    profile_totals = df.groupby("perfil_eleitor", as_index=False)[["votos", "share"]].sum()
     for _, row in profile_totals.iterrows():
         profile = str(row["perfil_eleitor"])
-        rows.append({"ids": f"perfil::{profile}", "labels": profile, "parents": "total", "values": row["votos"], "custom": [profile, "", "", ""]})
+        rows.append({"ids": f"perfil::{profile}", "labels": profile, "parents": "total", "values": row["votos"], "custom": [profile, "", "", "", row["share"]]})
     for _, row in df.iterrows():
         profile = str(row["perfil_eleitor"])
         cluster = str(row["cluster_strategy_label"])
         persona = str(row["persona_executiva"])
         label = f"{cluster} · {persona}"
-        rows.append({"ids": f"persona::{profile}::{cluster}::{persona}", "labels": label, "parents": f"perfil::{profile}", "values": row["votos"], "custom": [profile, cluster, persona, row["cluster_strategy_reason"]]})
+        rows.append({"ids": f"persona::{profile}::{cluster}::{persona}", "labels": label, "parents": f"perfil::{profile}", "values": row["votos"], "custom": [profile, cluster, persona, row["cluster_strategy_reason"], row["share"]]})
     chart = pd.DataFrame(rows)
-    fig = go.Figure(go.Sunburst(ids=chart["ids"], labels=chart["labels"], parents=chart["parents"], values=chart["values"], customdata=chart["custom"], branchvalues="total", maxdepth=3, insidetextorientation="radial", hovertemplate="%{label}<br>%{value:,.0f} votos<extra></extra>"))
+    fig = go.Figure(go.Sunburst(ids=chart["ids"], labels=chart["labels"], parents=chart["parents"], values=chart["values"], customdata=chart["custom"], branchvalues="total", maxdepth=3, insidetextorientation="radial", textinfo="label+percent root", hovertemplate="%{label}<br>%{value:,.0f} votos<br>%{customdata[4]:.2f}% da votação geral<extra></extra>"))
     fig.update_layout(height=520, margin={"l": 8, "r": 8, "t": 18, "b": 8}, paper_bgcolor="rgba(0,0,0,0)", font={"color": "#eaf2ff"})
     return fig
 
@@ -378,67 +327,35 @@ def _heatmap_selection(event: object | None) -> dict[str, str]:
 def _heatmap_frame(df: pd.DataFrame | None, source: str) -> pd.DataFrame:
     if df is None or df.empty:
         return pd.DataFrame()
-    working = df.copy()
-    aliases = {
-        "perfil_eleitor": ("perfil_eleitor", "perfil", "perfil_eleitoral", "persona_executiva"),
-        "pct_votos": ("pct_votos", "percentual_votos", "pct_votacao"),
-        "votos_candidato": ("votos_candidato", "votos", "total_votos"),
-        "cluster_strategy_label": ("cluster_strategy_label", "cluster_label", "cluster"),
-        "cluster_strategy_reason": ("cluster_strategy_reason", "cluster_reason", "justificativa"),
-    }
-    for target, candidates in aliases.items():
-        if target not in working.columns:
-            column = next((candidate for candidate in candidates if candidate in working.columns), None)
-            working[target] = working[column] if column else ""
-
-    demographic_columns = [
-        ("Gênero dominante", "genero_principal"),
-        ("Faixa etária dominante", "idade_principal"),
-        ("Escolaridade dominante", "escolaridade_principal"),
-        ("Estado civil dominante", "estado_civil_principal"),
-    ]
-    available = [(label, column) for label, column in demographic_columns if column in working.columns]
-    if not available:
+    working = _territorial_rows(df)
+    if working.empty:
         return pd.DataFrame()
-    working["perfil_eleitor"] = working["perfil_eleitor"].fillna("Nao informado").astype(str).str.strip().replace("", "Nao informado")
-    working["cluster_strategy_label"] = working["cluster_strategy_label"].fillna("Nao informado").astype(str).str.strip().replace("", "Nao informado")
-    working["cluster_strategy_reason"] = working["cluster_strategy_reason"].fillna("Justificativa não informada.").astype(str).str.strip()
-    working["votos_candidato"] = pd.to_numeric(working["votos_candidato"], errors="coerce").fillna(0)
-    pct = pd.to_numeric(working["pct_votos"], errors="coerce")
-    if pct.isna().all():
-        total = working["votos_candidato"].sum()
-        working["pct_votos"] = working["votos_candidato"] / total * 100 if total else 0
+    if "votos_candidato" not in working:
+        working["votos_candidato"] = 0.0
+    if source == "ICP geral":
+        working["_profile"] = "ICP geral"
+    elif "perfil_eleitor" in working:
+        working["_profile"] = "ICP " + working["perfil_eleitor"].astype(str)
     else:
-        working["pct_votos"] = pct.fillna(0)
-        if working["pct_votos"].max() <= 1:
-            working["pct_votos"] = working["pct_votos"] * 100
-
-    rows: list[dict[str, object]] = []
-    for label, column in available:
-        values = working[column].fillna("Nao informado").astype(str).str.strip().replace("", "Nao informado")
-        for index, value in values.items():
-            rows.append({
-                "cluster": working.at[index, "perfil_eleitor"],
-                "dimension": label,
-                "value": value,
-                "pct_votos": float(working.at[index, "pct_votos"]),
-                "strategy_label": working.at[index, "cluster_strategy_label"],
-                "reason": working.at[index, "cluster_strategy_reason"],
-                "source": source,
-            })
-    result = pd.DataFrame(rows)
-    if result.empty:
-        return result
-    return (
-        result.groupby(["cluster", "dimension", "value", "strategy_label", "reason", "source"], as_index=False)["pct_votos"]
-        .sum()
-    )
+        return pd.DataFrame()
+    rows = []
+    for profile, group in working.groupby("_profile", sort=True):
+        for dimension, column in [("Gênero", "genero_principal"), ("Faixa etária", "idade_principal"), ("Escolaridade", "escolaridade_principal"), ("Estado civil", "estado_civil_principal")]:
+            category, _ = _weighted_dominant(group, column)
+            pct = _demographic_percent(group, column, category)
+            if pd.isna(pct):
+                continue
+            rows.append({"cluster": profile, "dimension": dimension, "value": category,
+                         "pct_votos": pct, "strategy_label": _first_value(group, "cluster_strategy_label"),
+                         "reason": _first_value(group, "cluster_strategy_reason", "Recomendação estratégica não informada para esta fonte."),
+                         "source": source})
+    return pd.DataFrame(rows)
 
 
 def _heatmap_chart(df: pd.DataFrame) -> go.Figure:
     clusters = list(dict.fromkeys(df["cluster"].tolist()))
     dimensions = list(dict.fromkeys(df["dimension"].tolist()))
-    pivot = df.pivot_table(index="dimension", columns="cluster", values="pct_votos", aggfunc="sum", fill_value=0).reindex(index=dimensions, columns=clusters, fill_value=0)
+    pivot = df.pivot_table(index="dimension", columns="cluster", values="pct_votos", aggfunc="first").reindex(index=dimensions, columns=clusters)
     custom = []
     for dimension in dimensions:
         row = []
@@ -456,15 +373,16 @@ def _heatmap_chart(df: pd.DataFrame) -> go.Figure:
         y=dimensions,
         customdata=custom,
         colorscale=[[0, "#0B1F4D"], [0.5, "#2563EB"], [1, "#EAF2FF"]],
-        colorbar={"title": "% votos"},
-        hovertemplate="Cluster: %{x}<br>%{y}: %{customdata[2]}<br>%{z:.1f}% dos votos<extra></extra>",
+        zmin=0, zmax=100, hoverongaps=False,
+        colorbar={"title": "% no perfil"},
+        hovertemplate="Cluster: %{x}<br>%{y}: %{customdata[2]}<br>%{z:.1f}% no perfil<extra></extra>",
     ))
     fig.update_layout(height=430, margin={"l": 12, "r": 12, "t": 18, "b": 70}, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font={"color": "#eaf2ff"}, xaxis={"tickangle": -35})
     return fig
 
 
 def _render_cluster_heatmap(icp_general: pd.DataFrame | None, icp_clusters: pd.DataFrame | None) -> None:
-    selector_col, _ = st.columns([0.32, 0.68])
+    _, selector_col = st.columns([0.68, 0.32])
     with selector_col:
         source = st.selectbox("Base do heatmap", ["ICP geral", "ICP clusters"], key="dna_heatmap_source")
     selected_df = icp_general if source == "ICP geral" else icp_clusters
