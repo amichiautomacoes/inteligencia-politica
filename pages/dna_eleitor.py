@@ -13,6 +13,7 @@ import streamlit as st
 from hf_sync import file_by_kind, load_env, load_parquet
 from pages.cluster_cards import cluster_cards_html
 from pages.dna_copy import sentence_label
+from pages.dna_distribution import render_electorate_distribution
 from pages.dna_expansion import render_vote_expansion
 from pages.dna_geo_reference import load_geo_reference
 from pages.shared_header import (
@@ -20,7 +21,6 @@ from pages.shared_header import (
     major_section_header,
     render_page_header,
     selected_files,
-    visualization_placeholder,
 )
 
 
@@ -565,12 +565,12 @@ DNA_SECTIONS = [
         "Quem é o eleitor-chave e quais atributos definem o perfil do seu eleitor.",
     ),
     (
-        "Matriz de Potencial Demográfico",
-        "Comparativo entre o perfil do eleitor do candidato e a população local. Identificação de sobre-representação e frentes de expansão.",
+        "Distribuição do Perfil do Eleitorado",
+        "Distribuição demográfica estimada dos votos, com recorte por município e perfil.",
     ),
     (
-        "Segmentação & Ação Tática",
-        "Identificação de frentes de conversão, consolidação e expansão do eleitorado.",
+        "Matriz de Potencial Demográfico",
+        "Comparativo entre o perfil do eleitor do candidato e a população local. Identificação de sobre-representação e frentes de expansão.",
     ),
     (
         "Expansão & Oportunidades para 2030",
@@ -586,9 +586,9 @@ for index, (section_title, section_subtitle) in enumerate(DNA_SECTIONS):
         icp_clusters_df = _read_selected_parquet("icp_clusters")
         _render_icp_geral_card(icp_general_df)
         _render_cluster_profiles(icp_clusters_df)
-    elif index == 1:
+    elif index == 2:
         _render_demographic_potential()
     elif index == 3:
         render_vote_expansion()
     else:
-        visualization_placeholder()
+        render_electorate_distribution(_read_selected_parquet)
