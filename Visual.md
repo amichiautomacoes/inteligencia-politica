@@ -152,6 +152,8 @@ Direcao:
 
 Essa e a primeira grande visualizacao analitica. Mapa e ranking devem parecer um conjunto unico: um mostra geografia, o outro mostra hierarquia.
 
+A malha atual vem dos parquets municipais de MG. Ela e simplificada antes da renderizacao para manter o contorno reconhecivel e permitir a leitura dos 853 municipios no navegador. Contornos de mesorregiao e do estado usam o parquet de mesorregioes. Se a fonte estiver indisponivel, exibir uma mensagem clara no lugar de um mapa com dados simulados.
+
 ### 3. Votacao por Bairro e Perfil Demografico
 
 Funcao visual:
@@ -188,10 +190,15 @@ Explicar se a votacao depende de poucos redutos ou se e mais espalhada.
 
 Elementos:
 
-- texto interpretativo;
-- cards Top 1, Top 5, Top 10 e Top 20;
-- curva acumulada;
-- toggle para Top 50 ou todos os municipios.
+- faixa unica com quatro indicadores: Top 1, Top 5, Top 15 e Top 20;
+- percentual acumulado como numero principal, seguido por votos e quantidade de municipios;
+- municipio lider identificado no Top 1;
+- barras proporcionais a votacao total, com trecho claro para o incremento em relacao ao Top anterior e valor desse incremento em pontos percentuais;
+- uma frase interpretativa abaixo da faixa;
+- listas expansiveis de municipios dos Top 5, Top 15 e Top 20;
+- curva acumulada limitada aos Top 50 quando houver mais de 50 municipios.
+
+A faixa usa um unico fundo azul profundo e divisorias sutis. Os nomes completos dos municipios ficam nas listas expansiveis, preservando a leitura rapida dos indicadores.
 
 Curva:
 
@@ -204,7 +211,38 @@ Direcao:
 
 Essa secao e mais interpretativa do que exploratoria. Ela deve ajudar o usuario a ler concentracao como um comportamento politico.
 
-### 5. Eficiencia por Custo do Voto
+### 5. Mapa da Atuacao Parlamentar de Acordo com os Votos
+
+Funcao visual:
+
+Mostrar se ha relacao territorial entre votos recebidos e emendas destinadas pelo parlamentar.
+
+Tipo:
+
+Coropletico municipal por categoria de coerencia politica territorial.
+
+Codificacao visual:
+
+- azul: reduto atendido;
+- verde: investimento territorial;
+- amarelo: reduto desassistido;
+- laranja: baixa expressao;
+- cinza escuro: municipio com votos e sem emendas destinadas;
+- branco: municipio sem votos nem emendas;
+- hover: municipio, votos, emendas, retorno por voto e motivo da classificacao.
+
+Direcao:
+
+Esse mapa deve comunicar retorno politico territorial. A pergunta visual e: onde o parlamentar teve votos e onde destinou recursos depois?
+
+Cuidados visuais:
+
+- a legenda precisa explicar as seis categorias sem confundir cor com volume financeiro;
+- o valor das emendas permanece no hover e nos indicadores, nao na intensidade da cor;
+- municipios com muitos votos e poucas emendas precisam continuar distinguiveis dos redutos atendidos;
+- o mapa usa uma unica camada municipal para evitar repeticao da malha e manter a renderizacao leve.
+
+### 6. Eficiencia por Custo do Voto
 
 Funcao visual:
 
@@ -212,14 +250,13 @@ Mostrar quanto cada tipo de despesa custou por voto no resultado geral da campan
 
 Tipo:
 
-Ranking horizontal com leitura de Pareto.
+Treemap de tipos de despesa, ao lado de um grafico de custo por voto territorial.
 
 Codificacao visual:
 
-- eixo X: custo por voto em R$/voto;
-- eixo Y: tipo de despesa;
-- cor da barra: valor total gasto no tipo de despesa;
-- linha superior: percentual acumulado do gasto.
+- area de cada quadrante: percentual do valor gasto no tipo de despesa sobre o gasto total;
+- texto: tipo de despesa e percentual do gasto;
+- hover: valor gasto e custo por voto do tipo de despesa.
 
 Direcao:
 
@@ -228,38 +265,10 @@ A visualizacao deve indicar rapidamente quais tipos de despesa mais pesaram no c
 Cuidados visuais:
 
 - manter os nomes longos de tipos de despesa legiveis;
-- destacar o custo por voto em cada barra;
-- diferenciar valor total gasto e custo por voto;
-- usar a linha acumulada como apoio analitico, nao como elemento dominante.
-
-### 6. Mapa da Atuacao Parlamentar de Acordo com os Votos
-
-Funcao visual:
-
-Mostrar se ha relacao territorial entre votos recebidos e emendas destinadas pelo parlamentar.
-
-Tipo:
-
-Camada de sobreposicao no mapa.
-
-Codificacao visual:
-
-- base do mapa: cor do municipio conforme votacao;
-- bolha sobreposta: volume de emendas destinadas;
-- tamanho da bolha: valor de emendas;
-- cor da bolha: intensidade do valor de emendas;
-- hover: municipio, votos e valor de emendas.
-
-Direcao:
-
-Esse mapa deve comunicar retorno politico territorial. A pergunta visual e: onde o parlamentar teve votos e onde destinou recursos depois?
-
-Cuidados visuais:
-
-- bolhas precisam aparecer sem esconder totalmente o coropletico;
-- a legenda de votos e a legenda de emendas devem ser distinguiveis;
-- municipios com muitos votos e muitas emendas devem saltar aos olhos;
-- municipios com votos altos e poucas emendas tambem precisam continuar interpretaveis.
+- manter os tres KPIs acima do grafico e atualiza-los conforme o tipo de despesa selecionado; o primeiro se chama **Custo por voto (total geral)** sem selecao;
+- o card da direita mostra gasto total por padrao e custo por voto do tipo selecionado no treemap;
+- alternar entre municipios e mesorregioes; indicar que o gasto por tipo e rateado proporcionalmente aos votos;
+- diferenciar valor total gasto e custo por voto no hover.
 
 ## Pagina 2: DNA Eleitoral
 
@@ -293,17 +302,15 @@ Pergunta: **Quem caracteriza a base eleitoral do candidato?**
 
 - Titulo fixo: **Eleitor ideal do candidato**.
 - Subtitulo: **Síntese do perfil demográfico predominante na base eleitoral do candidato.**
-- Persona abaixo do titulo, com peso e tamanho equilibrados, sem obrigar caixa alta.
+- Titulo maior que a persona, com a descricao menor e discreta; persona como sintese central abaixo do cabecalho.
 - Emoji de pessoa preservado; resumo com emoji de fala quando acrescenta informacao.
 - Ocultar o resumo quando ele apenas repete a persona.
-- Badges de confianca numerica e qualitativa, identificados como confianca do modelo.
-- Quatro KPIs: genero, faixa etaria, escolaridade e estado civil.
+- Nao exibir a confianca do modelo como indicador do card, pois ela pode ser confundida com confianca estatistica.
+- Quatro atributos: genero, faixa etaria, escolaridade e estado civil.
 - Manter os emojis coloridos dos atributos; eles identificam dimensoes, nao magnitude.
-- Categorias com inicial maiuscula, valores legiveis e percentuais em azul claro.
+- Colunas compactas sem caixas individuais marcadas, separadas por divisorias sutis; dimensao pequena, categoria em destaque e percentual em azul claro.
 
-Legenda: **Os percentuais indicam a participação de cada categoria dominante no perfil geral. As quatro dimensões são independentes e não somam 100%.**
-
-O titulo da subsecao deve ser visualmente superior ao nome da persona. Em telas amplas, os quatro KPIs ficam alinhados; em telas menores, passam para duas colunas e depois uma.
+O card nao exibe a antiga legenda explicativa dos percentuais. Em telas amplas, os quatro atributos ficam alinhados; em telas menores, passam para duas colunas e depois uma.
 
 #### 1.2 BASE ELEITORAL DO CANDIDATO
 
@@ -311,22 +318,21 @@ Pergunta: **Quais perfis sustentam a candidatura e qual o peso de cada um?**
 
 Titulo solicitado: **BASE ELEITORAL DO CANDIDATO**.
 
-Subtitulo: **Classificações estratégicas, participação na votação e identidade demográfica de cada ICP.**
+Subtitulo: **Quais perfis sustentam a candidatura e qual o peso de cada um na votação?**
 
 Composicao:
 
 - card externo azul profundo, borda discreta e cantos arredondados;
 - resumo superior para Base eleitoral, Eleitor consolidado e Eleitor emergente;
 - participacao de cada classificacao na votacao do candidato;
-- grade com um card por ICP, agrupada por classificacao;
-- classificacao e identificador do ICP, seguidos pela persona;
-- destaque para participacao na votacao e votos absolutos;
-- quatro barras independentes com categoria demografica e percentual;
-- bloco **Leitura estrategica** visivel, sem exigir clique ou hover.
+- uma linha expansivel por ICP, agrupada por classificacao;
+- classificacao, identificador, persona, participacao e votos absolutos visiveis na linha fechada;
+- ao abrir, quatro barras independentes com categoria demografica e percentual;
+- bloco **Leitura estrategica** dentro do painel aberto.
 
 Dois ICPs com a mesma classificacao devem continuar em cards separados. Classificacao ausente exibe traco e mensagem de ausencia, sem simular um perfil.
 
-Os cards usam duas colunas em telas amplas e uma abaixo de 1000 px. Abaixo de 600 px, resumo de classificacoes e atributos internos tambem empilham.
+Os perfis formam uma lista em uma coluna. Abaixo de 600 px, o resumo de classificacoes e os atributos internos empilham.
 
 #### Padrao editorial da secao 1
 
@@ -335,13 +341,27 @@ Os cards usam duas colunas em telas amplas e uma abaixo de 1000 px. Abaixo de 60
 - Manter o titulo em caixa alta da segunda subsecao conforme solicitado.
 - Preservar emojis existentes com funcao de identificacao.
 - Identificar o denominador: **da votacao do candidato** para participacao eleitoral; **no perfil** para percentuais demograficos.
-- A confianca do modelo e uma terceira medida, distinta dessas participacoes.
+- Nao apresentar a confianca do modelo como confianca estatistica.
 - Usar virgula decimal e simbolo de percentual. Valores abaixo de 1% continuam abaixo de 1%.
 - Nao repetir a persona no resumo nem preencher recomendacoes ausentes com texto inventado.
 - As barras de genero, idade, escolaridade e estado civil nao devem ser empilhadas em uma soma de 100%.
 - Mostrar categorias dominantes; nao sugerir que os dados contem a distribuicao completa da populacao.
 
-### 2. Matriz de Potencial Demografico
+### 2. Distribuicao do Perfil do Eleitorado
+
+Funcao visual:
+
+Mostrar a participacao estimada das categorias demograficas nos votos do recorte selecionado.
+
+Subtitulo:
+
+**Distribuicao demografica estimada dos votos, com recorte por municipio e perfil.**
+
+Direcao:
+
+A visualizacao segue a ideia do painel de distribuicao do arquivo de referencia: grafico de rosca a esquerda, total de votos no centro, legenda e filtros a direita. Os filtros selecionam municipio e uma dimensao entre genero, faixa etaria, escolaridade e estado civil. A rosca responde a uma dimensao por vez. Os parquets atuais nao trazem contagens conjuntas dessas dimensoes; por isso nao se apresentam cruzamentos de idade, escolaridade e genero como observacoes diretas.
+
+### 3. Matriz de Potencial Demografico
 
 Funcao visual:
 
@@ -369,20 +389,6 @@ Composicao atual:
 - todos os municipios da malha continuam preenchidos. Sem votos ou sem os tres cruzamentos completos, o municipio recebe o valor minimo (verde mais claro), com detalhes no hover.
 
 A cor representa a semelhanca demografica entre o ICP e a populacao municipal, condicionada a haver votos do candidato naquele municipio. O volume de votos aparece no hover e nao altera a cor.
-
-### 3. Segmentacao & Acao Tatica
-
-Funcao visual:
-
-Identificar frentes de conversao, consolidacao e expansao do eleitorado.
-
-Subtitulo:
-
-**Identificacao de frentes de conversao, consolidacao e expansao do eleitorado.**
-
-Direcao:
-
-Essa secao deve ter aparencia mais operacional. As visualizacoes devem ajudar a separar onde a candidatura defende base consolidada, onde pode converter eleitores semelhantes e onde pode expandir para segmentos ainda pouco explorados.
 
 ### 4. Expansao & Oportunidades para 2030
 
@@ -436,7 +442,7 @@ Pontos que exigem atencao:
 - nomes longos podem quebrar cards;
 - treemap e demografia devem empilhar no mobile;
 - matriz scatter precisa manter eixos legiveis;
-- mapa com bolhas precisa preservar espaco para legendas.
+- mapa parlamentar precisa preservar espaco para a legenda das categorias.
 - controle segmentado do hero deve quebrar bem no mobile sem competir com titulo e foto.
 - secoes da pagina DNA Eleitoral devem manter cards empilhados com altura suficiente para visualizacoes futuras.
 
@@ -478,7 +484,7 @@ Municipios sem votos, com poucos votos e com muitos votos precisam ser visualmen
 
 7. Legendas devem ser claras.
 
-Mapas com multiplas camadas, especialmente votos + emendas, precisam de legendas que nao confundam as escalas.
+Mapas de categorias, especialmente o de atuacao parlamentar, precisam de legendas que expliquem cada cor sem sugerir uma escala financeira.
 
 ## Resumo das Visualizacoes
 
@@ -490,13 +496,14 @@ Mapas com multiplas camadas, especialmente votos + emendas, precisam de legendas
 | Ranking territorial | Barras horizontais Top 10 | Quais territorios concentram mais votos? |
 | Treemap municipio/bairro | Retangulos proporcionais | Como os votos se distribuem dentro dos municipios e bairros? |
 | Barras demograficas | Barras horizontais percentuais | Qual o perfil estimado do eleitor no recorte? |
+| Concentracao territorial | Faixa Top 1/5/15/20 com barras acumuladas e listas expansiveis | Quanto os principais municipios pesam na votacao? |
 | Curva acumulada | Linha/area com marcadores | Quanta votacao se concentra nos top municipios? |
-| Matriz de custo do voto | Ranking/Pareto por tipo de despesa | Quais despesas mais pesaram no custo por voto? |
-| Mapa de atuacao parlamentar | Coropletico + bolhas de emendas | Onde votos e emendas se cruzam? |
-| Eleitor ideal do candidato | Card geral com persona, confianca e quatro KPIs demograficos | Quem caracteriza a base eleitoral? |
-| BASE ELEITORAL DO CANDIDATO | Resumo por classificacao e cards por ICP com barras demograficas | Quais perfis sustentam a candidatura e qual o peso de cada um? |
+| Mapa de atuacao parlamentar | Coropletico municipal com seis categorias territoriais | Onde votos e emendas se cruzam? |
+| Eficiencia por custo do voto | Treemap por tipo de despesa e custo por voto territorial rateado | Quais despesas representam a maior parcela do gasto e qual seu custo por voto estimado? |
+| Eleitor ideal do candidato | Card com titulo hierarquizado, persona e quatro atributos demograficos | Quem caracteriza a base eleitoral? |
+| BASE ELEITORAL DO CANDIDATO | Resumo por classificacao e perfis expansivos com barras demograficas | Quais perfis sustentam a candidatura e qual o peso de cada um? |
+| Distribuicao do Perfil do Eleitorado | Rosca demografica com filtros de municipio e dimensao | Como se distribuem as categorias demograficas no recorte? |
 | Matriz de Potencial Demografico | Mapa municipal verde de compatibilidade demografica e presenca de votos | Quais municipios combinam perfil populacional compativel e votos do candidato? |
-| Segmentacao & Acao Tatica | Secao estruturada com card reservado | Quais frentes exigem conversao, consolidacao e expansao? |
 | Expansao & Oportunidades 2030 | Mapa municipal com quatro classes taticas de protecao e expansao | Onde proteger base, buscar eleitor aderente ou evitar investimento? |
 
 ## Briefing Curto

@@ -25,6 +25,9 @@ ASSET_DIR = Path(__file__).resolve().parents[1] / "assets"
 BACKGROUND_PATH = ASSET_DIR / "background.png"
 DEMOGRAPHIC_CONTEXT_KEY = "pagina1_demographic_territorial_context"
 TREEMAP_SELECTION_KEY = "pagina1_treemap_territorial"
+EXPENSE_TREEMAP_KEY = "pagina1_treemap_despesas"
+EXPENSE_SELECTION_KEY = "pagina1_tipo_despesa_selecionado"
+EXPENSE_TREEMAP_REVISION_KEY = "pagina1_treemap_despesas_revisao"
 USE_CUSTOM_KPI_CARDS = True
 
 
@@ -2069,21 +2072,30 @@ def _expense_cost_by_type_frame(
     return result
 
 
-def _cost_efficiency_kpis(chart_df: pd.DataFrame) -> dict[str, str]:
+def _cost_efficiency_kpis(chart_df: pd.DataFrame, selected_expense: str | None = None) -> dict[str, str]:
     if chart_df.empty:
         return {
+            "custo_label": "Custo por voto (total geral)",
             "custo_por_voto": _format_currency(0),
+            "gasto_label": "Total gasto",
             "total_gasto": _format_currency(0),
+            "despesa_label": "Despesa líder",
             "despesa_lider": "Sem dados",
             "despesa_lider_caption": "Sem tipo de despesa",
         }
-    total_spend = float(pd.to_numeric(chart_df["valor_total_despesa"], errors="coerce").fillna(0).sum())
+    filtered_df = chart_df
+    if selected_expense:
+        filtered_df = chart_df[chart_df["tipo_despesa"].eq(selected_expense)]
+    total_spend = float(pd.to_numeric(filtered_df["valor_total_despesa"], errors="coerce").fillna(0).sum())
     total_votes = float(pd.to_numeric(chart_df["qt_votos"], errors="coerce").fillna(0).max())
     cost_per_vote = total_spend / total_votes if total_votes > 0 else 0.0
-    leader = chart_df.sort_values("valor_total_despesa", ascending=False).head(1).iloc[0]
+    leader = filtered_df.sort_values("valor_total_despesa", ascending=False).head(1).iloc[0]
     return {
+        "custo_label": "Custo por voto" if selected_expense else "Custo por voto (total geral)",
         "custo_por_voto": _format_currency(cost_per_vote),
+        "gasto_label": "Gasto no tipo selecionado" if selected_expense else "Total gasto",
         "total_gasto": _format_currency(total_spend),
+        "despesa_label": "Tipo de despesa selecionado" if selected_expense else "Despesa líder",
         "despesa_lider": str(leader["tipo_despesa"]),
         "despesa_lider_caption": (
             f"{_format_currency(float(leader['valor_total_despesa']))} | "
@@ -2092,21 +2104,21 @@ def _cost_efficiency_kpis(chart_df: pd.DataFrame) -> dict[str, str]:
     }
 
 
-def _render_cost_efficiency_kpis(chart_df: pd.DataFrame) -> None:
-    kpis = _cost_efficiency_kpis(chart_df)
+def _render_cost_efficiency_kpis(chart_df: pd.DataFrame, selected_expense: str | None = None) -> None:
+    kpis = _cost_efficiency_kpis(chart_df, selected_expense)
     st.markdown(
         f"""
         <div class="raiox-heatmap-kpi-row">
             <div class="raiox-heatmap-kpi">
-                <div class="raiox-heatmap-kpi-label">Custo médio por voto</div>
+                <div class="raiox-heatmap-kpi-label">{html.escape(kpis["custo_label"])}</div>
                 <div class="raiox-heatmap-kpi-value">{html.escape(kpis["custo_por_voto"])}</div>
             </div>
             <div class="raiox-heatmap-kpi">
-                <div class="raiox-heatmap-kpi-label">Total gasto</div>
+                <div class="raiox-heatmap-kpi-label">{html.escape(kpis["gasto_label"])}</div>
                 <div class="raiox-heatmap-kpi-value">{html.escape(kpis["total_gasto"])}</div>
             </div>
             <div class="raiox-heatmap-kpi">
-                <div class="raiox-heatmap-kpi-label">Despesa líder</div>
+                <div class="raiox-heatmap-kpi-label">{html.escape(kpis["despesa_label"])}</div>
                 <div class="raiox-heatmap-kpi-value">{html.escape(kpis["despesa_lider"])}</div>
                 <div class="mapa-kpi-caption">{html.escape(kpis["despesa_lider_caption"])}</div>
             </div>
@@ -2120,7 +2132,7 @@ def _expense_cost_by_type_chart(chart_df: pd.DataFrame) -> go.Figure:
     if chart_df.empty:
         fig = go.Figure()
         fig.add_annotation(
-            text="Dados de despesas de campanha indisponiveis.",
+            text="Dados de despesas de campanha indisponíveis.",
             x=0.5,
             y=0.5,
             xref="paper",
@@ -2128,95 +2140,120 @@ def _expense_cost_by_type_chart(chart_df: pd.DataFrame) -> go.Figure:
             showarrow=False,
             font={"color": "#eaf2ff", "size": 16},
         )
-        fig.update_layout(height=560, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+        fig.update_layout(height=500, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
         return fig
 
     display_df = chart_df.sort_values("valor_total_despesa", ascending=False).copy()
-    display_df["custo_colorido"] = np.where(
-        display_df["pct_gasto"].ge(0.035),
-        display_df["custo_por_voto"] * display_df["pct_gasto"],
-        0.0,
+    fig = px.treemap(
+        display_df,
+        path=["tipo_despesa"],
+        values="valor_total_despesa",
+        custom_data=["tipo_despesa", "pct_gasto", "custo_por_voto"],
     )
-    customdata = [
-        [
-            row["tipo_despesa"],
-            float(row["valor_total_despesa"]),
-            float(row["pct_gasto"]),
-            float(row["pct_gasto_acumulado"]),
-            float(row["qt_votos"]),
-        ]
-        for _, row in display_df.iterrows()
-    ]
-    fig = go.Figure()
-    fig.add_trace(
-        go.Bar(
-            x=display_df["tipo_despesa_curto"],
-            y=display_df["custo_por_voto"],
-            name="Custo por voto",
-            marker={
-                "color": "rgba(96, 165, 250, 0.34)",
-                "line": {"color": "rgba(191,219,254,0.62)", "width": 1},
-            },
-            text=display_df["rotulo_pct_gasto"],
-            textposition="outside",
-            textfont={"color": "#eaf2ff", "size": 12, "family": "Segoe UI, Inter, sans-serif"},
-            customdata=customdata,
-            cliponaxis=False,
-            hovertemplate=(
-                "<b>%{customdata[0]}</b><br>"
-                "Custo por voto: R$ %{y:,.2f}<br>"
-                "Total gasto: R$ %{customdata[1]:,.2f}<br>"
-                "Participação no gasto: %{customdata[2]:.1%}<br>"
-                "Participação acumulada: %{customdata[3]:.1%}<br>"
-                "Votos totais: %{customdata[4]:,.0f}<extra></extra>"
-            ),
-        )
-    )
-    fig.add_trace(
-        go.Bar(
-            x=display_df["tipo_despesa_curto"],
-            y=display_df["custo_colorido"],
-            name="% do gasto total",
-            marker={
-                "color": "rgba(34, 211, 238, 0.82)",
-                "line": {"color": "rgba(248,251,255,0.50)", "width": 0.8},
-            },
-            customdata=customdata,
-            hovertemplate=(
-                "<b>%{customdata[0]}</b><br>"
-                "Parte colorida: %{customdata[2]:.1%} do gasto total<br>"
-                "Total gasto: R$ %{customdata[1]:,.2f}<extra></extra>"
-            ),
-        )
+    fig.update_traces(
+        texttemplate="%{label}<br>%{customdata[1]:.1%} do gasto",
+        textfont={"color": "#f8fbff", "size": 14},
+        hovertemplate=(
+            "<b>%{customdata[0]}</b><br>"
+            "Total gasto: R$ %{value:,.2f}<br>"
+            "Participação no gasto: %{customdata[1]:.1%}<br>"
+            "Custo por voto: R$ %{customdata[2]:,.2f}<extra></extra>"
+        ),
+        marker={"line": {"color": "rgba(191,219,254,0.55)", "width": 1}},
     )
     fig.update_layout(
-        height=620,
-        margin={"l": 54, "r": 72, "t": 38, "b": 132},
+        height=500,
+        margin={"l": 8, "r": 8, "t": 8, "b": 8},
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font={"color": "#eaf2ff", "family": "Segoe UI, Inter, sans-serif"},
-        barmode="overlay",
-        bargap=0.34,
-        xaxis={
-            "title": "",
-            "tickangle": -34,
-            "tickfont": {"size": 12, "color": "#dbeafe"},
-            "showgrid": False,
-            "automargin": True,
-        },
-        yaxis={
-            "title": "Custo por voto",
-            "tickprefix": "R$ ",
-            "tickfont": {"size": 12, "color": "#dbeafe"},
-            "gridcolor": "rgba(255,255,255,0.10)",
-            "zeroline": False,
-            "range": [0, float(display_df["custo_por_voto"].max()) * 1.22],
-        },
         hoverlabel={
             "bgcolor": "rgba(5,12,28,0.95)",
             "font_color": "#EAF2FF",
             "bordercolor": "rgba(147,197,253,0.55)",
         },
+    )
+    return fig
+
+
+def _selected_expense_from_treemap(event: object | None, chart_df: pd.DataFrame) -> str | None:
+    if not event:
+        return None
+    selection = getattr(event, "selection", None)
+    if selection is None and isinstance(event, dict):
+        selection = event.get("selection", {})
+    points = getattr(selection, "points", None)
+    if points is None and isinstance(selection, dict):
+        points = selection.get("points", [])
+    for point in points or []:
+        customdata = point.get("customdata") if isinstance(point, dict) else getattr(point, "customdata", None)
+        expense_type = str(customdata[0]) if customdata is not None and len(customdata) else ""
+        if expense_type in chart_df["tipo_despesa"].values:
+            return expense_type
+    return None
+
+
+def _territorial_expense_cost_frame(
+    gastos_df: pd.DataFrame | None,
+    expense_share: float,
+    territory: str,
+) -> pd.DataFrame:
+    required = {"qt_votos", "valor_despesas_rateado", "nm_municipio", "nm_mesorregiao"}
+    if gastos_df is None or gastos_df.empty or not required.issubset(gastos_df.columns):
+        return pd.DataFrame()
+    frame = gastos_df.copy()
+    if "nivel_territorial" in frame.columns:
+        levels = frame["nivel_territorial"].astype(str).str.strip().str.lower()
+        if levels.eq("municipio").any():
+            frame = frame[levels.eq("municipio")].copy()
+        elif levels.eq("bairro").any():
+            frame = frame[levels.eq("bairro")].copy()
+        else:
+            return pd.DataFrame()
+    frame["qt_votos"] = pd.to_numeric(frame["qt_votos"], errors="coerce").fillna(0)
+    frame["valor_despesas_rateado"] = pd.to_numeric(
+        frame["valor_despesas_rateado"], errors="coerce"
+    ).fillna(0)
+    group_col = "nm_municipio" if territory == "Municípios" else "nm_mesorregiao"
+    frame[group_col] = frame[group_col].fillna("Não informado").astype(str).str.strip()
+    result = frame.groupby(group_col, as_index=False)[["qt_votos", "valor_despesas_rateado"]].sum()
+    result = result[result["qt_votos"].gt(0)].copy()
+    result["gasto_atribuido"] = result["valor_despesas_rateado"] * expense_share
+    result["custo_por_voto"] = result["gasto_atribuido"] / result["qt_votos"]
+    return result.sort_values("qt_votos", ascending=False)
+
+
+def _territorial_expense_cost_chart(frame: pd.DataFrame, territory: str) -> go.Figure:
+    fig = go.Figure()
+    if frame.empty:
+        fig.add_annotation(
+            text="Dados territoriais de gastos indisponíveis.",
+            x=0.5, y=0.5, xref="paper", yref="paper", showarrow=False,
+            font={"color": "#eaf2ff", "size": 16},
+        )
+    else:
+        label_col = "nm_municipio" if territory == "Municípios" else "nm_mesorregiao"
+        display = frame.head(15 if territory == "Municípios" else len(frame)).iloc[::-1]
+        fig.add_trace(go.Bar(
+            x=display["custo_por_voto"],
+            y=display[label_col],
+            orientation="h",
+            marker={"color": "#60a5fa"},
+            customdata=display[["gasto_atribuido", "qt_votos"]].to_numpy(),
+            hovertemplate=(
+                "<b>%{y}</b><br>Custo por voto: R$ %{x:,.2f}<br>"
+                "Gasto atribuído: R$ %{customdata[0]:,.2f}<br>"
+                "Votos: %{customdata[1]:,.0f}<extra></extra>"
+            ),
+        ))
+    fig.update_layout(
+        height=470,
+        margin={"l": 8, "r": 12, "t": 8, "b": 42},
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font={"color": "#eaf2ff"},
+        xaxis={"title": "R$ por voto", "gridcolor": "rgba(255,255,255,0.10)", "rangemode": "tozero"},
+        yaxis={"title": "", "automargin": True},
         showlegend=False,
     )
     return fig
@@ -2225,15 +2262,68 @@ def _expense_cost_by_type_chart(chart_df: pd.DataFrame) -> go.Figure:
 def _render_cost_efficiency_section(
     votos_df: pd.DataFrame | None,
     despesas_df: pd.DataFrame | None,
+    gastos_df: pd.DataFrame | None,
 ) -> None:
     _major_section_header(
         "Eficiência por Custo do Voto",
-        "Ranking do custo por voto de cada tipo de despesa da campanha.",
+        "Participação de cada tipo de despesa nos gastos totais da campanha.",
     )
     chart_df = _expense_cost_by_type_frame(despesas_df, _campaign_total_votes(votos_df))
-    _render_cost_efficiency_kpis(chart_df)
-    with st.container(border=True):
-        st.plotly_chart(_expense_cost_by_type_chart(chart_df), use_container_width=True)
+    selected_expense = st.session_state.get(EXPENSE_SELECTION_KEY)
+    if chart_df.empty or selected_expense not in chart_df["tipo_despesa"].values:
+        selected_expense = None
+        st.session_state.pop(EXPENSE_SELECTION_KEY, None)
+    _render_cost_efficiency_kpis(chart_df, selected_expense)
+    cost_col, reserved_col = st.columns(2, gap="large")
+    with cost_col:
+        with st.container(border=True):
+            st.markdown(
+                "<div class='raiox-chart-card-title'>Gastos por tipo de despesa</div>",
+                unsafe_allow_html=True,
+            )
+            treemap_event = st.plotly_chart(
+                _expense_cost_by_type_chart(chart_df),
+                use_container_width=True,
+                key=f"{EXPENSE_TREEMAP_KEY}_{st.session_state.get(EXPENSE_TREEMAP_REVISION_KEY, 0)}",
+                on_select="rerun",
+                selection_mode="points",
+            )
+            clicked_expense = _selected_expense_from_treemap(treemap_event, chart_df)
+            if clicked_expense and clicked_expense != selected_expense:
+                st.session_state[EXPENSE_SELECTION_KEY] = clicked_expense
+                st.rerun()
+    with reserved_col:
+        with st.container(border=True):
+            title = selected_expense or "Gasto total"
+            st.markdown(
+                f"<div class='raiox-chart-card-title'>Custo por voto territorial · {html.escape(title)}</div>",
+                unsafe_allow_html=True,
+            )
+            if selected_expense and st.button("Mostrar gasto total", key="pagina1_reset_tipo_despesa"):
+                st.session_state.pop(EXPENSE_SELECTION_KEY, None)
+                st.session_state[EXPENSE_TREEMAP_REVISION_KEY] = (
+                    st.session_state.get(EXPENSE_TREEMAP_REVISION_KEY, 0) + 1
+                )
+                st.rerun()
+            territory = st.radio(
+                "Agrupar por", ["Municípios", "Mesorregiões"],
+                horizontal=True, key="pagina1_custo_territorio",
+            )
+            share = 1.0
+            if selected_expense:
+                share = float(chart_df.loc[
+                    chart_df["tipo_despesa"].eq(selected_expense), "pct_gasto"
+                ].iloc[0])
+            territorial_cost = _territorial_expense_cost_frame(gastos_df, share, territory)
+            st.plotly_chart(
+                _territorial_expense_cost_chart(territorial_cost, territory),
+                use_container_width=True,
+            )
+            st.caption(
+                "Gasto atribuído proporcionalmente aos votos em cada território. "
+                "O parquet não identifica o tipo de despesa por local; por isso "
+                "o custo por voto é igual entre territórios neste rateio."
+            )
 
 
 def _parliamentary_action_frame(
@@ -2764,5 +2854,6 @@ _render_accumulated_concentration_section(votos_municipio_df)
 emendas_legislativa_df = _read_selected_parquet("emendas_legislativa")
 _render_parliamentary_action_section(votos_municipio_df, emendas_legislativa_df)
 despesas_campanha_df = _read_selected_parquet("despesas_campanha")
-_render_cost_efficiency_section(votos_municipio_df, despesas_campanha_df)
+gastos_territoriais_df = _read_selected_parquet("gastos_territoriais")
+_render_cost_efficiency_section(votos_municipio_df, despesas_campanha_df, gastos_territoriais_df)
 

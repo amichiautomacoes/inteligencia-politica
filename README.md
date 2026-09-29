@@ -15,8 +15,9 @@ O app consome arquivos remotos do Hugging Face, configurados pelo `.env`, e apre
 - `pages/cluster_cards.py`: HTML e estilos dos cards de classificacao e dos ICPs.
 - `pages/dna_copy.py`: padronizacao editorial de categorias e personas.
 - `pages/dna_expansion.py`: agregacao municipal e classes taticas do mapa de expansao.
+- `pages/dna_distribution.py`: grafico de rosca e filtros da distribuicao demografica do eleitorado.
 - `pages/shared_header.py`: componente compartilhado de cabecalho, fundo, foto do candidato, seletor entre paginas e helpers visuais comuns.
-- `pages/dna_geo_reference.py`: malha e codigos municipais de MG usados pela matriz do DNA Eleitoral.
+- `pages/dna_geo_reference.py`: carrega dos parquets a malha, os contornos e os codigos municipais de MG para os mapas do Raio X e do DNA Eleitoral.
 - `hf_sync.py`: leitura de `.env`, listagem remota no Hugging Face, cache e mapeamento dos parquets por tipo.
 - `assets/background.png`: imagem de fundo usada no modelo visual.
 - `Visual.md`: briefing visual do produto, separado da documentacao tecnica.
@@ -61,7 +62,7 @@ O app localiza as pastas dos candidatos a partir do prefixo geral da eleicao, li
 - `IBGE/MG/dadosterritorio/MG_mesorregioes_2022.parquet`: contornos das mesorregioes e do estado.
 - `IBGE/MG/dadosterritorio/municipios_mg_mesorregioes.parquet`: correspondencia entre codigos TSE e IBGE e classificacao por mesorregiao.
 
-Esses arquivos alimentam os mapas municipais do Raio X e do DNA Eleitoral.
+Esses arquivos alimentam os mapas municipais do Raio X e do DNA Eleitoral. A geometria municipal e simplificada antes de ser enviada ao navegador, preservando os 853 municipios. Os contornos estaduais e das mesorregioes sao extraidos do parquet de mesorregioes. Se a referencia remota falhar, o app informa a indisponibilidade em vez de exibir municipios ficticios.
 
 ### Demografia
 
@@ -70,7 +71,7 @@ Esses arquivos alimentam os mapas municipais do Raio X e do DNA Eleitoral.
 - `demografico/stage02_escolaridade.parquet`
 - `demografico/stage02_estado_civil.parquet`
 
-Esses arquivos alimentam o grafico de perfil demografico, recortado por mesorregiao e pela selecao ativa do treemap.
+Esses arquivos alimentam o grafico de perfil demografico do Raio X, recortado por mesorregiao e pela selecao ativa do treemap, e a rosca de distribuicao demografica do DNA Eleitoral.
 
 ### Censo para a Matriz de Potencial Demografico
 
@@ -105,10 +106,11 @@ Os arquivos guardam a diferenca em pontos percentuais entre o perfil ICP e a pop
 
 - `gastos/gastos_territoriais.parquet`
   - usado em `gastos_territoriais`;
+  - alimenta o custo por voto municipal e por mesorregiao no painel de despesas;
 
 - `gastos/despesas_campanha.parquet`
   - usado em `despesas_campanha`;
-  - alimenta o ranking de custo por voto por tipo de despesa.
+  - alimenta o treemap da participação de cada tipo de despesa nos gastos totais.
 
 - `gastos/emendas_legislativa.parquet`
   - usado em `emendas_legislativa`;
@@ -163,37 +165,42 @@ Resume o quanto a votacao esta concentrada nos principais municipios.
 
 Esta secao traz:
 
-- percentual acumulado de votos no Top 1, Top 5, Top 10 e Top 20 municipios;
-- destaque textual para a concentracao dos 10 principais municipios;
-- toggle para mostrar Top 50 ou todos os municipios;
-- curva acumulada mostrando quantos municipios concentram determinada parcela da votacao total.
+- faixa compacta com percentual e votos acumulados dos Top 1, Top 5, Top 15 e Top 20 municipios;
+- nome do municipio lider no Top 1 e incremento em pontos percentuais dos demais grupos;
+- barras que representam a participacao acumulada na votacao total e destacam o incremento de cada grupo;
+- frase de leitura com o municipio lider e a concentracao do Top 15;
+- listas expansiveis de municipios dos Top 5, Top 15 e Top 20;
+- curva acumulada fixa nos Top 50, ou em todos quando houver menos de 50 municipios.
 
-### 5. Eficiencia por Custo do Voto
-
-Mostra quanto cada tipo de despesa custou por voto no resultado geral da campanha.
-
-Esta secao traz:
-
-- custo medio geral por voto;
-- total gasto na campanha;
-- tipo de despesa lider em gasto;
-- ranking horizontal por `tipo_despesa`;
-- eixo X: custo por voto em R$/voto;
-- cor da barra: valor total gasto no tipo de despesa;
-- linha de Pareto com percentual acumulado do gasto.
-
-### 6. Mapa da atuacao parlamentar de acordo com os votos
+### 5. Mapa da atuacao parlamentar de acordo com os votos
 
 Cruza votacao municipal e volume de emendas destinadas pelo parlamentar.
 
 Esta secao traz:
 
-- mapa coropletico com base na votacao municipal;
-- camada de bolhas sobreposta;
-- tamanho e cor das bolhas proporcionais ao valor de emendas;
-- tooltip com municipio, votos e valor de emendas.
+- mapa coropletico municipal com uma categoria de coerencia politica territorial por municipio;
+- seis cores: azul para reduto atendido, verde para investimento, amarelo para reduto desassistido, laranja para baixa expressao, cinza para municipios com votos e sem emendas e branco para municipios sem votos nem emendas;
+- KPIs de reciprocidade nos tres principais redutos, municipio mais beneficiado e valor medio de emendas por voto;
+- tooltip com municipio, votos, emendas, retorno por voto e explicacao da cor.
 
 O valor principal de emendas vem de `valor_pago_atualizado`, com fallback para `valor_empenhado_ano` e `valor_indicado`.
+O parquet de emendas fica na pasta `gastos` de cada candidato. O mapa usa uma unica camada GeoJSON para todas as categorias, evitando repetir a malha municipal no navegador.
+
+### 6. Eficiencia por Custo do Voto
+
+Mostra a participação de cada tipo de despesa nos gastos totais da campanha.
+
+Esta secao traz:
+
+- custo por voto (total geral);
+- total gasto na campanha;
+- tipo de despesa lider em gasto;
+- os tres cards respondem ao tipo clicado no treemap: custo por voto e gasto do tipo, com identificacao da despesa; sem selecao, mostram os totais gerais e a despesa lider;
+- treemap por `tipo_despesa`, com área proporcional ao valor gasto;
+- percentual do gasto em cada quadrante e detalhes de valor e custo por voto no hover;
+- card direito com custo por voto municipal ou por mesorregiao;
+- clique em um tipo de despesa no treemap para filtrar o painel direito; o padrao mostra o gasto total;
+- o parquet territorial rateia o gasto total proporcionalmente aos votos e nao informa o tipo por local. Para o filtro, aplica-se a participacao estadual do tipo ao rateio territorial. O custo por voto resultante e uniforme entre territorios e deve ser lido como estimativa, nao como despesa local observada.
 
 ## Pagina 2: DNA Eleitor
 
@@ -218,10 +225,10 @@ Fonte: `perfil/stage04_icp_geral_geo.parquet`.
 - Subtitulo: `Síntese do perfil demográfico predominante na base eleitoral do candidato.`
 - Persona: `persona_executiva`, com capitalizacao editorial e emoji preservado.
 - Resumo: `perfil_resumo`, ocultado se apenas repetir a persona, ignorando caixa, espacos e ponto final.
-- Badges: confianca numerica do modelo e classificacao qualitativa.
-- Quatro KPIs: categoria dominante e seu respectivo `pct_*_principal`.
+- Quatro atributos em colunas compactas, separados por divisorias sutis: categoria dominante e seu respectivo `pct_*_principal`.
+- O card nao exibe a confianca do modelo nem a antiga legenda explicativa dos percentuais.
 
-`_icp_general_row()` identifica persona e categorias dominantes pelo volume de `votos_candidato`. `_demographic_percent()` calcula a media ponderada dos percentuais da categoria escolhida, usando os votos como peso. Nos parquets inspecionados, os percentuais gerais se repetem entre territorios; nao devem ser somados. A confianca tambem usa media ponderada, com valores validos e pesos positivos.
+`_icp_general_row()` identifica persona e categorias dominantes pelo volume de `votos_candidato`. `_demographic_percent()` calcula a media ponderada dos percentuais da categoria escolhida, usando os votos como peso. Nos parquets inspecionados, os percentuais gerais se repetem entre territorios; nao devem ser somados. A confianca ainda e calculada internamente, mas nao aparece no card porque pode ser confundida com confianca estatistica.
 
 #### 2.2 BASE ELEITORAL DO CANDIDATO
 
@@ -230,10 +237,9 @@ Fonte: `perfil/stage04_icp_clusters_geo.parquet`.
 `_cluster_profiles()` agrupa por `perfil_eleitor`. `cluster_cards_html()` apresenta:
 
 - resumo por **Base eleitoral**, **Eleitor consolidado** e **Eleitor emergente**;
-- card independente para cada ICP, com classificacao, identificador e persona;
-- votos absolutos e participacao na votacao do candidato;
-- quatro barras demograficas independentes, com categoria e percentual;
-- justificativa em `cluster_strategy_reason`, visivel sem selecao.
+- cabecalho destacado com a pergunta sobre o peso de cada perfil na votacao;
+- uma linha expansivel por ICP, com classificacao, identificador, persona, votos absolutos e participacao sempre visiveis;
+- ao abrir cada perfil, quatro barras demograficas independentes e a justificativa em `cluster_strategy_reason`.
 
 A participacao soma `pct_market_share` por ICP e depois por classificacao. Se o campo estiver ausente ou nulo, o fallback e `votos_candidato / total_votos_candidato * 100`. Na ausencia do total do candidato, usa-se a soma de votos do nivel territorial selecionado. `total_votos_candidato` e um denominador repetido, nunca uma coluna a somar.
 
@@ -254,7 +260,7 @@ Uma classificacao sem perfis exibe traco e mensagem explicita, sem criar um ICP 
 | `pct_escolaridade_principal` | Percentual da escolaridade dominante | KPI e barra de escolaridade |
 | `pct_estado_civil_principal` | Percentual do estado civil dominante | KPI e barra de estado civil |
 
-Os campos percentuais ja usam 0-100: `0.5` significa 0,5%. Apenas a confianca aceita explicitamente a conversao de fracao para percentual. Percentuais demograficos ausentes ou fora de 0-100 nao sao inventados: os cards informam a ausencia.
+Os campos percentuais ja usam 0-100: `0.5` significa 0,5%. Percentuais demograficos ausentes ou fora de 0-100 nao sao inventados: os cards informam a ausencia.
 
 Os quatro atributos sao dimensoes independentes, nao parcelas de uma soma de 100%. Os parquets descrevem categorias dominantes; nao permitem reconstruir a distribuicao completa de todas as categorias.
 
@@ -265,6 +271,12 @@ A pagina possui quatro secoes em `pages/dna_eleitor.py`. A estrutura e o status 
 - **Identidade da Base Eleitoral**: implementada com Eleitor ideal do candidato e cards da base eleitoral.
   - subtitulo: `Quem e o eleitor-chave e quais atributos definem o perfil do seu eleitor.`
 
+- **Distribuicao do Perfil do Eleitorado**: grafico de rosca da distribuicao demografica estimada, com total de votos no centro, legenda e filtros de municipio e dimensao (genero, faixa etaria, escolaridade e estado civil).
+  - usa os parquets `demografico/stage02_*.parquet` e os votos municipais;
+  - agrega os percentuais das categorias com peso em `QT_VOTOS_TOTAL` ou `qt_votos`;
+  - apresenta uma dimensao por vez; os arquivos nao permitem contar cruzamentos individuais entre genero, idade e escolaridade;
+  - subtitulo: `Distribuicao demografica estimada dos votos, com recorte por municipio e perfil.`
+
 - **Matriz de Potencial Demografico**: mapa coropletico municipal comparando genero, idade e escolaridade do ICP com o Censo.
   - mapa coropletico municipal de MG;
   - seletor para **ELEITOR IDEAL** ou classificacao estrategica do ICP clusters;
@@ -273,9 +285,6 @@ A pagina possui quatro secoes em `pages/dna_eleitor.py`. A estrutura e o status 
   - municipios sem votos recebem zero de compatibilidade;
   - municipios sem votos ou sem dados completos continuam preenchidos com o verde mais claro.
   - subtitulo: `Comparativo entre o perfil do eleitor do candidato e a populacao local. Identificacao de sobre-representacao e frentes de expansao.`
-
-- **Segmentacao & Acao Tatica**: card reservado para visualizacao futura.
-  - subtitulo: `Identificacao de frentes de conversao, consolidacao e expansao do eleitorado.`
 
 - **Expansao & Oportunidades para 2030**: mapa municipal de protecao de base e expansao.
   - mapa municipal com quatro classes: verde (oportunidade alta e perfil aderente), azul (bases com muitos votos), amarelo (oportunidade com aderencia menor) e cinza (baixa similaridade, sem oportunidade relevante ou sem dados completos);
@@ -290,7 +299,7 @@ A pagina 2 usa:
 - `apply_shared_visual_model()`: aplica fundo, variaveis visuais, hero e estilos compartilhados;
 - `render_page_header("dna")`: renderiza o cabecalho com texto da pagina 2;
 - `major_section_header(...)`: renderiza os blocos de titulo/subtitulo no padrao da pagina 1;
-- `visualization_placeholder()`: cria card reservado para cada visualizacao futura.
+- `render_electorate_distribution()`: monta o grafico de rosca e seus filtros.
 
 Os componentes HTML compartilhados, o card geral e os cards de clusters sao renderizados com `st.html`.
 
@@ -302,7 +311,7 @@ O projeto usa cache do Streamlit nos pontos de maior custo:
 - `remote_data_files`: `@st.cache_data(ttl=600)`;
 - `load_tables`: `@st.cache_data`;
 - `load_parquet`: `@st.cache_data`;
-- `_load_geo_reference`: `@st.cache_data`.
+- `load_geo_reference`: `@st.cache_data`.
 
 As transformacoes visuais sao recalculadas em reruns, mas a leitura remota dos arquivos e das referencias geograficas fica cacheada.
 
@@ -348,7 +357,7 @@ streamlit run app.py
 ## Verificacao rapida
 
 ```powershell
-python -m py_compile app.py hf_sync.py pages\shared_header.py pages\raio_x_do_voto.py pages\dna_eleitor.py pages\cluster_cards.py pages\demographic_comparison.py pages\dna_copy.py
+python -m py_compile app.py hf_sync.py pages\shared_header.py pages\raio_x_do_voto.py pages\dna_eleitor.py pages\dna_distribution.py pages\cluster_cards.py pages\demographic_comparison.py pages\dna_copy.py
 ```
 
 ### Validacao da secao DNA
