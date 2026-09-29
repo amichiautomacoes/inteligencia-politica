@@ -55,6 +55,13 @@ O app localiza as pastas dos candidatos a partir do prefixo geral da eleicao, li
   - usado em `votos_bairro`;
   - alimenta o treemap de municipio/bairro e o filtro de mesorregiao.
 
+### Referencia geografica de MG
+
+- `IBGE/MG/dadosterritorio/MG_municipios_2022.parquet`: geometria dos 853 municipios.
+- `IBGE/MG/dadosterritorio/municipios_mg_mesorregioes.parquet`: correspondencia entre codigos TSE e IBGE e classificacao por mesorregiao.
+
+Esses arquivos alimentam os mapas municipais do Raio X e do DNA Eleitoral.
+
 ### Demografia
 
 - `demografico/stage02_genero.parquet`

@@ -1,10 +1,9 @@
-from __future__ import annotations
-
-import json
 import unicodedata
 
 import pandas as pd
 import streamlit as st
+from shapely import wkb
+from shapely.geometry import mapping
 
 from hf_sync import hf_filesystem, load_env
 
@@ -16,66 +15,46 @@ def load_geo_reference() -> tuple[dict | None, pd.DataFrame | None, pd.DataFrame
     if not bucket_url:
         return None, None, None, None
 
-    remote_base = f"{bucket_url}/IBGE/geo-mg"
+    remote_base = f"{bucket_url}/IBGE/MG/dadosterritorio"
     fs = hf_filesystem(env.get("HF_TOKEN"))
-    geojson_path = f"{remote_base}/geojs-31-mun.json"
-    tse_path = f"{remote_base}/municipios_brasileiros_tse.csv"
-    municipios_path = f"{remote_base}/municipios.csv"
-    regioes_path = f"{remote_base}/municipios.json"
-
     try:
-        with fs.open(geojson_path, "r", encoding="utf-8") as source:
-            geojson_mg = json.load(source)
-        with fs.open(tse_path, "rb") as source:
-            df_tse = pd.read_csv(
-                source,
-                usecols=["codigo_tse", "uf", "nome_municipio", "codigo_ibge"],
-            )
-        with fs.open(municipios_path, "rb") as source:
-            df_municipios = pd.read_csv(
-                source,
-                usecols=["codigo_ibge", "nome", "latitude", "longitude"],
-            )
+        with fs.open(f"{remote_base}/MG_municipios_2022.parquet", "rb") as source:
+            municipalities = pd.read_parquet(source, columns=["code_muni", "name_muni", "geometry"])
+        with fs.open(f"{remote_base}/municipios_mg_mesorregioes.parquet", "rb") as source:
+            reference = pd.read_parquet(source)
     except Exception:
         return None, None, None, None
 
-    df_tse = df_tse[df_tse["uf"].astype(str).str.upper() == "MG"].copy()
-    df_tse["codigo_tse"] = pd.to_numeric(df_tse["codigo_tse"], errors="coerce").astype("Int64")
-    df_tse["codigo_ibge"] = pd.to_numeric(df_tse["codigo_ibge"], errors="coerce").astype("Int64")
+    municipalities["codigo_ibge"] = pd.to_numeric(municipalities["code_muni"], errors="coerce").astype("Int64")
+    municipalities = municipalities.dropna(subset=["codigo_ibge", "geometry"])
+    features = []
+    coordinates = []
+    for row in municipalities.itertuples(index=False):
+        geometry = wkb.loads(row.geometry)
+        municipality_id = str(int(row.codigo_ibge))
+        features.append({
+            "type": "Feature",
+            "properties": {"id": municipality_id},
+            "geometry": mapping(geometry),
+        })
+        point = geometry.representative_point()
+        coordinates.append((int(row.codigo_ibge), row.name_muni, point.y, point.x))
+    geojson_mg = {"type": "FeatureCollection", "features": features}
+
+    df_municipios = pd.DataFrame(coordinates, columns=["codigo_ibge", "nome", "latitude", "longitude"])
+    df_municipios["codigo_ibge"] = df_municipios["codigo_ibge"].astype("Int64")
+
+    reference["codigo_ibge"] = pd.to_numeric(reference["codigo_ibge"], errors="coerce").astype("Int64")
+    reference["codigo_tse"] = pd.to_numeric(reference["codigo_tse"], errors="coerce").astype("Int64")
+    df_tse = reference[["codigo_tse", "codigo_ibge", "nm_municipio_ibge"]].rename(
+        columns={"nm_municipio_ibge": "nome_municipio"}
+    ).copy()
     df_tse["municipio_norm"] = df_tse["nome_municipio"].map(normalize_municipio_name)
-    df_municipios["codigo_ibge"] = pd.to_numeric(
-        df_municipios["codigo_ibge"], errors="coerce"
-    ).astype("Int64")
 
-    try:
-        with fs.open(regioes_path, "r", encoding="utf-8") as source:
-            raw_regioes = json.load(source)
-        df_regioes = pd.DataFrame(raw_regioes)
-        expected = {
-            "municipio-id",
-            "municipio-nome",
-            "mesorregiao-nome",
-            "regiao-imediata-nome",
-        }
-        if expected.issubset(df_regioes.columns):
-            df_regioes = df_regioes[
-                ["municipio-id", "municipio-nome", "mesorregiao-nome", "regiao-imediata-nome"]
-            ].rename(
-                columns={
-                    "municipio-id": "codigo_ibge",
-                    "municipio-nome": "municipio_ibge_nome",
-                    "mesorregiao-nome": "mesorregiao_nome",
-                    "regiao-imediata-nome": "regiao_imediata_nome",
-                }
-            )
-            df_regioes["codigo_ibge"] = pd.to_numeric(
-                df_regioes["codigo_ibge"], errors="coerce"
-            ).astype("Int64")
-        else:
-            df_regioes = pd.DataFrame()
-    except Exception:
-        df_regioes = pd.DataFrame()
-
+    df_regioes = reference[["codigo_ibge", "nm_municipio_ibge", "nm_mesorregiao"]].rename(
+        columns={"nm_municipio_ibge": "municipio_ibge_nome", "nm_mesorregiao": "mesorregiao_nome"}
+    ).copy()
+    df_regioes["regiao_imediata_nome"] = ""
     return geojson_mg, df_tse, df_municipios, df_regioes
 
 

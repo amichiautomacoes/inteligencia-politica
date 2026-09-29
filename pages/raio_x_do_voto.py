@@ -2,7 +2,6 @@
 
 import base64
 import html
-import json
 import unicodedata
 from pathlib import Path
 
@@ -13,6 +12,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from hf_sync import data_files, file_by_kind, hf_filesystem, load_env, load_parquet, selected_deputado_files
+from pages.dna_geo_reference import load_geo_reference
 from pages.shared_header import render_page_header
 
 try:
@@ -477,6 +477,8 @@ def _apply_visual_model() -> None:
             border-right: 1px solid rgba(147, 197, 253, 0.16) !important;
             background: transparent;
             min-width: 0;
+            display: flex;
+            flex-direction: column;
         }}
         .raiox-concentration-pill:last-child {{
             border-right: 0 !important;
@@ -501,17 +503,39 @@ def _apply_visual_model() -> None:
             font-size: 0.78rem;
             line-height: 1.3;
         }}
+        .raiox-concentration-leader {{
+            color: #f8fbff;
+            font-size: 0.84rem;
+            font-weight: 700;
+            margin-top: 0.45rem;
+        }}
         .raiox-concentration-track {{
-            height: 4px;
-            margin-top: 0.95rem;
-            border-radius: 4px;
-            background: rgba(147, 197, 253, 0.13);
+            display: flex;
+            height: 9px;
+            flex: 0 0 9px;
+            border-radius: 999px;
+            background: rgba(147, 197, 253, 0.19);
             overflow: hidden;
         }}
         .raiox-concentration-fill {{
             height: 100%;
-            border-radius: inherit;
-            background: linear-gradient(90deg, #2563eb, #7dd3fc);
+            background: #2563eb;
+        }}
+        .raiox-concentration-fill-new {{
+            height: 100%;
+            background: #7dd3fc;
+        }}
+        .raiox-concentration-bar-label {{
+            color: #9fb2d4;
+            font-size: 0.7rem;
+            line-height: 1.3;
+            margin: auto 0 0.3rem;
+            padding-top: 0.9rem;
+        }}
+        .raiox-concentration-gain {{
+            color: #93c5fd;
+            font-size: 0.72rem;
+            margin-top: 0.35rem;
         }}
         .raiox-concentration-reading {{
             color: #d6e4f9;
@@ -647,101 +671,27 @@ def _section_header(title: str, subtitle: str = "") -> None:
 
 
 def _empty_map() -> go.Figure:
-    fig = go.Figure(
-        go.Scattermap(
-            lat=[-18.9, -19.92, -21.76],
-            lon=[-44.0, -43.94, -43.35],
-            mode="markers",
-            marker={"size": [18, 26, 14], "color": [32, 65, 44], "colorscale": "Blues", "opacity": 0.65},
-            text=["Mapa territorial", "Parquet pendente", "Votos"],
-            hoverinfo="text",
-        )
-    )
+    fig = go.Figure()
     fig.update_layout(
-        map={"style": "carto-darkmatter", "center": {"lat": -19.3, "lon": -44.2}, "zoom": 5.2},
         height=520,
         margin={"l": 0, "r": 0, "t": 18, "b": 0},
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font={"color": "#eaf2ff"},
+        xaxis={"visible": False},
+        yaxis={"visible": False},
+        annotations=[{
+            "text": "Mapa indisponível: não foi possível carregar os votos ou a malha municipal de MG.",
+            "xref": "paper", "yref": "paper", "x": 0.5, "y": 0.5,
+            "showarrow": False, "font": {"color": "#b7c7e6", "size": 15},
+        }],
     )
     return fig
 
 
-@st.cache_data(show_spinner=False)
 def _load_geo_reference() -> tuple[dict | None, pd.DataFrame | None, pd.DataFrame | None, pd.DataFrame | None]:
-    env = load_env()
-    bucket_url = env.get("HF_BUCKET_URL", "").rstrip("/")
-    if not bucket_url:
-        return None, None, None, None
+    return load_geo_reference()
 
-    remote_base = f"{bucket_url}/IBGE/geo-mg"
-    fs = hf_filesystem(env.get("HF_TOKEN"))
-    geojson_path = f"{remote_base}/geojs-31-mun.json"
-    tse_path = f"{remote_base}/municipios_brasileiros_tse.csv"
-    municipios_path = f"{remote_base}/municipios.csv"
-    regioes_path = f"{remote_base}/municipios.json"
-
-    try:
-        with fs.open(geojson_path, "r", encoding="utf-8") as source:
-            geojson_mg = json.load(source)
-        with fs.open(tse_path, "rb") as source:
-            df_tse = pd.read_csv(
-                source,
-                usecols=["codigo_tse", "uf", "nome_municipio", "codigo_ibge"],
-            )
-        with fs.open(municipios_path, "rb") as source:
-            df_municipios = pd.read_csv(
-                source,
-                usecols=["codigo_ibge", "nome", "latitude", "longitude"],
-            )
-    except Exception:
-        return None, None, None, None
-
-    df_tse = df_tse[df_tse["uf"].astype(str).str.upper() == "MG"].copy()
-    df_tse["codigo_tse"] = pd.to_numeric(df_tse["codigo_tse"], errors="coerce").astype("Int64")
-    df_tse["codigo_ibge"] = pd.to_numeric(df_tse["codigo_ibge"], errors="coerce").astype("Int64")
-    df_tse["municipio_norm"] = df_tse["nome_municipio"].map(_normalize_municipio_name)
-
-    df_municipios["codigo_ibge"] = pd.to_numeric(
-        df_municipios["codigo_ibge"], errors="coerce"
-    ).astype("Int64")
-
-    try:
-        with fs.open(regioes_path, "r", encoding="utf-8") as source:
-            raw_regioes = json.load(source)
-        df_regioes = pd.DataFrame(raw_regioes)
-        expected = {
-            "municipio-id",
-            "municipio-nome",
-            "mesorregiao-nome",
-            "regiao-imediata-nome",
-        }
-        if expected.issubset(df_regioes.columns):
-            df_regioes = df_regioes[
-                [
-                    "municipio-id",
-                    "municipio-nome",
-                    "mesorregiao-nome",
-                    "regiao-imediata-nome",
-                ]
-            ].rename(
-                columns={
-                    "municipio-id": "codigo_ibge",
-                    "municipio-nome": "municipio_ibge_nome",
-                    "mesorregiao-nome": "mesorregiao_nome",
-                    "regiao-imediata-nome": "regiao_imediata_nome",
-                }
-            )
-            df_regioes["codigo_ibge"] = pd.to_numeric(
-                df_regioes["codigo_ibge"], errors="coerce"
-            ).astype("Int64")
-        else:
-            df_regioes = pd.DataFrame()
-    except Exception:
-        df_regioes = pd.DataFrame()
-
-    return geojson_mg, df_tse, df_municipios, df_regioes
 
 
 def _normalize_municipio_name(value: object) -> str:
@@ -1286,6 +1236,19 @@ def _render_accumulated_concentration_section(df: pd.DataFrame | None) -> None:
             effective_rank = int(row["rank_municipio"])
             title = f"Top {rank}" if effective_rank >= rank else "Todos"
             percent = float(row["pct_acumulado"])
+            previous_rank = {5: 1, 15: 5, 20: 15}.get(rank)
+            previous_percent = float(row_at(previous_rank)["pct_acumulado"]) if previous_rank else 0.0
+            previous_width = max(0, min(previous_percent, 100))
+            gain_width = max(0, min(percent, 100) - previous_width)
+            leader_html = (
+                f'<div class="raiox-concentration-leader">{html.escape(str(row["nm_municipio"]).title())}</div>'
+                if rank == 1 else ""
+            )
+            gain_html = (
+                f'<div class="raiox-concentration-gain">+'
+                f'{_format_percent(percent - previous_percent).removesuffix("%") } p.p. em relação ao Top {previous_rank}</div>'
+                if rank != 1 else '<div class="raiox-concentration-gain">Município líder</div>'
+            )
             return (
                 '<div class="raiox-concentration-pill">'
                 f'<div class="raiox-concentration-pill-label">{title}</div>'
@@ -1294,8 +1257,12 @@ def _render_accumulated_concentration_section(df: pd.DataFrame | None) -> None:
                 f'{_format_number(float(row["votos_acumulados"]))} votos · '
                 f'{effective_rank} {"município" if effective_rank == 1 else "municípios"}'
                 "</div>"
+                f'{leader_html}'
+                f'{gain_html}'
+                '<div class="raiox-concentration-bar-label">Participação na votação total</div>'
                 '<div class="raiox-concentration-track">'
-                f'<div class="raiox-concentration-fill" style="width: {max(0, min(percent, 100)):.2f}%"></div>'
+                f'<div class="raiox-concentration-fill" style="width: {previous_width:.2f}%"></div>'
+                f'<div class="raiox-concentration-fill-new" style="width: {gain_width:.2f}%"></div>'
                 '</div>'
                 "</div>"
             )
@@ -1321,18 +1288,19 @@ def _render_accumulated_concentration_section(df: pd.DataFrame | None) -> None:
             '</p>',
             unsafe_allow_html=True,
         )
-        with st.expander("Ver municípios do Top 15"):
-            city_items = "".join(
-                '<div>'
-                f'<span class="raiox-concentration-city-rank">{int(city_row["rank_municipio"]):02d}</span>'
-                f'{html.escape(str(city_row["nm_municipio"]).title())}'
-                '</div>'
-                for _, city_row in concentration_df.head(15).iterrows()
-            )
-            st.markdown(
-                f'<div class="raiox-concentration-city-list">{city_items}</div>',
-                unsafe_allow_html=True,
-            )
+        for rank in (5, 15, 20):
+            with st.expander(f"Ver municípios do Top {rank}"):
+                city_items = "".join(
+                    '<div>'
+                    f'<span class="raiox-concentration-city-rank">{int(city_row["rank_municipio"]):02d}</span>'
+                    f'{html.escape(str(city_row["nm_municipio"]).title())}'
+                    '</div>'
+                    for _, city_row in concentration_df.head(rank).iterrows()
+                )
+                st.markdown(
+                    f'<div class="raiox-concentration-city-list">{city_items}</div>',
+                    unsafe_allow_html=True,
+                )
         max_rank = min(50, len(concentration_df))
         if len(concentration_df) > 50:
             st.caption(
