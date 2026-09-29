@@ -59,18 +59,6 @@ def _format_percent_value(value: str, *, fraction: bool = False) -> str:
     return f"{float(number):.1f}%".replace(".", ",")
 
 
-def _confidence_level(confidence_text: str) -> str:
-    number = pd.to_numeric(pd.Series([confidence_text]), errors="coerce").iloc[0]
-    if pd.isna(number):
-        return "Nível não informado"
-    confidence = float(number) * 100 if abs(float(number)) <= 1 else float(number)
-    if confidence >= 80:
-        return "Alta confiança"
-    if confidence >= 60:
-        return "Confiança moderada"
-    return "Confiança baixa"
-
-
 def _weighted_dominant(df: pd.DataFrame, value_col: str) -> tuple[str, float]:
     if df.empty or value_col not in df.columns:
         return "Nao informado", 0.0
@@ -175,8 +163,6 @@ def _render_icp_geral_card(icp_df: pd.DataFrame | None) -> None:
 
     icp_df = _icp_general_row(icp_df)
     persona = _first_value(icp_df, "persona_executiva", "Persona executiva dominante")
-    confidence = _format_percent_value(_first_value(icp_df, "confianca_persona", "Nao informado"), fraction=True)
-    confidence_level = _confidence_level(_first_value(icp_df, "confianca_persona", ""))
     summary = _first_value(icp_df, "perfil_resumo", "Resumo analitico da persona nao informado.")
     persona = sentence_label(persona)
     summary = sentence_label(summary)
@@ -210,16 +196,11 @@ def _render_icp_geral_card(icp_df: pd.DataFrame | None) -> None:
             <p class="dna-subsection-description">Síntese do perfil demográfico predominante na base eleitoral do candidato.</p>
             <div class="dna-icp-header">
                 <div class="dna-icp-title">👤 {html.escape(persona)}</div>
-                <div class="dna-icp-badges">
-                    <div class="dna-icp-badge strong">Confiança do modelo: {html.escape(confidence)}</div>
-                    <div class="dna-icp-badge">{html.escape(confidence_level)}</div>
-                </div>
             </div>
             {summary_html}
             <div class="dna-icp-kpi-grid">
                 {''.join(kpi_html)}
             </div>
-            <p class="dna-subsection-note">Os percentuais indicam a participação de cada categoria dominante no perfil geral. As quatro dimensões são independentes e não somam 100%.</p>
         </div>
         """)
     )

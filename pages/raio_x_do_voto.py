@@ -463,100 +463,78 @@ def _apply_visual_model() -> None:
             margin: 0.12rem 0 0.78rem 0;
             text-align: center;
         }}
-        .raiox-concentration-summary {{
-            color: #f8fbff;
-            font-size: 1.28rem;
-            font-weight: 820;
-            line-height: 1.25;
-            margin: 0.1rem 0 0.45rem 0;
-        }}
-        .raiox-concentration-context {{
-            color: #b7c7e6;
-            font-size: 0.92rem;
-            line-height: 1.45;
-            margin: 0 0 1rem 0;
-        }}
-        .raiox-concentration-headline {{
-            display: grid;
-            grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
-            gap: 1.6rem;
-            align-items: start;
-            margin: 0.1rem 0 1.15rem 0;
-        }}
-        .raiox-concentration-headline .raiox-concentration-summary,
-        .raiox-concentration-headline .raiox-concentration-context {{
-            margin: 0;
-        }}
         .raiox-concentration-grid {{
             display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 0.7rem;
-            margin: 0.2rem 0 1.05rem 0;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            margin: 0.2rem 0 0.9rem;
+            border-radius: 12px;
+            background: rgba(7, 24, 54, 0.54);
+            overflow: hidden;
         }}
         .raiox-concentration-pill {{
-            display: grid;
-            grid-template-rows: auto 1fr;
-            gap: 0.66rem;
-            border-radius: 12px;
-            padding: 0.84rem 0.96rem 0.88rem 0.96rem;
-            min-height: 10.8rem;
-            overflow: visible;
+            padding: 1rem 1.15rem;
+            border: 0 !important;
+            border-right: 1px solid rgba(147, 197, 253, 0.16) !important;
+            background: transparent;
+            min-width: 0;
         }}
-        .raiox-concentration-pill-head {{
-            display: grid;
-            grid-template-columns: auto auto minmax(0, 1fr);
-            gap: 0.72rem;
-            align-items: baseline;
+        .raiox-concentration-pill:last-child {{
+            border-right: 0 !important;
         }}
         .raiox-concentration-pill-label {{
-            color: #b7c7e6;
-            font-size: 0.72rem;
-            font-weight: 800;
+            color: #9fb2d4;
+            font-size: 0.7rem;
+            font-weight: 750;
             text-transform: uppercase;
-            letter-spacing: 0.06em;
+            letter-spacing: 0.11em;
         }}
         .raiox-concentration-pill-value {{
-            color: #ffffff;
-            font-size: 1.34rem;
-            font-weight: 860;
-            margin-top: 0;
+            color: #f8fbff;
+            font-size: clamp(1.55rem, 2vw, 2.1rem);
+            font-weight: 800;
+            line-height: 1.1;
+            margin: 0.45rem 0 0.28rem;
+            font-variant-numeric: tabular-nums;
         }}
         .raiox-concentration-pill-city {{
-            color: #c7d8f4;
-            font-size: 0.76rem;
-            font-weight: 650;
-            line-height: 1.25;
-            justify-self: end;
-            text-align: right;
+            color: #b7c7e6;
+            font-size: 0.78rem;
+            line-height: 1.3;
+        }}
+        .raiox-concentration-track {{
+            height: 4px;
+            margin-top: 0.95rem;
+            border-radius: 4px;
+            background: rgba(147, 197, 253, 0.13);
+            overflow: hidden;
+        }}
+        .raiox-concentration-fill {{
+            height: 100%;
+            border-radius: inherit;
+            background: linear-gradient(90deg, #2563eb, #7dd3fc);
+        }}
+        .raiox-concentration-reading {{
+            color: #d6e4f9;
+            font-size: 0.95rem;
+            line-height: 1.5;
+            margin: 0 0 0.7rem;
+        }}
+        .raiox-concentration-reading strong {{
+            color: #f8fbff;
+            font-weight: 750;
         }}
         .raiox-concentration-city-list {{
-            display: flex;
-            flex-wrap: wrap;
-            align-content: flex-start;
-            gap: 0.32rem 0.48rem;
-            margin: 0;
-            color: #f8fbff;
-            font-size: 0.72rem;
-            font-weight: 720;
-            line-height: 1.18;
-        }}
-        .raiox-concentration-city-item {{
-            display: inline-flex;
-            align-items: center;
-            min-width: 0;
-            white-space: nowrap;
-            color: #f8fbff;
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 0.48rem 1rem;
+            padding: 0.25rem 0 0.5rem;
+            color: #eaf2ff;
+            font-size: 0.83rem;
         }}
         .raiox-concentration-city-rank {{
             color: #93c5fd;
-            font-weight: 850;
-            margin-right: 0.16rem;
-        }}
-        .raiox-concentration-pill-caption {{
-            color: #9fb2d4;
-            font-size: 0.74rem;
-            font-weight: 650;
-            margin-left: 0.18rem;
+            font-weight: 750;
+            margin-right: 0.35rem;
         }}
         .raiox-bar-filter [data-testid="stSelectbox"] {{
             max-width: 16rem;
@@ -615,11 +593,22 @@ def _apply_visual_model() -> None:
             .raiox-concentration-grid {{
                 grid-template-columns: repeat(2, minmax(0, 1fr));
             }}
-            .raiox-concentration-headline {{
-                grid-template-columns: 1fr;
+            .raiox-concentration-pill:nth-child(2) {{
+                border-right: 0 !important;
+            }}
+            .raiox-concentration-pill:nth-child(-n+2) {{
+                border-bottom: 1px solid rgba(147, 197, 253, 0.16) !important;
+            }}
+            .raiox-concentration-city-list {{
+                grid-template-columns: repeat(2, minmax(0, 1fr));
             }}
             .mapa-major-section-title {{
                 font-size: 1.55rem;
+            }}
+        }}
+        @media (max-width: 600px) {{
+            .raiox-concentration-city-list {{
+                grid-template-columns: 1fr;
             }}
         }}
         </style>
@@ -1296,27 +1285,18 @@ def _render_accumulated_concentration_section(df: pd.DataFrame | None) -> None:
             row = row_at(rank)
             effective_rank = int(row["rank_municipio"])
             title = f"Top {rank}" if effective_rank >= rank else "Todos"
-            city_rows = concentration_df.head(effective_rank)
-            city_items = "".join(
-                (
-                    '<span class="raiox-concentration-city-item">'
-                    f'<span class="raiox-concentration-city-rank">{int(city_row["rank_municipio"])}.</span>'
-                    f"{html.escape(str(city_row['nm_municipio']).title())}"
-                    "</span>"
-                )
-                for _, city_row in city_rows.iterrows()
-            )
+            percent = float(row["pct_acumulado"])
             return (
                 '<div class="raiox-concentration-pill">'
-                '<div class="raiox-concentration-pill-head">'
                 f'<div class="raiox-concentration-pill-label">{title}</div>'
-                f'<div class="raiox-concentration-pill-value">{_format_percent(float(row["pct_acumulado"]))}</div>'
+                f'<div class="raiox-concentration-pill-value">{_format_percent(percent)}</div>'
                 '<div class="raiox-concentration-pill-city">'
-                f"{effective_rank} municípios | "
-                f'<span class="raiox-concentration-pill-caption">{_format_number(float(row["votos_acumulados"]))} votos acumulados</span>'
+                f'{_format_number(float(row["votos_acumulados"]))} votos · '
+                f'{effective_rank} {"município" if effective_rank == 1 else "municípios"}'
                 "</div>"
-                "</div>"
-                f'<div class="raiox-concentration-city-list">{city_items}</div>'
+                '<div class="raiox-concentration-track">'
+                f'<div class="raiox-concentration-fill" style="width: {max(0, min(percent, 100)):.2f}%"></div>'
+                '</div>'
                 "</div>"
             )
 
@@ -1324,15 +1304,6 @@ def _render_accumulated_concentration_section(df: pd.DataFrame | None) -> None:
         top15 = row_at(15)
         st.markdown(
             (
-                '<div class="raiox-concentration-headline">'
-                '<div class="raiox-concentration-summary">'
-                f'{html.escape(str(top1["nm_municipio"]).title())} abre a curva com {_format_percent(float(top1["pct_acumulado"]))} da votação.'
-                "</div>"
-                '<div class="raiox-concentration-context">'
-                f'Os 15 principais municípios acumulam {_format_percent(float(top15["pct_acumulado"]))} dos votos. '
-                "Quanto mais rápida a curva sobe, mais concentrada está a base eleitoral do candidato."
-                "</div>"
-                "</div>"
                 '<div class="raiox-concentration-grid">'
                 f"{card_html(1)}"
                 f"{card_html(5)}"
@@ -1342,15 +1313,28 @@ def _render_accumulated_concentration_section(df: pd.DataFrame | None) -> None:
             ),
             unsafe_allow_html=True,
         )
-        _, toggle_col = st.columns([0.68, 0.32], gap="large")
-        with toggle_col:
-            show_all = st.toggle(
-                "Mostrar todos os municípios",
-                value=False,
-                key="pagina1_concentration_show_all",
+        st.markdown(
+            '<p class="raiox-concentration-reading">'
+            f'<strong>{html.escape(str(top1["nm_municipio"]).title())}</strong> lidera com '
+            f'<strong>{_format_percent(float(top1["pct_acumulado"]))}</strong>; '
+            f'os 15 principais municípios concentram <strong>{_format_percent(float(top15["pct_acumulado"]))}</strong> dos votos.'
+            '</p>',
+            unsafe_allow_html=True,
+        )
+        with st.expander("Ver municípios do Top 15"):
+            city_items = "".join(
+                '<div>'
+                f'<span class="raiox-concentration-city-rank">{int(city_row["rank_municipio"]):02d}</span>'
+                f'{html.escape(str(city_row["nm_municipio"]).title())}'
+                '</div>'
+                for _, city_row in concentration_df.head(15).iterrows()
             )
-        max_rank = None if show_all else min(50, len(concentration_df))
-        if not show_all and len(concentration_df) > 50:
+            st.markdown(
+                f'<div class="raiox-concentration-city-list">{city_items}</div>',
+                unsafe_allow_html=True,
+            )
+        max_rank = min(50, len(concentration_df))
+        if len(concentration_df) > 50:
             st.caption(
                 f"Visualização focada nos Top 50 de {_format_number(len(concentration_df))} municípios."
             )

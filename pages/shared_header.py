@@ -256,7 +256,7 @@ def apply_shared_visual_model() -> None:
             position: relative;
             overflow: hidden;
             margin: 0.75rem 0 1.6rem 0;
-            padding: 1.25rem 1.35rem 1.15rem 1.35rem;
+            padding: 1.65rem 1.75rem 1.5rem;
             border: 1px solid var(--raiox-outline-border);
             border-radius: 18px;
             background:
@@ -274,47 +274,23 @@ def apply_shared_visual_model() -> None:
         }}
         .dna-subsection-title {{
             color: #f8fbff;
-            font-size: 1.35rem;
-            font-weight: 700;
-            line-height: 1.35;
-            margin: 0 0 8px;
+            font-size: clamp(1.65rem, 2.5vw, 2rem);
+            font-weight: 800;
+            line-height: 1.2;
+            margin: 0 0 0.4rem;
         }}
         .dna-subsection-description, .dna-subsection-note {{
             color: #b7c7e6;
             font-size: .86rem;
             line-height: 1.5;
-            margin: 0 0 24px;
+            margin: 0 0 1.65rem;
         }}
         .dna-subsection-note {{ margin: 18px 0 0; }}
         .dna-icp-title {{
             color: #f8fbff;
-            font-size: 1.15rem;
-            font-weight: 700;
-            line-height: 1.5;
-        }}
-        .dna-icp-badges {{
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: flex-end;
-            gap: 0.45rem;
-        }}
-        .dna-icp-badge {{
-            display: inline-flex;
-            align-items: center;
-            min-height: 2rem;
-            padding: 0 0.72rem;
-            border: 1px solid rgba(147, 197, 253, 0.34);
-            border-radius: 999px;
-            background: rgba(4, 18, 43, 0.56);
-            color: #dbeafe;
-            font-size: 0.78rem;
-            font-weight: 850;
-            white-space: nowrap;
-        }}
-        .dna-icp-badge.strong {{
-            color: #f8fbff;
-            border-color: rgba(96, 165, 250, 0.58);
-            background: rgba(37, 99, 235, 0.24);
+            font-size: clamp(1.25rem, 1.8vw, 1.5rem);
+            font-weight: 750;
+            line-height: 1.4;
         }}
         .dna-icp-summary {{
             margin-top: 0.92rem;
@@ -330,15 +306,19 @@ def apply_shared_visual_model() -> None:
         .dna-icp-kpi-grid {{
             display: grid;
             grid-template-columns: repeat(4, minmax(0, 1fr));
-            gap: 0.72rem;
-            margin-top: 0.95rem;
+            gap: 0;
+            margin-top: 1.55rem;
+            padding-top: 1.15rem;
+            border-top: 1px solid rgba(177, 211, 255, 0.2);
         }}
         .dna-icp-kpi {{
-            min-height: 7.4rem;
-            padding: 0.86rem 0.9rem;
-            border: 1px solid rgba(177, 211, 255, 0.26);
-            border-radius: 14px;
-            background: rgba(4, 18, 43, 0.24);
+            min-height: 6.4rem;
+            padding: 0.3rem 1.15rem;
+            border-left: 1px solid rgba(177, 211, 255, 0.18);
+        }}
+        .dna-icp-kpi:first-child {{
+            border-left: 0;
+            padding-left: 0;
         }}
         .dna-icp-kpi-label {{
             color: #b7c7e6;
@@ -347,7 +327,7 @@ def apply_shared_visual_model() -> None:
             letter-spacing: 0.02em;
         }}
         .dna-icp-kpi-value {{
-            margin-top: 0.5rem;
+            margin-top: 0.65rem;
             color: #f8fbff;
             font-size: 1.05rem;
             font-weight: 700;
@@ -355,9 +335,9 @@ def apply_shared_visual_model() -> None:
             overflow-wrap: anywhere;
         }}
         .dna-icp-kpi-pct {{
-            margin-top: 0.34rem;
+            margin-top: 0.55rem;
             color: #93c5fd;
-            font-size: 0.98rem;
+            font-size: 1.1rem;
             font-weight: 800;
         }}
         @media (max-width: 900px) {{
@@ -374,6 +354,10 @@ def apply_shared_visual_model() -> None:
             }}
             .dna-icp-kpi-grid {{
                 grid-template-columns: repeat(2, minmax(0, 1fr));
+            }}
+            .dna-icp-kpi:nth-child(odd) {{
+                border-left: 0;
+                padding-left: 0;
             }}
         }}
         @media (max-width: 760px) {{
@@ -404,11 +388,17 @@ def apply_shared_visual_model() -> None:
             .dna-icp-header {{
                 display: grid;
             }}
-            .dna-icp-badges {{
-                justify-content: flex-start;
-            }}
             .dna-icp-kpi-grid {{
                 grid-template-columns: 1fr;
+            }}
+            .dna-icp-kpi {{
+                min-height: 0;
+                padding: 0.85rem 0;
+                border-left: 0;
+                border-bottom: 1px solid rgba(177, 211, 255, 0.18);
+            }}
+            .dna-icp-kpi:last-child {{
+                border-bottom: 0;
             }}
         }}
         </style>
