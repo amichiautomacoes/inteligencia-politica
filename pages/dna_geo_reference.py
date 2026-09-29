@@ -14,7 +14,6 @@ GEOGRAPHY_FILES = {
     "mesorregiao": "MG_mesorregioes_2022.parquet",
     "area_ponderada": "MG_AreaPonderada_CD2022.parquet",
     "bairro": "MG_bairros_CD2022.parquet",
-    "bairro_osm": "MG_bairros_osm_2022.parquet",
     "setor": "MG_setores_CD2022.parquet",
 }
 

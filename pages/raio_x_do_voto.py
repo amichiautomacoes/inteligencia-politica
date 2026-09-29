@@ -1795,7 +1795,7 @@ def _neighborhood_map(df: pd.DataFrame, municipio: str) -> tuple[go.Figure | Non
         return None, "Selecione um município com votos para ver o mapa de bairros."
     try:
         municipalities = load_geo_layer("municipio")
-        osm_neighborhoods = load_geo_layer("bairro_osm")
+        sectors = load_geo_layer("setor")
     except Exception as exc:
         return None, f"Não foi possível carregar as malhas territoriais: {exc}"
 
@@ -1817,51 +1817,25 @@ def _neighborhood_map(df: pd.DataFrame, municipio: str) -> tuple[go.Figure | Non
     municipality_code = int(municipality["code_muni"])
     votes = df.copy()
     votes["qt_votos"] = pd.to_numeric(votes["qt_votos"], errors="coerce").fillna(0)
-    osm_points = osm_neighborhoods.geometry.representative_point()
-    neighborhoods = osm_neighborhoods.loc[osm_points.within(municipality.geometry)].copy()
-    uses_osm = not neighborhoods.empty
-    if uses_osm:
-        neighborhoods = neighborhoods.reset_index(drop=True)
-        neighborhoods["name_neighborhood"] = neighborhoods["name"].fillna("Bairro sem nome")
-        neighborhoods["bairro_id"] = [f"osm-{municipality_code}-{i}" for i in neighborhoods.index]
-        neighborhoods["bairro_norm"] = neighborhoods["name_neighborhood"].map(_normalize_municipio_name)
-        votes["bairro_norm"] = votes["nm_bairro"].map(_normalize_municipio_name)
-        vote_columns = [column for column in ("nm_bairro", "cd_bairro", "cd_municipio") if column in votes.columns]
-        grouped_votes = votes.groupby("bairro_norm", as_index=False).agg(
-            {"qt_votos": "sum", **{column: "first" for column in vote_columns}}
-        )
-        neighborhoods = neighborhoods.merge(grouped_votes, on="bairro_norm", how="left")
-        neighborhoods["cd_area_ponderada"] = ""
-        unmatched_votes = grouped_votes.loc[
-            ~grouped_votes["bairro_norm"].isin(neighborhoods["bairro_norm"]), "qt_votos"
-        ].sum()
-        source_label = "bairros OSM"
-    else:
-        try:
-            areas = load_geo_layer("area_ponderada")
-        except Exception as exc:
-            return None, f"Não foi possível carregar as áreas ponderadas do IBGE: {exc}"
-        neighborhoods = areas.loc[
-            pd.to_numeric(areas["code_muni"], errors="coerce").eq(municipality_code)
-        ].copy()
-        neighborhoods["cd_area_ponderada"] = pd.to_numeric(
-            neighborhoods["code_weighting"], errors="coerce"
-        ).astype("Int64").astype(str)
-        neighborhoods["bairro_id"] = "area-" + neighborhoods["cd_area_ponderada"]
-        neighborhoods["name_neighborhood"] = neighborhoods["name_weighting"].fillna("Área sem nome")
-        if "cd_area_ponderada" not in votes.columns:
-            votes["cd_area_ponderada"] = pd.NA
-        votes["cd_area_ponderada"] = pd.to_numeric(
-            votes["cd_area_ponderada"], errors="coerce"
-        ).astype("Int64").astype(str)
-        grouped_votes = votes.groupby("cd_area_ponderada", as_index=False)["qt_votos"].sum()
-        neighborhoods = neighborhoods.merge(grouped_votes, on="cd_area_ponderada", how="left")
-        for column in ("nm_bairro", "cd_bairro", "cd_municipio"):
-            neighborhoods[column] = ""
-        unmatched_votes = grouped_votes.loc[
-            ~grouped_votes["cd_area_ponderada"].isin(neighborhoods["cd_area_ponderada"]), "qt_votos"
-        ].sum()
-        source_label = "áreas ponderadas do IBGE"
+    neighborhoods = sectors.loc[
+        pd.to_numeric(sectors["code_muni"], errors="coerce").eq(municipality_code)
+    ].copy()
+    neighborhoods["cd_setor_censitario"] = pd.to_numeric(
+        neighborhoods["code_tract"], errors="coerce"
+    ).astype("Int64").astype(str)
+    neighborhoods = neighborhoods.drop_duplicates(subset="cd_setor_censitario").copy()
+    neighborhoods["bairro_id"] = "setor-" + neighborhoods["cd_setor_censitario"]
+    neighborhoods["name_neighborhood"] = "Setor censitário " + neighborhoods["cd_setor_censitario"]
+    if "cd_setor_censitario" not in votes.columns:
+        votes["cd_setor_censitario"] = pd.NA
+    votes["cd_setor_censitario"] = pd.to_numeric(
+        votes["cd_setor_censitario"], errors="coerce"
+    ).astype("Int64").astype(str)
+    grouped_votes = votes.groupby("cd_setor_censitario", as_index=False)["qt_votos"].sum()
+    neighborhoods = neighborhoods.merge(grouped_votes, on="cd_setor_censitario", how="left")
+    unmatched_votes = grouped_votes.loc[
+        ~grouped_votes["cd_setor_censitario"].isin(neighborhoods["cd_setor_censitario"]), "qt_votos"
+    ].sum()
 
     neighborhoods["qt_votos"] = neighborhoods["qt_votos"].fillna(0)
     features = [
@@ -1872,7 +1846,7 @@ def _neighborhood_map(df: pd.DataFrame, municipio: str) -> tuple[go.Figure | Non
     fig = go.Figure()
     if features:
         neighborhood_customdata = neighborhoods[
-            ["name_neighborhood", "qt_votos", "nm_bairro", "cd_bairro", "cd_municipio", "cd_area_ponderada"]
+            ["name_neighborhood", "qt_votos", "cd_setor_censitario"]
         ].fillna("").to_numpy()
         fig.add_trace(go.Choropleth(
             geojson={"type": "FeatureCollection", "features": features},
@@ -1903,8 +1877,8 @@ def _neighborhood_map(df: pd.DataFrame, municipio: str) -> tuple[go.Figure | Non
     fig.update_layout(height=500, margin={"l": 8, "r": 8, "t": 8, "b": 8},
                       paper_bgcolor="rgba(0,0,0,0)", font={"color": "#eaf2ff"})
     if neighborhoods.empty:
-        return fig, "Não há bairros OSM nem áreas ponderadas para este município; o contorno municipal está exibido."
-    note = f"Malha: {source_label}."
+        return fig, "Não há setores censitários para este município; o contorno municipal está exibido."
+    note = "Malha: setores censitários do IBGE."
     if unmatched_votes > 0:
         note += f" {_format_number(unmatched_votes)} votos não puderam ser associados à malha."
     return fig, note
@@ -1959,17 +1933,9 @@ def _neighborhood_map_selection(event: object | None, fig: go.Figure) -> dict[st
             trace = fig.data[int(curve_number)]
             if getattr(trace, "customdata", None) is not None and int(point_index) < len(trace.customdata):
                 customdata = trace.customdata[int(point_index)]
-    if customdata is None or len(customdata) < 6:
+    if customdata is None or len(customdata) < 3:
         return {}
-    if customdata[5]:
-        return {"cd_area_ponderada": str(customdata[5])}
-    if not customdata[2]:
-        return {}
-    return {
-        "nm_bairro": str(customdata[2]),
-        **({"cd_bairro": str(customdata[3])} if customdata[3] else {}),
-        **({"cd_municipio": str(customdata[4])} if customdata[4] else {}),
-    }
+    return {"cd_setor_censitario": str(customdata[2])} if customdata[2] else {}
 
 
 def _neighborhood_vote_cards(
@@ -1994,10 +1960,10 @@ def _neighborhood_vote_cards(
         f'<div class="raiox-neighborhood-kpi-value">{_format_number(city_votes)}</div>'
         f'</div>'
     ]
-    if context.get("nm_bairro") or context.get("cd_area_ponderada"):
+    if context.get("cd_setor_censitario"):
         selected_rows = _apply_territorial_context(neighborhood_votes, context, "Todas", municipio)
         neighborhood_total = pd.to_numeric(selected_rows["qt_votos"], errors="coerce").fillna(0).sum()
-        selected_label = context.get("nm_bairro") or "área ponderada"
+        selected_label = f"setor {context['cd_setor_censitario']}"
         cards.append(
             f'<div class="raiox-neighborhood-kpi">'
             f'<div class="raiox-neighborhood-kpi-label">Votos em {html.escape(selected_label)}</div>'
@@ -2015,7 +1981,7 @@ def _apply_territorial_context(
         result = result[result["nm_mesorregiao"].astype(str).str.strip() == mesorregiao]
     if municipio != "Todos" and "nm_municipio" in result.columns:
         result = result[result["nm_municipio"].astype(str).str.strip() == municipio]
-    for column in ("cd_municipio", "cd_bairro", "nm_municipio", "nm_bairro", "cd_area_ponderada"):
+    for column in ("cd_municipio", "cd_bairro", "nm_municipio", "nm_bairro", "cd_setor_censitario"):
         value = context.get(column)
         if column in result.columns and value:
                 result = result[result[column].astype(str).str.strip() == value]
@@ -2051,9 +2017,10 @@ def _clear_section_context(key: str) -> None:
 
 
 def _context_label(context: dict[str, str]) -> str:
-    return context.get("nm_bairro") or (
-        f"área ponderada {context['cd_area_ponderada']}" if context.get("cd_area_ponderada") else None
-    ) or context.get("nm_municipio") or "recorte selecionado"
+    return (
+        f"setor censitário {context['cd_setor_censitario']}"
+        if context.get("cd_setor_censitario") else context.get("nm_municipio") or "recorte selecionado"
+    )
 
 
 def _demographic_bar(kind: str, context: dict[str, str], mesorregiao: str, municipio: str = "Todos") -> go.Figure:
@@ -2070,11 +2037,11 @@ def _demographic_bar(kind: str, context: dict[str, str], mesorregiao: str, munic
         bar_df = pd.DataFrame({"categoria": ["Parquet pendente"], "percentual": [0.0]})
     else:
         df = _apply_territorial_context(df, context, mesorregiao, municipio)
-        if context.get("cd_area_ponderada") and "cd_bairro" in df.columns:
+        if context.get("cd_setor_censitario") and "cd_bairro" in df.columns:
             area_votes = _read_selected_parquet("votos_bairro")
-            if area_votes is not None and {"cd_area_ponderada", "cd_bairro"}.issubset(area_votes.columns):
+            if area_votes is not None and {"cd_setor_censitario", "cd_bairro"}.issubset(area_votes.columns):
                 area_rows = area_votes[
-                    area_votes["cd_area_ponderada"].astype(str).eq(context["cd_area_ponderada"])
+                    area_votes["cd_setor_censitario"].astype(str).eq(context["cd_setor_censitario"])
                 ]
                 df = df[df["cd_bairro"].astype(str).isin(area_rows["cd_bairro"].astype(str))]
             else:
@@ -2949,7 +2916,7 @@ with concentration_col:
         )
 _section_header(
     "Votação por Bairro de cada município e Perfil demográfico",
-    "Bairros OSM nos municípios cobertos; áreas ponderadas do IBGE nos demais, com votação e perfil demográfico do recorte selecionado.",
+    "Setores censitários do IBGE em todos os municípios, com votação e perfil demográfico do recorte selecionado.",
 )
 neighborhood_df, mesorregiao, municipio = _mesorregiao_filter(votos_bairro_df, votos_municipio_df)
 current_filters = (mesorregiao, municipio)
@@ -2965,7 +2932,7 @@ with col_left:
         title_col, cards_col = st.columns([0.56, 0.44], gap="small")
         with title_col:
             st.markdown(
-                "<div class='raiox-chart-card-title'>Votação por bairro ou área ponderada</div>",
+                "<div class='raiox-chart-card-title'>Votação por setor censitário</div>",
                 unsafe_allow_html=True,
             )
         with cards_col:
