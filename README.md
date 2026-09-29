@@ -58,6 +58,7 @@ O app localiza as pastas dos candidatos a partir do prefixo geral da eleicao, li
 ### Referencia geografica de MG
 
 - `IBGE/MG/dadosterritorio/MG_municipios_2022.parquet`: geometria dos 853 municipios.
+- `IBGE/MG/dadosterritorio/MG_mesorregioes_2022.parquet`: contornos das mesorregioes e do estado.
 - `IBGE/MG/dadosterritorio/municipios_mg_mesorregioes.parquet`: correspondencia entre codigos TSE e IBGE e classificacao por mesorregiao.
 
 Esses arquivos alimentam os mapas municipais do Raio X e do DNA Eleitoral.

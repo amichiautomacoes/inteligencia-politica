@@ -743,6 +743,10 @@ def _regional_boundary_lines(
     include_mesorregiao_boundary: bool,
     include_state_boundary: bool,
 ) -> tuple[list[float], list[float]]:
+    regional_lines = geojson_mg.get("regional_lines", {})
+    if regional_lines:
+        key = "state" if include_state_boundary else "mesoregions"
+        return regional_lines.get(key, ([], []))
     if df_regioes_ref is None or df_regioes_ref.empty:
         return [], []
 
@@ -2463,22 +2467,11 @@ def _parliamentary_action_map(action_df: pd.DataFrame) -> go.Figure:
         legend_labels["Sem emendas"]: "#FFFFFF",
     }
     plot_df = action_df.copy()
-    plot_df["categoria_legenda"] = (
-        plot_df["categoria_coerencia"]
-        .map(legend_labels)
-        .fillna(plot_df["categoria_coerencia"].astype(str))
+    plot_df["categoria_legenda"] = plot_df["categoria_coerencia"].map(legend_labels).fillna(legend_labels["Sem emendas"])
+    plot_df["categoria_indice"] = plot_df["categoria_legenda"].map(
+        {label: index for index, label in enumerate(category_order)}
     )
-
-    fig = px.choropleth(
-        plot_df,
-        geojson=geojson_mg,
-        locations="codigo_ibge_str",
-        featureidkey="properties.id",
-        color="categoria_legenda",
-        category_orders={"categoria_legenda": category_order},
-        color_discrete_map=category_colors,
-        hover_name="municipio_exibicao",
-        custom_data=[
+    custom_columns = [
             "codigo_ibge_str",
             "municipio_exibicao",
             "mesorregiao_exibicao",
@@ -2488,8 +2481,27 @@ def _parliamentary_action_map(action_df: pd.DataFrame) -> go.Figure:
             "indice_retorno",
             "motivo_cor",
             "municipio_contexto",
-        ],
-        title="Índice de Retorno Parlamentar por município",
+    ]
+    colors = [category_colors[label] for label in category_order]
+    color_scale = [
+        stop
+        for index, color in enumerate(colors)
+        for stop in ((index / len(colors), color), ((index + 1) / len(colors), color))
+    ]
+    fig = go.Figure(
+        go.Choropleth(
+            geojson=geojson_mg,
+            locations=plot_df["codigo_ibge_str"],
+            featureidkey="properties.id",
+            z=plot_df["categoria_indice"],
+            zmin=-0.5,
+            zmax=len(colors) - 0.5,
+            colorscale=color_scale,
+            showscale=False,
+            hovertext=plot_df["municipio_exibicao"],
+            customdata=plot_df[custom_columns].to_numpy(),
+            showlegend=False,
+        )
     )
     fig.update_traces(
         marker_line_color="rgba(210,228,255,0.75)",
@@ -2503,6 +2515,14 @@ def _parliamentary_action_map(action_df: pd.DataFrame) -> go.Figure:
             "<br><span style='color:#b7c7e6'>%{customdata[7]}</span><extra></extra>"
         ),
     )
+    for label in category_order:
+        fig.add_trace(
+            go.Scattergeo(
+                lon=[None], lat=[None], mode="markers",
+                marker={"size": 10, "color": category_colors[label]},
+                name=label, showlegend=True, hoverinfo="skip",
+            )
+        )
 
     fig.update_geos(fitbounds="locations", visible=False, bgcolor="rgba(0,0,0,0)")
     fig.update_layout(

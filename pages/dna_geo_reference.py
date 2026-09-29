@@ -4,6 +4,7 @@ import pandas as pd
 import streamlit as st
 from shapely import wkb
 from shapely.geometry import mapping
+from shapely.ops import unary_union
 
 from hf_sync import hf_filesystem, load_env
 
@@ -22,7 +23,10 @@ def load_geo_reference() -> tuple[dict | None, pd.DataFrame | None, pd.DataFrame
             municipalities = pd.read_parquet(source, columns=["code_muni", "name_muni", "geometry"])
         with fs.open(f"{remote_base}/municipios_mg_mesorregioes.parquet", "rb") as source:
             reference = pd.read_parquet(source)
-    except Exception:
+        with fs.open(f"{remote_base}/MG_mesorregioes_2022.parquet", "rb") as source:
+            mesoregions = pd.read_parquet(source, columns=["geometry"])
+    except Exception as exc:
+        st.warning(f"Não foi possível carregar a malha municipal de MG: {exc}")
         return None, None, None, None
 
     municipalities["codigo_ibge"] = pd.to_numeric(municipalities["code_muni"], errors="coerce").astype("Int64")
@@ -35,11 +39,19 @@ def load_geo_reference() -> tuple[dict | None, pd.DataFrame | None, pd.DataFrame
         features.append({
             "type": "Feature",
             "properties": {"id": municipality_id},
-            "geometry": mapping(geometry),
+            "geometry": mapping(geometry.simplify(0.002, preserve_topology=True)),
         })
         point = geometry.representative_point()
         coordinates.append((int(row.codigo_ibge), row.name_muni, point.y, point.x))
-    geojson_mg = {"type": "FeatureCollection", "features": features}
+    region_geometries = [wkb.loads(value) for value in mesoregions["geometry"].dropna()]
+    geojson_mg = {
+        "type": "FeatureCollection",
+        "features": features,
+        "regional_lines": {
+            "mesoregions": _boundary_coordinates([geometry.boundary for geometry in region_geometries]),
+            "state": _boundary_coordinates([unary_union(region_geometries).boundary]),
+        },
+    }
 
     df_municipios = pd.DataFrame(coordinates, columns=["codigo_ibge", "nome", "latitude", "longitude"])
     df_municipios["codigo_ibge"] = df_municipios["codigo_ibge"].astype("Int64")
@@ -63,3 +75,18 @@ def normalize_municipio_name(value: object) -> str:
     text = unicodedata.normalize("NFKD", text)
     text = "".join(char for char in text if not unicodedata.combining(char))
     return " ".join(text.split())
+
+
+def _boundary_coordinates(boundaries: list) -> tuple[list[float | None], list[float | None]]:
+    lon: list[float | None] = []
+    lat: list[float | None] = []
+    for boundary in boundaries:
+        simplified = boundary.simplify(0.002, preserve_topology=True)
+        parts = simplified.geoms if hasattr(simplified, "geoms") else [simplified]
+        for part in parts:
+            for x, y in part.coords:
+                lon.append(float(x))
+                lat.append(float(y))
+            lon.append(None)
+            lat.append(None)
+    return lon, lat
