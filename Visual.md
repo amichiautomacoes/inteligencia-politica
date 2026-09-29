@@ -160,12 +160,13 @@ Funcao visual:
 
 Permitir mergulho territorial e leitura do perfil estimado dos eleitores.
 
-Mapa de bairros:
+Mapa de bairros ou areas ponderadas:
 
-- contorno do municipio selecionado e poligonos oficiais de bairros do IBGE;
-- indicadores compactos no canto superior direito para votos do municipio e do bairro selecionado;
+- contorno do municipio selecionado e bairros OSM nos 61 municipios cobertos pela malha; nos demais, poligonos de areas ponderadas do IBGE;
+- a fonte ativa aparece abaixo do mapa, junto da quantidade de votos que nao puderam ser associados a seus poligonos;
+- indicadores compactos no canto superior direito para votos do municipio e do bairro ou area selecionada;
 - filtros encadeados de mesorregiao e municipio, iniciando na mesorregiao de maior votacao total do candidato e no municipio mais votado dentro dela;
-- escala azul suave dos votos associados, sem barra de cores ou numeros sobre os bairros; o total de votos aparece no hover;
+- escala azul suave dos votos associados, sem barra de cores ou numeros sobre os poligonos; o total de votos aparece no hover;
 - selecao interativa;
 - recorte ativo persistente.
 
@@ -174,8 +175,8 @@ Demografia:
 - barras horizontais;
 - filtros por genero, idade, escolaridade e estado civil;
 - leitura percentual;
-- responde ao recorte selecionado no mapa de bairros.
-- inicia no total do municipio filtrado; a selecao de um bairro refina apenas o grafico demografico.
+- responde ao recorte selecionado no mapa territorial;
+- inicia no total do municipio filtrado; a selecao de um bairro OSM usa o bairro eleitoral de mesmo nome, e a selecao de uma area ponderada usa os bairros eleitorais vinculados a seu codigo.
 
 Direcao:
 
@@ -413,7 +414,7 @@ Implementacao atual: mapa municipal com classes **VERDE** (potencial demografico
 
 ### Recorte territorial ativo
 
-O mapa de bairros alimenta um contexto persistente local a secao demografica. A legenda deve deixar claro o alcance desse recorte.
+O mapa de bairros ou areas ponderadas alimenta um contexto persistente local a secao demografica. A legenda deve deixar claro o alcance desse recorte e identificar uma area ponderada pelo codigo quando ela estiver selecionada.
 
 Hoje ele afeta:
 
@@ -497,7 +498,7 @@ Mapas de categorias, especialmente o de atuacao parlamentar, precisam de legenda
 | KPIs territoriais | Cards numericos | Qual o volume e o principal reduto? |
 | Mapa de MG | Coropletico branco-azul | Onde estao os votos? |
 | Ranking territorial | Barras horizontais Top 10 | Quais territorios concentram mais votos? |
-| Mapa de bairros | Malha oficial de bairros dentro do contorno municipal, colorida por votos associados | Como os votos se distribuem pelos bairros do municipio? |
+| Mapa de bairros ou areas ponderadas | Bairros OSM nos municipios cobertos; areas ponderadas do IBGE nos demais, coloridos por votos associados | Como os votos se distribuem pelos recortes disponiveis do municipio? |
 | Barras demograficas | Barras horizontais percentuais | Qual o perfil estimado do eleitor no recorte? |
 | Concentracao territorial | Faixa Top 1/5/15/20 com barras acumuladas e listas expansiveis | Quanto os principais municipios pesam na votacao? |
 | Curva acumulada | Linha/area com marcadores | Quanta votacao se concentra nos top municipios? |

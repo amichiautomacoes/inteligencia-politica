@@ -71,6 +71,12 @@ O app localiza as pastas dos candidatos a partir do prefixo geral da eleicao, li
 
 ### Demografia
 
+Na seção **Votação por Bairro de cada município e Perfil demográfico**, a escolha da malha é feita por município:
+
+- Se o ponto interno de pelo menos um polígono de `MG_bairros_osm_2022.parquet` estiver no município, o mapa usa apenas os bairros OSM desse município. Os votos são associados por nome de bairro normalizado.
+- Sem bairros OSM no município, o mapa usa os polígonos de `MG_AreaPonderada_CD2022.parquet`. Os votos são somados por `cd_area_ponderada`, presente em `territorio/stage01b_bairros.parquet`.
+- Ao selecionar uma área ponderada, o perfil demográfico considera os registros dos bairros eleitorais ligados àquela área. Votos sem correspondência com a malha ativa são informados abaixo do mapa.
+
 - `demografico/stage02_genero.parquet`
 - `demografico/stage02_idade.parquet`
 - `demografico/stage02_escolaridade.parquet`
