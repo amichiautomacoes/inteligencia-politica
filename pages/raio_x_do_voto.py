@@ -2416,11 +2416,11 @@ def _parliamentary_action_frame(
 
     result["categoria_coerencia"] = (
         result.get("classificacao_retorno_parlamentar", pd.Series(index=result.index, dtype="object"))
-        .fillna("Sem emendas")
+        .fillna("Sem Expressão")
         .astype(str)
         .str.strip()
     )
-    result.loc[result["categoria_coerencia"].eq(""), "categoria_coerencia"] = "Sem emendas"
+    result.loc[result["categoria_coerencia"].eq(""), "categoria_coerencia"] = "Sem Expressão"
     result["categoria_coerencia"] = result["categoria_coerencia"].replace(
         {
             "Sem Expressao": "Sem Expressão",
@@ -2428,13 +2428,17 @@ def _parliamentary_action_frame(
             "sem expressão": "Sem Expressão",
         }
     )
+    no_emendas = result["valor_emendas"].le(0)
+    result.loc[no_emendas & result["qt_votos"].gt(0), "categoria_coerencia"] = "Votos sem emendas"
+    result.loc[no_emendas & result["qt_votos"].le(0), "categoria_coerencia"] = "Sem votos nem emendas"
     result["motivo_cor"] = result["categoria_coerencia"].map(
         {
             "Reduto Atendido": "Classificação de retorno parlamentar informada no parquet.",
             "Investimento": "Classificação de retorno parlamentar informada no parquet.",
             "Reduto Desassistido": "Classificação de retorno parlamentar informada no parquet.",
             "Sem Expressão": "Classificação de retorno parlamentar informada no parquet.",
-            "Sem emendas": "Município sem emendas destinadas.",
+            "Votos sem emendas": "O candidato recebeu votos neste município, mas não destinou emendas.",
+            "Sem votos nem emendas": "O candidato não recebeu votos nem destinou emendas neste município.",
         }
     ).fillna("Classificação de retorno parlamentar informada no parquet.")
     return result
@@ -2450,24 +2454,27 @@ def _parliamentary_action_map(action_df: pd.DataFrame) -> go.Figure:
         "Investimento": "Investimento | poucas urnas + muitas emendas",
         "Reduto Desassistido": "Reduto desassistido | muitos votos + poucas emendas",
         "Sem Expressão": "Baixa expressão | poucos votos + poucas emendas",
-        "Sem emendas": "Sem emendas destinadas",
+        "Votos sem emendas": "Votos recebidos | nenhuma emenda",
+        "Sem votos nem emendas": "Sem votos e sem emendas",
     }
     category_order = [
         legend_labels["Reduto Atendido"],
         legend_labels["Investimento"],
         legend_labels["Reduto Desassistido"],
         legend_labels["Sem Expressão"],
-        legend_labels["Sem emendas"],
+        legend_labels["Votos sem emendas"],
+        legend_labels["Sem votos nem emendas"],
     ]
     category_colors = {
-        legend_labels["Reduto Atendido"]: "#16A34A",
-        legend_labels["Investimento"]: "#FACC15",
-        legend_labels["Reduto Desassistido"]: "#F97316",
-        legend_labels["Sem Expressão"]: "#94A3B8",
-        legend_labels["Sem emendas"]: "#FFFFFF",
+        legend_labels["Reduto Atendido"]: "#2563EB",
+        legend_labels["Investimento"]: "#16A34A",
+        legend_labels["Reduto Desassistido"]: "#FACC15",
+        legend_labels["Sem Expressão"]: "#F97316",
+        legend_labels["Votos sem emendas"]: "#64748B",
+        legend_labels["Sem votos nem emendas"]: "#FFFFFF",
     }
     plot_df = action_df.copy()
-    plot_df["categoria_legenda"] = plot_df["categoria_coerencia"].map(legend_labels).fillna(legend_labels["Sem emendas"])
+    plot_df["categoria_legenda"] = plot_df["categoria_coerencia"].map(legend_labels).fillna(legend_labels["Sem Expressão"])
     plot_df["categoria_indice"] = plot_df["categoria_legenda"].map(
         {label: index for index, label in enumerate(category_order)}
     )
@@ -2660,7 +2667,7 @@ def _render_parliamentary_action_section(
     )
     _section_header(
         "Coerência política territorial",
-        "Mapa único por categoria: verde atende redutos, amarelo indica investimento territorial, laranja marca reduto desassistido, cinza é baixa expressão e branco significa ausência de emendas.",
+        "Mapa por categoria: azul indica reduto atendido, verde indica investimento, amarelo marca reduto desassistido, laranja indica baixa expressão, cinza marca votos sem emendas e branco indica ausência de votos e emendas.",
     )
     action_df = _parliamentary_action_frame(votos_df, emendas_df)
     _render_parliamentary_action_kpis(action_df)
@@ -2754,8 +2761,8 @@ with col_right:
                 st.rerun()
 
 _render_accumulated_concentration_section(votos_municipio_df)
-despesas_campanha_df = _read_selected_parquet("despesas_campanha")
-_render_cost_efficiency_section(votos_municipio_df, despesas_campanha_df)
 emendas_legislativa_df = _read_selected_parquet("emendas_legislativa")
 _render_parliamentary_action_section(votos_municipio_df, emendas_legislativa_df)
+despesas_campanha_df = _read_selected_parquet("despesas_campanha")
+_render_cost_efficiency_section(votos_municipio_df, despesas_campanha_df)
 
