@@ -18,7 +18,7 @@ O app consome arquivos remotos do Hugging Face, configurados pelo `.env`, e apre
 - `pages/dna_distribution.py`: grafico de rosca e filtros da distribuicao demografica do eleitorado.
 - `pages/shared_header.py`: componente compartilhado de cabecalho, fundo, foto do candidato, seletor entre paginas e helpers visuais comuns.
 - `pages/dna_geo_reference.py`: carrega dos parquets a malha, os contornos e os codigos municipais de MG para os mapas do Raio X e do DNA Eleitoral.
-- As malhas dos mapas são GeoParquet oficiais do IBGE, lidos com `geopandas.read_parquet` pelo carregador compartilhado. Novos mapas devem usar `load_geo_layer()` com a granularidade correspondente.
+- As malhas dos mapas são GeoParquet lidos com `geopandas.read_parquet` pelo carregador compartilhado. O mapa de votação por bairro usa bairros OSM onde há cobertura e áreas ponderadas do IBGE nos demais municípios.
 - `hf_sync.py`: leitura de `.env`, listagem remota no Hugging Face, cache e mapeamento dos parquets por tipo.
 - `assets/background.png`: imagem de fundo usada no modelo visual.
 - `Visual.md`: briefing visual do produto, separado da documentacao tecnica.
@@ -63,10 +63,11 @@ O app localiza as pastas dos candidatos a partir do prefixo geral da eleicao, li
 - `IBGE/MG/dadosterritorio/MG_mesorregioes_2022.parquet`: contornos das mesorregioes e do estado.
 - `IBGE/MG/dadosterritorio/MG_AreaPonderada_CD2022.parquet`: 1.814 areas ponderadas.
 - `IBGE/MG/dadosterritorio/MG_bairros_CD2022.parquet`: 2.066 bairros.
+- `IBGE/MG/dadosterritorio/MG_bairros_osm_2022.parquet`: 723 polígonos de bairros OSM associados a 61 municípios; fonte primária do mapa de votação por bairro.
 - `IBGE/MG/dadosterritorio/MG_setores_CD2022.parquet`: 102.774 setores censitarios; carregamento sob demanda para futuros mapas nessa granularidade.
 - `IBGE/MG/dadosterritorio/municipios_mg_mesorregioes.parquet`: correspondencia entre codigos TSE e IBGE e classificacao por mesorregiao.
 
-`load_geo_layer()` lê a geometria e o CRS dos GeoParquets com GeoPandas e transforma as coordenadas para EPSG:4326, usado pelos mapas Plotly. Os mapas atuais usam a malha municipal oficial; a geometria e simplificada apenas para envio ao navegador, preservando os 853 municipios. Os contornos estaduais e das mesorregioes sao extraidos do parquet de mesorregioes. As malhas de bairros, areas ponderadas e setores estao disponiveis para mapas futuros na granularidade correspondente. Se a referencia remota falhar, o app informa a indisponibilidade em vez de exibir municipios ficticios.
+`load_geo_layer()` lê a geometria e o CRS dos GeoParquets com GeoPandas e transforma as coordenadas para EPSG:4326, usado pelos mapas Plotly. No mapa de votação por bairro, os municípios com bairros OSM usam esses polígonos e associam votos pelo nome normalizado. Os demais usam áreas ponderadas do IBGE e associam votos por `cd_area_ponderada`. Ao selecionar uma área, o perfil demográfico é filtrado pelos bairros eleitorais vinculados a ela. Os mapas municipais usam a malha oficial do IBGE; a geometria é simplificada apenas para envio ao navegador. Se a referência remota falhar, o app informa a indisponibilidade.
 
 ### Demografia
 
