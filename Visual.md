@@ -163,8 +163,9 @@ Permitir mergulho territorial e leitura do perfil estimado dos eleitores.
 Mapa de bairros:
 
 - contorno do municipio selecionado e poligonos oficiais de bairros do IBGE;
+- indicadores compactos no canto superior direito para votos do municipio e do bairro selecionado;
 - filtros encadeados de mesorregiao e municipio, iniciando na mesorregiao de maior votacao total do candidato e no municipio mais votado dentro dela;
-- escala logaritmica azul dos votos associados, do azul claro nos bairros com poucos votos ao azul escuro nos mais votados, com o numero de votos dentro dos poligonos;
+- escala azul suave dos votos associados, sem barra de cores ou numeros sobre os bairros; o total de votos aparece no hover;
 - selecao interativa;
 - recorte ativo persistente.
 

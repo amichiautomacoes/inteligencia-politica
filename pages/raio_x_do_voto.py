@@ -465,6 +465,30 @@ def _apply_visual_model() -> None:
             margin: 0.12rem 0 0.78rem 0;
             text-align: center;
         }}
+        .raiox-neighborhood-kpis {{
+            display: grid;
+            gap: 0.45rem;
+            max-width: 11rem;
+            margin-left: auto;
+        }}
+        .raiox-neighborhood-kpi {{
+            padding: 0.45rem 0.7rem;
+            border: 1px solid rgba(96, 165, 250, 0.28);
+            border-radius: 10px;
+            background: rgba(11, 31, 77, 0.76);
+            text-align: right;
+        }}
+        .raiox-neighborhood-kpi-label {{
+            color: #b7c7e6;
+            font-size: 0.72rem;
+            line-height: 1.2;
+        }}
+        .raiox-neighborhood-kpi-value {{
+            color: #f8fbff;
+            font-size: 1.35rem;
+            font-weight: 800;
+            line-height: 1.15;
+        }}
         .raiox-concentration-grid {{
             display: grid;
             grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1811,23 +1835,22 @@ def _neighborhood_map(df: pd.DataFrame, municipio: str) -> tuple[go.Figure | Non
     ]
     fig = go.Figure()
     if features:
-        tickvals, ticktext = _build_log_colorbar_ticks(float(neighborhoods["qt_votos"].max()))
         neighborhood_customdata = neighborhoods[
             ["name_neighborhood", "qt_votos", "nm_bairro", "cd_bairro", "cd_municipio"]
         ].fillna("").to_numpy()
         fig.add_trace(go.Choropleth(
             geojson={"type": "FeatureCollection", "features": features},
             locations=neighborhoods["bairro_id"], featureidkey="properties.id",
-            z=np.log10(neighborhoods["qt_votos"] + 1), zmin=0,
-            zmax=max(1, float(np.log10(neighborhoods["qt_votos"].max() + 1))),
+            z=np.sqrt(neighborhoods["qt_votos"]), zmin=0,
+            zmax=max(1, float(np.sqrt(neighborhoods["qt_votos"].max()))),
             colorscale=[
-                [0, "#f8fbff"], [0.02, "#dbeafe"], [0.3, "#93c5fd"],
-                [0.7, "#2563eb"], [1, "#0b1f4d"],
+                [0, "#f5f9ff"], [0.2, "#dceafb"], [0.5, "#b7d3f4"],
+                [0.8, "#80b2e9"], [1, "#4d8fd7"],
             ],
             marker_line_color="rgba(12,36,72,0.75)", marker_line_width=0.5,
             customdata=neighborhood_customdata,
             hovertemplate="<b>%{customdata[0]}</b><br>Votos associados: %{customdata[1]:,.0f}<extra></extra>",
-            colorbar={"title": "Votos", "tickvals": tickvals, "ticktext": ticktext},
+            showscale=False,
         ))
     boundary = municipality.geometry.boundary.simplify(0.0002, preserve_topology=True)
     boundary_lon, boundary_lat = _boundary_lines(boundary)
@@ -1835,16 +1858,6 @@ def _neighborhood_map(df: pd.DataFrame, municipio: str) -> tuple[go.Figure | Non
         lon=boundary_lon, lat=boundary_lat, mode="lines", hoverinfo="skip",
         line={"color": "#f8fbff", "width": 2}, showlegend=False,
     ))
-    if not neighborhoods.empty:
-        label_points = neighborhoods.geometry.representative_point()
-        vote_labels = neighborhoods["qt_votos"].round().astype(int)
-        dark_text = neighborhoods["qt_votos"].le(max(1, float(neighborhoods["qt_votos"].max()) ** 0.45))
-        fig.add_trace(go.Scattergeo(
-            lon=label_points.x, lat=label_points.y, mode="text",
-            text=vote_labels.map(_format_number), textposition="middle center",
-            textfont={"size": 9, "color": np.where(dark_text, "#0b1f4d", "#f8fbff")},
-            customdata=neighborhood_customdata, hoverinfo="skip", showlegend=False,
-        ))
     minx, miny, maxx, maxy = municipality.geometry.bounds
     pad_x, pad_y = max((maxx - minx) * 0.06, 0.005), max((maxy - miny) * 0.06, 0.005)
     fig.update_geos(
@@ -1917,6 +1930,40 @@ def _neighborhood_map_selection(event: object | None, fig: go.Figure) -> dict[st
         **({"cd_bairro": str(customdata[3])} if customdata[3] else {}),
         **({"cd_municipio": str(customdata[4])} if customdata[4] else {}),
     }
+
+
+def _neighborhood_vote_cards(
+    municipal_votes: pd.DataFrame | None,
+    neighborhood_votes: pd.DataFrame | None,
+    municipio: str,
+    context: dict[str, str],
+) -> str:
+    if municipio == "Todos" or neighborhood_votes is None or neighborhood_votes.empty:
+        return ""
+
+    municipal_rows = pd.DataFrame()
+    if municipal_votes is not None and not municipal_votes.empty and "nm_municipio" in municipal_votes.columns:
+        municipal_rows = municipal_votes[
+            municipal_votes["nm_municipio"].astype(str).str.strip().eq(municipio)
+        ]
+    vote_source = municipal_rows if not municipal_rows.empty else neighborhood_votes
+    city_votes = pd.to_numeric(vote_source["qt_votos"], errors="coerce").fillna(0).sum()
+    cards = [
+        f'<div class="raiox-neighborhood-kpi">'
+        f'<div class="raiox-neighborhood-kpi-label">Votos no município</div>'
+        f'<div class="raiox-neighborhood-kpi-value">{_format_number(city_votes)}</div>'
+        f'</div>'
+    ]
+    if context.get("nm_bairro"):
+        selected_rows = _apply_territorial_context(neighborhood_votes, context, "Todas", municipio)
+        neighborhood_total = pd.to_numeric(selected_rows["qt_votos"], errors="coerce").fillna(0).sum()
+        cards.append(
+            f'<div class="raiox-neighborhood-kpi">'
+            f'<div class="raiox-neighborhood-kpi-label">Votos em {html.escape(context["nm_bairro"])}</div>'
+            f'<div class="raiox-neighborhood-kpi-value">{_format_number(neighborhood_total)}</div>'
+            f'</div>'
+        )
+    return '<div class="raiox-neighborhood-kpis">' + "".join(cards) + "</div>"
 
 
 def _apply_territorial_context(
@@ -2863,10 +2910,19 @@ st.session_state["pagina1_demographic_filter_context"] = current_filters
 col_left, col_right = st.columns(2, gap="large")
 with col_left:
     with st.container(border=True):
-        st.markdown(
-            "<div class='raiox-chart-card-title'>Votação por bairro no município</div>",
-            unsafe_allow_html=True,
-        )
+        title_col, cards_col = st.columns([0.56, 0.44], gap="small")
+        with title_col:
+            st.markdown(
+                "<div class='raiox-chart-card-title'>Votação por bairro no município</div>",
+                unsafe_allow_html=True,
+            )
+        with cards_col:
+            cards_html = _neighborhood_vote_cards(
+                votos_municipio_df, neighborhood_df, municipio,
+                _section_context(DEMOGRAPHIC_CONTEXT_KEY),
+            )
+            if cards_html:
+                st.markdown(cards_html, unsafe_allow_html=True)
         neighborhood_fig, map_note = _neighborhood_map(neighborhood_df, municipio)
         if neighborhood_fig is not None:
             map_event = st.plotly_chart(

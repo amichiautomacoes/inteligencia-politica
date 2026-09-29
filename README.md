@@ -155,7 +155,8 @@ Esta secao traz:
 - filtro de mesorregiao;
 - filtro de municipio abaixo do filtro de mesorregiao; a mesorregiao inicial e a de maior votacao total do candidato, e o municipio inicial e o mais votado dentro dela;
 - mapa do municipio selecionado com contorno municipal e malha oficial de bairros do IBGE;
-- bairros coloridos por escala logaritmica azul conforme os votos associados, com o numero de votos dentro de cada poligono; bairros sem correspondencia de votos permanecem visiveis com zero;
+- dois indicadores compactos no canto superior direito do card: votos do municipio e, quando houver selecao, votos do bairro;
+- bairros coloridos por uma escala azul suave conforme os votos associados, sem barra de cores ou numeros sobre os poligonos; o total aparece no hover e bairros sem correspondencia permanecem visiveis com zero;
 - selecao interativa de bairro no mapa para recortar o perfil demografico;
 - persistencia do recorte da secao em `st.session_state["pagina1_demographic_territorial_context"]`;
 - botao para limpar o recorte territorial ativo;
