@@ -12,7 +12,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from hf_sync import data_files, file_by_kind, hf_filesystem, load_env, load_parquet, selected_deputado_files
-from pages.dna_geo_reference import load_geo_reference
+from pages.dna_geo_reference import load_geo_layer, load_geo_reference
 from pages.shared_header import render_page_header
 
 try:
@@ -24,7 +24,6 @@ except Exception:
 ASSET_DIR = Path(__file__).resolve().parents[1] / "assets"
 BACKGROUND_PATH = ASSET_DIR / "background.png"
 DEMOGRAPHIC_CONTEXT_KEY = "pagina1_demographic_territorial_context"
-TREEMAP_SELECTION_KEY = "pagina1_treemap_territorial"
 EXPENSE_TREEMAP_KEY = "pagina1_treemap_despesas"
 EXPENSE_SELECTION_KEY = "pagina1_tipo_despesa_selecionado"
 EXPENSE_TREEMAP_REVISION_KEY = "pagina1_treemap_despesas_revisao"
@@ -1445,28 +1444,64 @@ def _render_kpis(
     )
 
 
-def _mesorregiao_filter(df: pd.DataFrame | None) -> tuple[pd.DataFrame | None, str]:
-    if df is None or df.empty or "nm_mesorregiao" not in df.columns:
-        return df, "Todas"
+def _mesorregiao_filter(
+    df: pd.DataFrame | None, municipal_votes: pd.DataFrame | None = None
+) -> tuple[pd.DataFrame | None, str, str]:
+    if df is None or df.empty:
+        return df, "Todas", "Todos"
 
-    options = (
-        df["nm_mesorregiao"]
-        .dropna()
-        .astype(str)
-        .str.strip()
-        .loc[lambda values: values.ne("")]
-        .drop_duplicates()
-        .sort_values()
-        .tolist()
-    )
-    selected = st.selectbox(
-        "Mesorregião",
-        ["Todas", *options],
-        key="pagina1_mesorregiao",
-    )
-    if selected == "Todas":
-        return df, selected
-    return df[df["nm_mesorregiao"].astype(str).str.strip() == selected].copy(), selected
+    votes = municipal_votes if municipal_votes is not None and not municipal_votes.empty else df
+    votes = votes.copy()
+    if "qt_votos" in votes.columns:
+        votes["qt_votos"] = pd.to_numeric(votes["qt_votos"], errors="coerce").fillna(0)
+    top_cities = (
+        votes.groupby(["nm_mesorregiao", "nm_municipio"], as_index=False)["qt_votos"]
+        .sum()
+        .sort_values(["qt_votos", "nm_mesorregiao", "nm_municipio"], ascending=[False, True, True])
+    ) if {"nm_mesorregiao", "nm_municipio", "qt_votos"}.issubset(votes.columns) else pd.DataFrame()
+    meso_options = sorted(
+        df["nm_mesorregiao"].dropna().astype(str).str.strip().loc[lambda s: s.ne("")].unique()
+    ) if "nm_mesorregiao" in df.columns else []
+    top_cities = top_cities[
+        top_cities["nm_mesorregiao"].isin(meso_options)
+    ] if not top_cities.empty else top_cities
+    if not top_cities.empty:
+        meso_totals = (
+            top_cities.groupby("nm_mesorregiao", as_index=False)["qt_votos"]
+            .sum()
+            .sort_values(["qt_votos", "nm_mesorregiao"], ascending=[False, True])
+        )
+        default_meso = str(meso_totals.iloc[0]["nm_mesorregiao"])
+    else:
+        default_meso = "Todas"
+    meso_choices = ["Todas", *meso_options]
+    candidate_key = st.session_state.get("selected_deputado_key")
+    if st.session_state.get("pagina1_demographic_candidate_key") != candidate_key:
+        st.session_state["pagina1_demographic_candidate_key"] = candidate_key
+        st.session_state["pagina1_mesorregiao"] = default_meso
+        st.session_state.pop("pagina1_municipio", None)
+    if st.session_state.get("pagina1_mesorregiao") not in meso_choices:
+        st.session_state["pagina1_mesorregiao"] = default_meso
+    mesorregiao = st.selectbox("Mesorregião", meso_choices, key="pagina1_mesorregiao")
+    filtered = df if mesorregiao == "Todas" else df[
+        df["nm_mesorregiao"].astype(str).str.strip().eq(mesorregiao)
+    ].copy()
+
+    city_options = sorted(
+        filtered["nm_municipio"].dropna().astype(str).str.strip().loc[lambda s: s.ne("")].unique()
+    ) if "nm_municipio" in filtered.columns else []
+    city_choices = ["Todos", *city_options]
+    eligible_cities = top_cities[
+        top_cities["nm_mesorregiao"].eq(mesorregiao)
+    ] if mesorregiao != "Todas" else top_cities
+    eligible_cities = eligible_cities[eligible_cities["nm_municipio"].isin(city_options)]
+    default_city = str(eligible_cities.iloc[0]["nm_municipio"]) if not eligible_cities.empty else "Todos"
+    if st.session_state.get("pagina1_municipio") not in city_choices:
+        st.session_state["pagina1_municipio"] = default_city
+    municipio = st.selectbox("Município", city_choices, key="pagina1_municipio")
+    if municipio != "Todos":
+        filtered = filtered[filtered["nm_municipio"].astype(str).str.strip().eq(municipio)].copy()
+    return filtered, mesorregiao, municipio
 
 
 def _territorial_map(df: pd.DataFrame | None) -> go.Figure:
@@ -1731,92 +1766,111 @@ def _territorial_map(df: pd.DataFrame | None) -> go.Figure:
     return fig
 
 
-def _territorial_treemap(df: pd.DataFrame | None) -> tuple[go.Figure, pd.DataFrame]:
-    if df is None or df.empty or "qt_votos" not in df.columns:
-        return _empty_treemap("Votação territorial"), pd.DataFrame()
+def _neighborhood_map(df: pd.DataFrame, municipio: str) -> tuple[go.Figure | None, str | None]:
+    if municipio == "Todos" or df is None or df.empty:
+        return None, "Selecione um município com votos para ver o mapa de bairros."
+    try:
+        municipalities = load_geo_layer("municipio")
+        neighborhoods = load_geo_layer("bairro")
+    except Exception as exc:
+        return None, f"Não foi possível carregar a malha oficial do IBGE: {exc}"
 
-    group_cols = [col for col in ("nm_municipio", "nm_bairro") if col in df.columns]
-    if not group_cols:
-        return _empty_treemap("Votação territorial"), pd.DataFrame()
+    municipality_code = None
+    if "cd_ibge_municipio" in df.columns:
+        codes = pd.to_numeric(df["cd_ibge_municipio"], errors="coerce").dropna()
+        if not codes.empty:
+            municipality_code = int(codes.mode().iloc[0])
+    if municipality_code is None:
+        matching = municipalities[
+            municipalities["name_muni"].map(_normalize_municipio_name).eq(_normalize_municipio_name(municipio))
+        ]
+    else:
+        matching = municipalities[pd.to_numeric(municipalities["code_muni"], errors="coerce").eq(municipality_code)]
+    if matching.empty:
+        return None, "O município selecionado não foi encontrado na malha oficial do IBGE."
 
-    tree_df = df.copy()
-    tree_df["qt_votos"] = pd.to_numeric(tree_df["qt_votos"], errors="coerce").fillna(0)
-    for col in group_cols:
-        tree_df[col] = tree_df[col].fillna("Nao informado").astype(str).str.strip()
-        tree_df.loc[tree_df[col].eq(""), col] = "Nao informado"
+    municipality = matching.iloc[0]
+    municipality_code = int(municipality["code_muni"])
+    neighborhoods = neighborhoods[
+        pd.to_numeric(neighborhoods["code_muni"], errors="coerce").eq(municipality_code)
+    ].copy()
+    neighborhoods["bairro_norm"] = neighborhoods["name_neighborhood"].map(_normalize_municipio_name)
+    neighborhoods["bairro_id"] = pd.to_numeric(neighborhoods["code_neighborhood"], errors="coerce").astype("Int64").astype(str)
 
-    code_cols = [col for col in ("cd_municipio", "cd_bairro") if col in tree_df.columns]
-    agg_map = {"qt_votos": "sum", **{col: "first" for col in code_cols}}
-    tree_df = (
-        tree_df.groupby(group_cols, as_index=False)
-        .agg(agg_map)
-        .sort_values("qt_votos", ascending=False)
-        .head(500)
+    votes = df.copy()
+    votes["bairro_norm"] = votes["nm_bairro"].map(_normalize_municipio_name)
+    votes["qt_votos"] = pd.to_numeric(votes["qt_votos"], errors="coerce").fillna(0)
+    vote_columns = [column for column in ("nm_bairro", "cd_bairro", "cd_municipio") if column in votes.columns]
+    votes = votes.groupby("bairro_norm", as_index=False).agg({"qt_votos": "sum", **{column: "first" for column in vote_columns}})
+    neighborhoods = neighborhoods.merge(votes, on="bairro_norm", how="left")
+    neighborhoods["qt_votos"] = neighborhoods["qt_votos"].fillna(0)
+    features = [
+        {"type": "Feature", "properties": {"id": row.bairro_id},
+         "geometry": row.geometry.simplify(0.0002, preserve_topology=True).__geo_interface__}
+        for row in neighborhoods.itertuples(index=False)
+    ]
+    fig = go.Figure()
+    if features:
+        tickvals, ticktext = _build_log_colorbar_ticks(float(neighborhoods["qt_votos"].max()))
+        neighborhood_customdata = neighborhoods[
+            ["name_neighborhood", "qt_votos", "nm_bairro", "cd_bairro", "cd_municipio"]
+        ].fillna("").to_numpy()
+        fig.add_trace(go.Choropleth(
+            geojson={"type": "FeatureCollection", "features": features},
+            locations=neighborhoods["bairro_id"], featureidkey="properties.id",
+            z=np.log10(neighborhoods["qt_votos"] + 1), zmin=0,
+            zmax=max(1, float(np.log10(neighborhoods["qt_votos"].max() + 1))),
+            colorscale=[
+                [0, "#f8fbff"], [0.02, "#dbeafe"], [0.3, "#93c5fd"],
+                [0.7, "#2563eb"], [1, "#0b1f4d"],
+            ],
+            marker_line_color="rgba(12,36,72,0.75)", marker_line_width=0.5,
+            customdata=neighborhood_customdata,
+            hovertemplate="<b>%{customdata[0]}</b><br>Votos associados: %{customdata[1]:,.0f}<extra></extra>",
+            colorbar={"title": "Votos", "tickvals": tickvals, "ticktext": ticktext},
+        ))
+    boundary = municipality.geometry.boundary.simplify(0.0002, preserve_topology=True)
+    boundary_lon, boundary_lat = _boundary_lines(boundary)
+    fig.add_trace(go.Scattergeo(
+        lon=boundary_lon, lat=boundary_lat, mode="lines", hoverinfo="skip",
+        line={"color": "#f8fbff", "width": 2}, showlegend=False,
+    ))
+    if not neighborhoods.empty:
+        label_points = neighborhoods.geometry.representative_point()
+        vote_labels = neighborhoods["qt_votos"].round().astype(int)
+        dark_text = neighborhoods["qt_votos"].le(max(1, float(neighborhoods["qt_votos"].max()) ** 0.45))
+        fig.add_trace(go.Scattergeo(
+            lon=label_points.x, lat=label_points.y, mode="text",
+            text=vote_labels.map(_format_number), textposition="middle center",
+            textfont={"size": 9, "color": np.where(dark_text, "#0b1f4d", "#f8fbff")},
+            customdata=neighborhood_customdata, hoverinfo="skip", showlegend=False,
+        ))
+    minx, miny, maxx, maxy = municipality.geometry.bounds
+    pad_x, pad_y = max((maxx - minx) * 0.06, 0.005), max((maxy - miny) * 0.06, 0.005)
+    fig.update_geos(
+        lonaxis_range=[minx - pad_x, maxx + pad_x], lataxis_range=[miny - pad_y, maxy + pad_y],
+        visible=False, bgcolor="rgba(0,0,0,0)", projection_type="mercator",
     )
-    if tree_df.empty:
-        return _empty_treemap("Votação territorial"), pd.DataFrame()
-
-    fig = px.treemap(tree_df, path=group_cols, values="qt_votos")
-    code_lookup: dict[tuple[str, str], dict[str, str]] = {}
-    for row in tree_df.to_dict("records"):
-        municipio = str(row.get("nm_municipio") or "")
-        bairro = str(row.get("nm_bairro") or "")
-        code_lookup[(municipio, bairro)] = {
-            col: str(row.get(col) or "")
-            for col in code_cols
-        }
-
-    customdata = []
-    ids = []
-    for trace_id, label, parent in zip(fig.data[0].ids, fig.data[0].labels, fig.data[0].parents):
-        parts = str(trace_id).split("/")
-        municipio = parts[0] if parts else ""
-        bairro = parts[1] if len(parts) > 1 else ""
-        codes = code_lookup.get((municipio, bairro), {})
-        ids.append(str(trace_id))
-        customdata.append(
-            [
-                municipio,
-                bairro,
-                codes.get("cd_municipio", ""),
-                codes.get("cd_bairro", ""),
-                str(label),
-                str(parent),
-            ]
-        )
-    fig.update_traces(
-        ids=ids,
-        customdata=customdata,
-        hovertemplate="<b>%{label}</b><br>Votos: %{value:,.0f}<extra></extra>",
-    )
-    fig.update_layout(
-        height=500,
-        margin={"l": 8, "r": 8, "t": 8, "b": 8},
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        font={"color": "#eaf2ff"},
-    )
-    return fig, tree_df
+    fig.update_layout(height=500, margin={"l": 8, "r": 8, "t": 8, "b": 8},
+                      paper_bgcolor="rgba(0,0,0,0)", font={"color": "#eaf2ff"})
+    if neighborhoods.empty:
+        return fig, "O IBGE não disponibiliza bairros nesta malha para o município selecionado; o contorno municipal está exibido."
+    unmatched_votes = votes.loc[~votes["bairro_norm"].isin(neighborhoods["bairro_norm"]), "qt_votos"].sum()
+    note = (f"{_format_number(unmatched_votes)} votos de bairros não puderam ser associados à malha oficial."
+            if unmatched_votes > 0 else None)
+    return fig, note
 
 
-def _empty_treemap(title: str) -> go.Figure:
-    df = pd.DataFrame(
-        {
-            "grupo": ["Parquet pendente", "Parquet pendente", "Parquet pendente"],
-            "item": ["Recorte A", "Recorte B", "Recorte C"],
-            "valor": [45, 32, 23],
-        }
-    )
-    fig = px.treemap(df, path=["grupo", "item"], values="valor", title=title)
-    fig.update_layout(
-        height=500,
-        margin={"l": 8, "r": 8, "t": 46, "b": 8},
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        font={"color": "#eaf2ff"},
-        title={"font": {"size": 18, "color": "#eaf2ff"}},
-    )
-    return fig
+def _boundary_lines(boundary: object) -> tuple[list[float | None], list[float | None]]:
+    lon: list[float | None] = []
+    lat: list[float | None] = []
+    for part in getattr(boundary, "geoms", [boundary]):
+        for x, y in part.coords:
+            lon.append(float(x))
+            lat.append(float(y))
+        lon.append(None)
+        lat.append(None)
+    return lon, lat
 
 
 def _demographic_label(column: str, prefix: str) -> str:
@@ -1824,7 +1878,7 @@ def _demographic_label(column: str, prefix: str) -> str:
     return label.title() if label else column
 
 
-def _treemap_selection(event: object | None) -> dict[str, str]:
+def _neighborhood_map_selection(event: object | None, fig: go.Figure) -> dict[str, str]:
     if not event:
         return {}
     if hasattr(event, "selection"):
@@ -1842,43 +1896,37 @@ def _treemap_selection(event: object | None) -> dict[str, str]:
         return {}
 
     point = points[0]
-    if isinstance(point, dict):
-        customdata = point.get("customdata")
-        label = str(point.get("label") or "")
-        parent = str(point.get("parent") or "")
-    else:
-        customdata = getattr(point, "customdata", None)
-        label = str(getattr(point, "label", "") or "")
-        parent = str(getattr(point, "parent", "") or "")
+    customdata = point.get("customdata") if isinstance(point, dict) else getattr(point, "customdata", None)
     if customdata is None:
-        customdata = []
-    if len(customdata) >= 4:
-        municipio = str(customdata[0] or "")
-        bairro = str(customdata[1] or "")
-        cd_municipio = str(customdata[2] or "")
-        cd_bairro = str(customdata[3] or "")
-    else:
-        municipio = parent or label
-        bairro = "" if not parent else label
-        cd_municipio = ""
-        cd_bairro = ""
-
-    selection: dict[str, str] = {}
-    if cd_municipio:
-        selection["cd_municipio"] = cd_municipio
-    if cd_bairro:
-        selection["cd_bairro"] = cd_bairro
-    if municipio:
-        selection["nm_municipio"] = municipio
-    if bairro:
-        selection["nm_bairro"] = bairro
-    return selection
+        location = point.get("location") if isinstance(point, dict) else getattr(point, "location", None)
+        if location is not None and fig.data:
+            locations = list(fig.data[0].locations)
+            if str(location) in locations:
+                customdata = fig.data[0].customdata[locations.index(str(location))]
+    if customdata is None:
+        point_index = point.get("point_index") if isinstance(point, dict) else getattr(point, "point_index", None)
+        curve_number = point.get("curve_number") if isinstance(point, dict) else getattr(point, "curve_number", 0)
+        if point_index is not None and curve_number is not None:
+            trace = fig.data[int(curve_number)]
+            if getattr(trace, "customdata", None) is not None and int(point_index) < len(trace.customdata):
+                customdata = trace.customdata[int(point_index)]
+    if customdata is None or len(customdata) < 5 or not customdata[2]:
+        return {}
+    return {
+        "nm_bairro": str(customdata[2]),
+        **({"cd_bairro": str(customdata[3])} if customdata[3] else {}),
+        **({"cd_municipio": str(customdata[4])} if customdata[4] else {}),
+    }
 
 
-def _apply_territorial_context(df: pd.DataFrame, context: dict[str, str], mesorregiao: str) -> pd.DataFrame:
+def _apply_territorial_context(
+    df: pd.DataFrame, context: dict[str, str], mesorregiao: str, municipio: str = "Todos"
+) -> pd.DataFrame:
     result = df.copy()
     if mesorregiao != "Todas" and "nm_mesorregiao" in result.columns:
         result = result[result["nm_mesorregiao"].astype(str).str.strip() == mesorregiao]
+    if municipio != "Todos" and "nm_municipio" in result.columns:
+        result = result[result["nm_municipio"].astype(str).str.strip() == municipio]
     for column in ("cd_municipio", "cd_bairro", "nm_municipio", "nm_bairro"):
         value = context.get(column)
         if column in result.columns and value:
@@ -1918,7 +1966,7 @@ def _context_label(context: dict[str, str]) -> str:
     return context.get("nm_bairro") or context.get("nm_municipio") or "recorte selecionado"
 
 
-def _demographic_bar(kind: str, context: dict[str, str], mesorregiao: str) -> go.Figure:
+def _demographic_bar(kind: str, context: dict[str, str], mesorregiao: str, municipio: str = "Todos") -> go.Figure:
     df = _read_selected_parquet(kind)
     prefix_by_kind = {
         "genero": "pct_genero_",
@@ -1931,7 +1979,7 @@ def _demographic_bar(kind: str, context: dict[str, str], mesorregiao: str) -> go
     if df is None or df.empty:
         bar_df = pd.DataFrame({"categoria": ["Parquet pendente"], "percentual": [0.0]})
     else:
-        df = _apply_territorial_context(df, context, mesorregiao)
+        df = _apply_territorial_context(df, context, mesorregiao, municipio)
         value_cols = [col for col in df.columns if col.startswith(prefix)]
         if value_cols:
             weight_col = "QT_VOTOS_TOTAL" if "QT_VOTOS_TOTAL" in df.columns else "qt_votos"
@@ -2802,27 +2850,37 @@ with concentration_col:
         )
 _section_header(
     "Votação por Bairro de cada município e Perfil demográfico",
-    "Treemap territorial e distribuição demográfica conforme parquet selecionado.",
+    "Malha oficial de bairros do IBGE e distribuição demográfica no município selecionado.",
 )
-treemap_df, mesorregiao = _mesorregiao_filter(votos_bairro_df)
+neighborhood_df, mesorregiao, municipio = _mesorregiao_filter(votos_bairro_df, votos_municipio_df)
+current_filters = (mesorregiao, municipio)
+if st.session_state.get("pagina1_demographic_filter_context") not in (None, current_filters):
+    _clear_section_context(DEMOGRAPHIC_CONTEXT_KEY)
+    st.session_state["pagina1_bairro_mapa_revisao"] = (
+        st.session_state.get("pagina1_bairro_mapa_revisao", 0) + 1
+    )
+st.session_state["pagina1_demographic_filter_context"] = current_filters
 col_left, col_right = st.columns(2, gap="large")
 with col_left:
     with st.container(border=True):
         st.markdown(
-            "<div class='raiox-chart-card-title'>Votação por Município e Bairro</div>",
+            "<div class='raiox-chart-card-title'>Votação por bairro no município</div>",
             unsafe_allow_html=True,
         )
-        treemap_fig, _ = _territorial_treemap(treemap_df)
-        treemap_event = st.plotly_chart(
-            treemap_fig,
-            use_container_width=True,
-            key=TREEMAP_SELECTION_KEY,
-            on_select="rerun",
-            selection_mode="points",
-        )
-        selected_context = _treemap_selection(treemap_event)
-        if selected_context and _set_section_context(DEMOGRAPHIC_CONTEXT_KEY, selected_context):
-            st.rerun()
+        neighborhood_fig, map_note = _neighborhood_map(neighborhood_df, municipio)
+        if neighborhood_fig is not None:
+            map_event = st.plotly_chart(
+                neighborhood_fig,
+                use_container_width=True,
+                key=f"pagina1_bairro_mapa_{st.session_state.get('pagina1_bairro_mapa_revisao', 0)}",
+                on_select="rerun",
+                selection_mode="points",
+            )
+            selected_context = _neighborhood_map_selection(map_event, neighborhood_fig)
+            if selected_context and _set_section_context(DEMOGRAPHIC_CONTEXT_KEY, selected_context):
+                st.rerun()
+        if map_note:
+            st.caption(map_note)
         demographic_context = _section_context(DEMOGRAPHIC_CONTEXT_KEY)
 with col_right:
     with st.container(border=True):
@@ -2842,12 +2900,18 @@ with col_right:
             )
             st.markdown("</div>", unsafe_allow_html=True)
         demographic_context = _section_context(DEMOGRAPHIC_CONTEXT_KEY)
-        st.plotly_chart(_demographic_bar(perfil_kind, demographic_context, mesorregiao), use_container_width=True)
+        st.plotly_chart(
+            _demographic_bar(perfil_kind, demographic_context, mesorregiao, municipio),
+            use_container_width=True,
+        )
         if demographic_context:
             label = _context_label(demographic_context)
             st.caption(f"Recorte territorial ativo: {label}")
             if st.button("Limpar recorte territorial", key="pagina1_clear_territorial_context"):
                 _clear_section_context(DEMOGRAPHIC_CONTEXT_KEY)
+                st.session_state["pagina1_bairro_mapa_revisao"] = (
+                    st.session_state.get("pagina1_bairro_mapa_revisao", 0) + 1
+                )
                 st.rerun()
 
 _render_accumulated_concentration_section(votos_municipio_df)

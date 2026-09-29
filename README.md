@@ -18,6 +18,7 @@ O app consome arquivos remotos do Hugging Face, configurados pelo `.env`, e apre
 - `pages/dna_distribution.py`: grafico de rosca e filtros da distribuicao demografica do eleitorado.
 - `pages/shared_header.py`: componente compartilhado de cabecalho, fundo, foto do candidato, seletor entre paginas e helpers visuais comuns.
 - `pages/dna_geo_reference.py`: carrega dos parquets a malha, os contornos e os codigos municipais de MG para os mapas do Raio X e do DNA Eleitoral.
+- As malhas dos mapas são GeoParquet oficiais do IBGE, lidos com `geopandas.read_parquet` pelo carregador compartilhado. Novos mapas devem usar `load_geo_layer()` com a granularidade correspondente.
 - `hf_sync.py`: leitura de `.env`, listagem remota no Hugging Face, cache e mapeamento dos parquets por tipo.
 - `assets/background.png`: imagem de fundo usada no modelo visual.
 - `Visual.md`: briefing visual do produto, separado da documentacao tecnica.
@@ -54,15 +55,18 @@ O app localiza as pastas dos candidatos a partir do prefixo geral da eleicao, li
 
 - `territorio/stage01b_bairros.parquet`
   - usado em `votos_bairro`;
-  - alimenta o treemap de municipio/bairro e o filtro de mesorregiao.
+  - alimenta o mapa de votos por bairro e os filtros encadeados de mesorregiao e municipio.
 
 ### Referencia geografica de MG
 
 - `IBGE/MG/dadosterritorio/MG_municipios_2022.parquet`: geometria dos 853 municipios.
 - `IBGE/MG/dadosterritorio/MG_mesorregioes_2022.parquet`: contornos das mesorregioes e do estado.
+- `IBGE/MG/dadosterritorio/MG_AreaPonderada_CD2022.parquet`: 1.814 areas ponderadas.
+- `IBGE/MG/dadosterritorio/MG_bairros_CD2022.parquet`: 2.066 bairros.
+- `IBGE/MG/dadosterritorio/MG_setores_CD2022.parquet`: 102.774 setores censitarios; carregamento sob demanda para futuros mapas nessa granularidade.
 - `IBGE/MG/dadosterritorio/municipios_mg_mesorregioes.parquet`: correspondencia entre codigos TSE e IBGE e classificacao por mesorregiao.
 
-Esses arquivos alimentam os mapas municipais do Raio X e do DNA Eleitoral. A geometria municipal e simplificada antes de ser enviada ao navegador, preservando os 853 municipios. Os contornos estaduais e das mesorregioes sao extraidos do parquet de mesorregioes. Se a referencia remota falhar, o app informa a indisponibilidade em vez de exibir municipios ficticios.
+`load_geo_layer()` lê a geometria e o CRS dos GeoParquets com GeoPandas e transforma as coordenadas para EPSG:4326, usado pelos mapas Plotly. Os mapas atuais usam a malha municipal oficial; a geometria e simplificada apenas para envio ao navegador, preservando os 853 municipios. Os contornos estaduais e das mesorregioes sao extraidos do parquet de mesorregioes. As malhas de bairros, areas ponderadas e setores estao disponiveis para mapas futuros na granularidade correspondente. Se a referencia remota falhar, o app informa a indisponibilidade em vez de exibir municipios ficticios.
 
 ### Demografia
 
@@ -71,7 +75,7 @@ Esses arquivos alimentam os mapas municipais do Raio X e do DNA Eleitoral. A geo
 - `demografico/stage02_escolaridade.parquet`
 - `demografico/stage02_estado_civil.parquet`
 
-Esses arquivos alimentam o grafico de perfil demografico do Raio X, recortado por mesorregiao e pela selecao ativa do treemap, e a rosca de distribuicao demografica do DNA Eleitoral.
+Esses arquivos alimentam o grafico de perfil demografico do Raio X, recortado por mesorregiao, municipio e pela selecao ativa do mapa de bairros, e a rosca de distribuicao demografica do DNA Eleitoral.
 
 ### Censo para a Matriz de Potencial Demografico
 
@@ -149,8 +153,10 @@ Cruza o territorio selecionado com o perfil demografico estimado dos eleitores.
 Esta secao traz:
 
 - filtro de mesorregiao;
-- treemap de votacao por municipio e bairro;
-- selecao interativa no treemap;
+- filtro de municipio abaixo do filtro de mesorregiao; a mesorregiao inicial e a de maior votacao total do candidato, e o municipio inicial e o mais votado dentro dela;
+- mapa do municipio selecionado com contorno municipal e malha oficial de bairros do IBGE;
+- bairros coloridos por escala logaritmica azul conforme os votos associados, com o numero de votos dentro de cada poligono; bairros sem correspondencia de votos permanecem visiveis com zero;
+- selecao interativa de bairro no mapa para recortar o perfil demografico;
 - persistencia do recorte da secao em `st.session_state["pagina1_demographic_territorial_context"]`;
 - botao para limpar o recorte territorial ativo;
 - grafico de barras do perfil demografico, com filtros por:
@@ -317,7 +323,7 @@ As transformacoes visuais sao recalculadas em reruns, mas a leitura remota dos a
 
 ## Estado interativo
 
-O recorte territorial selecionado no treemap e persistido apenas na secao de demografia em:
+O recorte territorial selecionado no mapa de bairros e persistido apenas na secao de demografia em:
 
 ```python
 st.session_state["pagina1_demographic_territorial_context"]
@@ -327,6 +333,8 @@ Esse contexto e usado para recalcular apenas:
 
 - grafico demografico;
 - legenda do recorte ativo.
+
+Os filtros de mesorregiao e municipio limitam o mapa de bairros e o grafico demografico. Alterar qualquer um deles limpa a selecao anterior de bairro.
 
 Os demais filtros e selecoes ficam restritos as suas proprias secoes.
 

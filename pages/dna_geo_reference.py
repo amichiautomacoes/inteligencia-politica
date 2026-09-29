@@ -1,12 +1,38 @@
 import unicodedata
 
+import geopandas as gpd
 import pandas as pd
 import streamlit as st
-from shapely import wkb
 from shapely.geometry import mapping
 from shapely.ops import unary_union
 
 from hf_sync import hf_filesystem, load_env
+
+
+GEOGRAPHY_FILES = {
+    "municipio": "MG_municipios_2022.parquet",
+    "mesorregiao": "MG_mesorregioes_2022.parquet",
+    "area_ponderada": "MG_AreaPonderada_CD2022.parquet",
+    "bairro": "MG_bairros_CD2022.parquet",
+    "setor": "MG_setores_CD2022.parquet",
+}
+
+
+@st.cache_data(show_spinner=False)
+def load_geo_layer(granularity: str) -> gpd.GeoDataFrame:
+    """Read an official IBGE GeoParquet layer, preserving its CRS and geometry."""
+    if granularity not in GEOGRAPHY_FILES:
+        raise ValueError(f"Granularidade geográfica desconhecida: {granularity}")
+    env = load_env()
+    bucket_url = env.get("HF_BUCKET_URL", "").rstrip("/")
+    if not bucket_url:
+        raise RuntimeError("HF_BUCKET_URL não foi configurado.")
+    path = f"{bucket_url}/IBGE/MG/dadosterritorio/{GEOGRAPHY_FILES[granularity]}"
+    with hf_filesystem(env.get("HF_TOKEN")).open(path, "rb") as source:
+        layer = gpd.read_parquet(source)
+    if layer.crs is None:
+        raise ValueError(f"A malha {path} não informa o sistema de coordenadas.")
+    return layer.to_crs("EPSG:4326")
 
 
 @st.cache_data(show_spinner=False)
@@ -16,15 +42,12 @@ def load_geo_reference() -> tuple[dict | None, pd.DataFrame | None, pd.DataFrame
     if not bucket_url:
         return None, None, None, None
 
-    remote_base = f"{bucket_url}/IBGE/MG/dadosterritorio"
     fs = hf_filesystem(env.get("HF_TOKEN"))
     try:
-        with fs.open(f"{remote_base}/MG_municipios_2022.parquet", "rb") as source:
-            municipalities = pd.read_parquet(source, columns=["code_muni", "name_muni", "geometry"])
-        with fs.open(f"{remote_base}/municipios_mg_mesorregioes.parquet", "rb") as source:
+        municipalities = load_geo_layer("municipio")[["code_muni", "name_muni", "geometry"]]
+        mesoregions = load_geo_layer("mesorregiao")[["geometry"]]
+        with fs.open(f"{bucket_url}/IBGE/MG/dadosterritorio/municipios_mg_mesorregioes.parquet", "rb") as source:
             reference = pd.read_parquet(source)
-        with fs.open(f"{remote_base}/MG_mesorregioes_2022.parquet", "rb") as source:
-            mesoregions = pd.read_parquet(source, columns=["geometry"])
     except Exception as exc:
         st.warning(f"Não foi possível carregar a malha municipal de MG: {exc}")
         return None, None, None, None
@@ -34,7 +57,7 @@ def load_geo_reference() -> tuple[dict | None, pd.DataFrame | None, pd.DataFrame
     features = []
     coordinates = []
     for row in municipalities.itertuples(index=False):
-        geometry = wkb.loads(row.geometry)
+        geometry = row.geometry
         municipality_id = str(int(row.codigo_ibge))
         features.append({
             "type": "Feature",
@@ -43,7 +66,7 @@ def load_geo_reference() -> tuple[dict | None, pd.DataFrame | None, pd.DataFrame
         })
         point = geometry.representative_point()
         coordinates.append((int(row.codigo_ibge), row.name_muni, point.y, point.x))
-    region_geometries = [wkb.loads(value) for value in mesoregions["geometry"].dropna()]
+    region_geometries = list(mesoregions.geometry.dropna())
     geojson_mg = {
         "type": "FeatureCollection",
         "features": features,

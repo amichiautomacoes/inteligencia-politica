@@ -67,7 +67,7 @@ Esse modelo vale para:
 - KPIs;
 - mapa principal;
 - ranking lateral;
-- treemap;
+- mapa de bairros;
 - demografia;
 - curva acumulada;
 - matriz de custo;
@@ -160,10 +160,11 @@ Funcao visual:
 
 Permitir mergulho territorial e leitura do perfil estimado dos eleitores.
 
-Treemap:
+Mapa de bairros:
 
-- hierarquia municipio > bairro;
-- area proporcional a votos;
+- contorno do municipio selecionado e poligonos oficiais de bairros do IBGE;
+- filtros encadeados de mesorregiao e municipio, iniciando na mesorregiao de maior votacao total do candidato e no municipio mais votado dentro dela;
+- escala logaritmica azul dos votos associados, do azul claro nos bairros com poucos votos ao azul escuro nos mais votados, com o numero de votos dentro dos poligonos;
 - selecao interativa;
 - recorte ativo persistente.
 
@@ -172,7 +173,8 @@ Demografia:
 - barras horizontais;
 - filtros por genero, idade, escolaridade e estado civil;
 - leitura percentual;
-- responde ao recorte selecionado no treemap.
+- responde ao recorte selecionado no mapa de bairros.
+- inicia no total do municipio filtrado; a selecao de um bairro refina apenas o grafico demografico.
 
 Direcao:
 
@@ -410,7 +412,7 @@ Implementacao atual: mapa municipal com classes **VERDE** (potencial demografico
 
 ### Recorte territorial ativo
 
-O treemap alimenta um contexto persistente local a secao demografica. A legenda deve deixar claro o alcance desse recorte.
+O mapa de bairros alimenta um contexto persistente local a secao demografica. A legenda deve deixar claro o alcance desse recorte.
 
 Hoje ele afeta:
 
@@ -440,7 +442,7 @@ Pontos que exigem atencao:
 
 - mapa e ranking podem ficar apertados em telas medias;
 - nomes longos podem quebrar cards;
-- treemap e demografia devem empilhar no mobile;
+- mapa de bairros e demografia devem empilhar no mobile;
 - matriz scatter precisa manter eixos legiveis;
 - mapa parlamentar precisa preservar espaco para a legenda das categorias.
 - controle segmentado do hero deve quebrar bem no mobile sem competir com titulo e foto.
@@ -494,7 +496,7 @@ Mapas de categorias, especialmente o de atuacao parlamentar, precisam de legenda
 | KPIs territoriais | Cards numericos | Qual o volume e o principal reduto? |
 | Mapa de MG | Coropletico branco-azul | Onde estao os votos? |
 | Ranking territorial | Barras horizontais Top 10 | Quais territorios concentram mais votos? |
-| Treemap municipio/bairro | Retangulos proporcionais | Como os votos se distribuem dentro dos municipios e bairros? |
+| Mapa de bairros | Malha oficial de bairros dentro do contorno municipal, colorida por votos associados | Como os votos se distribuem pelos bairros do municipio? |
 | Barras demograficas | Barras horizontais percentuais | Qual o perfil estimado do eleitor no recorte? |
 | Concentracao territorial | Faixa Top 1/5/15/20 com barras acumuladas e listas expansiveis | Quanto os principais municipios pesam na votacao? |
 | Curva acumulada | Linha/area com marcadores | Quanta votacao se concentra nos top municipios? |
