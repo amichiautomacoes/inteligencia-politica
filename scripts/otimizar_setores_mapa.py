@@ -1,0 +1,38 @@
+"""Prepare compact, municipality-filterable sector polygons for Deck.gl."""
+
+from pathlib import Path
+
+import geopandas as gpd
+import pandas as pd
+
+from hf_sync import hf_filesystem, load_env
+
+
+ROOT = Path(__file__).resolve().parents[1]
+OUTPUT = ROOT / "data" / "geopedia_mg" / "MG_setores_mapa_CD2022.parquet"
+
+
+def main() -> None:
+    env = load_env(ROOT / ".env")
+    path = env["HF_BUCKET_URL"].rstrip("/") + "/IBGE/MG/dadosterritorio/MG_setores_CD2022.parquet"
+    with hf_filesystem(env.get("HF_TOKEN")).open(path, "rb") as source:
+        sectors = gpd.read_parquet(source, columns=["code_tract", "code_muni", "code_neighborhood", "geometry"])
+    sectors = sectors.drop_duplicates("code_tract")
+    OUTPUT.parent.mkdir(parents=True, exist_ok=True)
+    lookup = pd.DataFrame({
+        "cd_setor_censitario": pd.to_numeric(sectors["code_tract"], errors="coerce").astype("Int64").astype(str),
+        "codigo_bairro_ibge": pd.to_numeric(sectors["code_neighborhood"], errors="coerce").astype("Int64").astype(str),
+    })
+    lookup.to_parquet(OUTPUT.parent / "setor_bairro_lookup.parquet", index=False)
+    sectors = sectors.drop(columns="code_neighborhood")
+    sectors["code_muni"] = pd.to_numeric(sectors["code_muni"], errors="coerce").astype("Int64")
+    sectors["code_tract"] = pd.to_numeric(sectors["code_tract"], errors="coerce").astype("Int64")
+    sectors = sectors.dropna(subset=["code_muni", "code_tract", "geometry"])
+    sectors = sectors.sort_values(["code_muni", "code_tract"]).reset_index(drop=True)
+    sectors["geometry"] = sectors.geometry.simplify(0.0001, preserve_topology=True)
+    sectors.to_parquet(OUTPUT, index=False, row_group_size=100, compression="zstd")
+    print("Sectors:", len(sectors), "bytes:", OUTPUT.stat().st_size)
+
+
+if __name__ == "__main__":
+    main()

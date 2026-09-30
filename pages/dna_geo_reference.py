@@ -15,7 +15,27 @@ GEOGRAPHY_FILES = {
     "area_ponderada": "MG_AreaPonderada_CD2022.parquet",
     "bairro": "MG_bairros_CD2022.parquet",
     "setor": "MG_setores_CD2022.parquet",
+    "bairro_geopedia": "malha_bairros_completa.parquet",
 }
+
+
+@st.cache_data(show_spinner=False)
+def load_sector_neighborhood_lookup() -> pd.DataFrame:
+    """Read the compact sector-to-neighborhood index, without geometries."""
+    env = load_env()
+    path = env["HF_BUCKET_URL"].rstrip("/") + "/IBGE/MG/dadosterritorio/setor_bairro_lookup.parquet"
+    with hf_filesystem(env.get("HF_TOKEN")).open(path, "rb") as source:
+        return pd.read_parquet(source)
+
+
+@st.cache_data(show_spinner=False)
+def load_municipality_sectors(municipality_code: int) -> gpd.GeoDataFrame:
+    """Read one municipality from the compact, row-grouped sector map."""
+    env = load_env()
+    path = env["HF_BUCKET_URL"].rstrip("/") + "/IBGE/MG/dadosterritorio/MG_setores_mapa_CD2022.parquet"
+    with hf_filesystem(env.get("HF_TOKEN")).open(path, "rb") as source:
+        layer = gpd.read_parquet(source, filters=[("code_muni", "==", int(municipality_code))])
+    return layer.to_crs("EPSG:4326")
 
 
 @st.cache_data(show_spinner=False)
@@ -62,7 +82,7 @@ def load_geo_reference() -> tuple[dict | None, pd.DataFrame | None, pd.DataFrame
         features.append({
             "type": "Feature",
             "properties": {"id": municipality_id},
-            "geometry": mapping(geometry.simplify(0.002, preserve_topology=True)),
+            "geometry": mapping(geometry.simplify(0.005, preserve_topology=True)),
         })
         point = geometry.representative_point()
         coordinates.append((int(row.codigo_ibge), row.name_muni, point.y, point.x))

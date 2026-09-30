@@ -13,6 +13,8 @@ import streamlit as st
 
 from hf_sync import data_files, file_by_kind, hf_filesystem, load_env, load_parquet, selected_deputado_files
 from pages.dna_geo_reference import load_geo_layer, load_geo_reference
+from pages.municipal_deck import parliamentary_deck, territorial_deck
+from pages.neighborhood_deck import assign_vote_polygons, detailed_map, selected_context
 from pages.shared_header import render_page_header
 
 try:
@@ -696,23 +698,6 @@ def _section_header(title: str, subtitle: str = "") -> None:
     )
 
 
-def _empty_map() -> go.Figure:
-    fig = go.Figure()
-    fig.update_layout(
-        height=520,
-        margin={"l": 0, "r": 0, "t": 18, "b": 0},
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        font={"color": "#eaf2ff"},
-        xaxis={"visible": False},
-        yaxis={"visible": False},
-        annotations=[{
-            "text": "Mapa indisponível: não foi possível carregar os votos ou a malha municipal de MG.",
-            "xref": "paper", "yref": "paper", "x": 0.5, "y": 0.5,
-            "showarrow": False, "font": {"color": "#b7c7e6", "size": 15},
-        }],
-    )
-    return fig
 
 
 def _load_geo_reference() -> tuple[dict | None, pd.DataFrame | None, pd.DataFrame | None, pd.DataFrame | None]:
@@ -727,29 +712,6 @@ def _normalize_municipio_name(value: object) -> str:
     return " ".join(text.split())
 
 
-def _build_log_colorbar_ticks(max_votes: float) -> tuple[list[float], list[str]]:
-    max_v = float(max_votes or 0.0)
-    if max_v <= 0:
-        return [0.0], ["0"]
-
-    ticks_raw: set[int] = {0}
-    scale = 1
-    while scale <= max_v:
-        for mult in (1, 2, 5):
-            candidate = mult * scale
-            if candidate <= max_v:
-                ticks_raw.add(int(candidate))
-        scale *= 10
-    ticks_raw.add(int(max_v))
-
-    tickvals = [0.0]
-    ticktext = ["0"]
-    for raw in sorted(ticks_raw):
-        if raw <= 0:
-            continue
-        tickvals.append(float(np.log10(raw + 1.0)))
-        ticktext.append(_format_number(raw))
-    return tickvals, ticktext
 
 
 def _iter_geojson_rings(geometry: dict) -> list[list[list[float]]]:
@@ -762,59 +724,6 @@ def _iter_geojson_rings(geometry: dict) -> list[list[list[float]]]:
     return []
 
 
-def _regional_boundary_lines(
-    geojson_mg: dict,
-    df_regioes_ref: pd.DataFrame | None,
-    *,
-    include_mesorregiao_boundary: bool,
-    include_state_boundary: bool,
-) -> tuple[list[float], list[float]]:
-    regional_lines = geojson_mg.get("regional_lines", {})
-    if regional_lines:
-        key = "state" if include_state_boundary else "mesoregions"
-        return regional_lines.get(key, ([], []))
-    if df_regioes_ref is None or df_regioes_ref.empty:
-        return [], []
-
-    regioes = df_regioes_ref[["codigo_ibge", "mesorregiao_nome"]].copy()
-    regioes["codigo_ibge_str"] = pd.to_numeric(
-        regioes["codigo_ibge"], errors="coerce"
-    ).astype("Int64").astype(str).str.zfill(7)
-    meso_by_city = dict(zip(regioes["codigo_ibge_str"], regioes["mesorregiao_nome"].astype(str).str.strip()))
-
-    segments: dict[tuple[tuple[float, float], tuple[float, float]], list[str]] = {}
-    segment_points: dict[tuple[tuple[float, float], tuple[float, float]], tuple[tuple[float, float], tuple[float, float]]] = {}
-
-    for feature in geojson_mg.get("features", []):
-        city_id = str(feature.get("properties", {}).get("id", "")).strip().zfill(7)
-        mesorregiao = meso_by_city.get(city_id, "")
-        if not mesorregiao:
-            continue
-
-        for ring in _iter_geojson_rings(feature.get("geometry", {})):
-            if len(ring) < 2:
-                continue
-            for start, end in zip(ring, ring[1:]):
-                point_a = (round(float(start[0]), 6), round(float(start[1]), 6))
-                point_b = (round(float(end[0]), 6), round(float(end[1]), 6))
-                if point_a == point_b:
-                    continue
-                key = tuple(sorted((point_a, point_b)))
-                segments.setdefault(key, []).append(mesorregiao)
-                segment_points.setdefault(key, (point_a, point_b))
-
-    lon: list[float] = []
-    lat: list[float] = []
-    for key, mesorregioes in segments.items():
-        is_state_boundary = len(mesorregioes) == 1
-        is_mesorregiao_boundary = len(set(mesorregioes)) > 1
-        if (include_state_boundary and is_state_boundary) or (
-            include_mesorregiao_boundary and is_mesorregiao_boundary
-        ):
-            point_a, point_b = segment_points[key]
-            lon.extend([point_a[0], point_b[0], None])
-            lat.extend([point_a[1], point_b[1], None])
-    return lon, lat
 
 
 def _format_number(value: float | int) -> str:
@@ -1528,372 +1437,10 @@ def _mesorregiao_filter(
     return filtered, mesorregiao, municipio
 
 
-def _territorial_map(df: pd.DataFrame | None) -> go.Figure:
-    if df is None or df.empty or "qt_votos" not in df.columns:
-        return _empty_map()
-
-    if "nivel_territorial" in df.columns:
-        municipio_df = df[df["nivel_territorial"].astype(str).str.strip().str.lower() == "municipio"].copy()
-        if not municipio_df.empty:
-            df = municipio_df
-
-    geojson_mg, df_tse_ref, df_municipios_ref, df_regioes_ref = _load_geo_reference()
-    if geojson_mg is None or df_tse_ref is None or df_municipios_ref is None:
-        return _empty_map()
-
-    city_col = "nm_municipio" if "nm_municipio" in df.columns else None
-    meso_col = "nm_mesorregiao" if "nm_mesorregiao" in df.columns else None
-    level_values = (
-        df["nivel_territorial"].dropna().astype(str).str.strip().str.lower()
-        if "nivel_territorial" in df.columns
-        else pd.Series(dtype=str)
-    )
-    is_mesorregiao_df = bool(meso_col and not level_values.empty and level_values.eq("mesorregiao").all())
-    code_col = next(
-        (
-            col
-            for col in (
-                "CD_MUNICIPIO",
-                "cd_municipio",
-                "codigo_tse",
-                "codigo_municipio_tse",
-                "nr_municipio",
-            )
-            if col in df.columns
-        ),
-        None,
-    )
-
-    if is_mesorregiao_df and df_regioes_ref is not None and not df_regioes_ref.empty:
-        mapa_base = df[[meso_col, "qt_votos"]].copy().rename(columns={meso_col: "mesorregiao_nome"})
-        mapa_base["mesorregiao_nome"] = mapa_base["mesorregiao_nome"].astype(str).str.strip()
-        mapa_base = mapa_base.groupby("mesorregiao_nome", as_index=False)["qt_votos"].sum()
-        mapa_df = df_regioes_ref[["codigo_ibge", "mesorregiao_nome"]].merge(
-            mapa_base,
-            on="mesorregiao_nome",
-            how="left",
-        )
-        mapa_df = mapa_df.merge(
-            df_tse_ref[["codigo_tse", "codigo_ibge", "nome_municipio"]],
-            on="codigo_ibge",
-            how="left",
-        )
-        mapa_df["CD_MUNICIPIO"] = mapa_df["codigo_tse"]
-        mapa_df["municipio"] = mapa_df["nome_municipio"]
-    elif code_col:
-        mapa_base = df[[code_col, "qt_votos"] + ([city_col] if city_col else [])].copy()
-        rename_cols = {code_col: "CD_MUNICIPIO"}
-        if city_col:
-            rename_cols[city_col] = "municipio"
-        mapa_base = mapa_base.rename(columns=rename_cols)
-        mapa_base["CD_MUNICIPIO"] = pd.to_numeric(mapa_base["CD_MUNICIPIO"], errors="coerce").astype("Int64")
-        group_cols = ["CD_MUNICIPIO", "municipio"] if "municipio" in mapa_base.columns else ["CD_MUNICIPIO"]
-        mapa_base = mapa_base.groupby(group_cols, as_index=False)["qt_votos"].sum()
-        mapa_df = mapa_base.merge(
-            df_tse_ref[["codigo_tse", "codigo_ibge", "nome_municipio"]],
-            left_on="CD_MUNICIPIO",
-            right_on="codigo_tse",
-            how="left",
-        )
-        if "municipio" not in mapa_df.columns:
-            mapa_df["municipio"] = mapa_df["nome_municipio"]
-    elif city_col:
-        mapa_base = df[[city_col, "qt_votos"]].copy()
-        mapa_base = mapa_base.rename(columns={city_col: "municipio"})
-        mapa_base["municipio_norm"] = mapa_base["municipio"].map(_normalize_municipio_name)
-        mapa_base = mapa_base.groupby(["municipio_norm", "municipio"], as_index=False)["qt_votos"].sum()
-        mapa_df = mapa_base.merge(
-            df_tse_ref[["codigo_tse", "codigo_ibge", "nome_municipio", "municipio_norm"]],
-            on="municipio_norm",
-            how="left",
-        )
-        mapa_df["CD_MUNICIPIO"] = mapa_df["codigo_tse"]
-    else:
-        return _empty_map()
-
-    mapa_df["codigo_ibge"] = pd.to_numeric(mapa_df["codigo_ibge"], errors="coerce").astype("Int64")
-    mapa_df["codigo_ibge_str"] = mapa_df["codigo_ibge"].astype(str).str.zfill(7)
-
-    geo_ids = []
-    for feature in geojson_mg.get("features", []):
-        geo_id = str(feature.get("properties", {}).get("id", "")).strip()
-        if geo_id:
-            geo_ids.append(geo_id.zfill(7))
-
-    malha_df = pd.DataFrame({"codigo_ibge_str": sorted(set(geo_ids))})
-    malha_df["codigo_ibge"] = pd.to_numeric(malha_df["codigo_ibge_str"], errors="coerce").astype("Int64")
-
-    mapa_df = malha_df.merge(
-        mapa_df[["codigo_ibge_str", "CD_MUNICIPIO", "municipio", "qt_votos", "nome_municipio"]],
-        on="codigo_ibge_str",
-        how="left",
-    )
-    mapa_df = mapa_df.merge(df_municipios_ref, on="codigo_ibge", how="left")
-    if df_regioes_ref is not None and not df_regioes_ref.empty:
-        mapa_df = mapa_df.merge(
-            df_regioes_ref[["codigo_ibge", "regiao_imediata_nome", "mesorregiao_nome"]],
-            on="codigo_ibge",
-            how="left",
-        )
-    else:
-        mapa_df["regiao_imediata_nome"] = ""
-        mapa_df["mesorregiao_nome"] = ""
-
-    mapa_df["qt_votos"] = mapa_df["qt_votos"].fillna(0.0).astype(float)
-    mapa_df["votos_color"] = np.where(mapa_df["qt_votos"] > 0, np.log10(mapa_df["qt_votos"] + 1.0), 0.0)
-    mapa_df["CD_MUNICIPIO"] = mapa_df["CD_MUNICIPIO"].fillna(0).astype(int)
-    mapa_df["municipio_exibicao"] = (
-        mapa_df["nome"].fillna(mapa_df["nome_municipio"]).fillna(mapa_df["municipio"]).fillna("Município sem voto")
-    )
-
-    max_votes = float(mapa_df["qt_votos"].max()) if not mapa_df.empty else 0.0
-    zmax = float(np.log10(max_votes + 1.0)) if max_votes > 0 else 1.0
-    tickvals, ticktext = _build_log_colorbar_ticks(max_votes)
-    map_title = (
-        "Concentração de votos por <b>mesorregião</b> (MG)"
-        if is_mesorregiao_df
-        else "Concentração de votos por município (MG)"
-    )
-
-    fig = px.choropleth(
-        mapa_df,
-        geojson=geojson_mg,
-        locations="codigo_ibge_str",
-        featureidkey="properties.id",
-        color="votos_color",
-        hover_name="municipio_exibicao",
-        hover_data={
-            "votos_color": False,
-            "CD_MUNICIPIO": True,
-            "mesorregiao_nome": True,
-            "regiao_imediata_nome": True,
-            "latitude": ":.4f",
-            "longitude": ":.4f",
-            "codigo_ibge_str": False,
-        },
-        custom_data=["CD_MUNICIPIO", "latitude", "longitude", "qt_votos"],
-        color_continuous_scale=[
-            [0.00, "#FFFFFF"],
-            [0.000001, "#E8F1FF"],
-            [0.16, "#BFD9FF"],
-            [0.42, "#60A5FA"],
-            [0.70, "#2563EB"],
-            [1.00, "#0B1F4D"],
-        ],
-        title=map_title,
-        template=st.session_state.get("theme", "plotly_white"),
-        range_color=[0.0, zmax],
-    )
-    fig.update_traces(
-        marker_line_color="rgba(210,228,255,0)" if is_mesorregiao_df else "rgba(210,228,255,0.75)",
-        marker_line_width=0.15 if is_mesorregiao_df else 0.7,
-        hovertemplate=(
-            "<b>%{hovertext}</b><br>"
-            "<span style='color:#93c5fd'>Votos:</span> %{customdata[3]:,.0f}<br>"
-            "<span style='color:#93c5fd'>Cód. município (TSE):</span> %{customdata[0]}<br>"
-            "<span style='color:#93c5fd'>Lat/Lon:</span> %{customdata[1]:.4f}, %{customdata[2]:.4f}<extra></extra>"
-        ),
-        hoverlabel={
-            "bgcolor": "rgba(5,12,28,0.95)",
-            "font_color": "#EAF2FF",
-            "font_size": 12,
-            "bordercolor": "rgba(147,197,253,0.55)",
-        },
-    )
-    if is_mesorregiao_df:
-        boundary_lon, boundary_lat = _regional_boundary_lines(
-            geojson_mg,
-            df_regioes_ref,
-            include_mesorregiao_boundary=True,
-            include_state_boundary=False,
-        )
-        if boundary_lon and boundary_lat:
-            fig.add_trace(
-                go.Scattergeo(
-                    lon=boundary_lon,
-                    lat=boundary_lat,
-                    mode="lines",
-                    line={"color": "rgba(255,255,255,0.92)", "width": 2.4},
-                    hoverinfo="skip",
-                    showlegend=False,
-                    name="Fronteiras das mesorregioes",
-                )
-            )
-        state_lon, state_lat = _regional_boundary_lines(
-            geojson_mg,
-            df_regioes_ref,
-            include_mesorregiao_boundary=False,
-            include_state_boundary=True,
-        )
-        if state_lon and state_lat:
-            fig.add_trace(
-                go.Scattergeo(
-                    lon=state_lon,
-                    lat=state_lat,
-                    mode="lines",
-                    line={"color": "rgba(255,255,255,0.98)", "width": 3.4},
-                    hoverinfo="skip",
-                    showlegend=False,
-                    name="Limite de Minas Gerais",
-                )
-            )
-        label_df = (
-            mapa_df[["mesorregiao_nome", "qt_votos", "latitude", "longitude"]]
-            .dropna(subset=["mesorregiao_nome", "latitude", "longitude"])
-            .assign(mesorregiao_nome=lambda frame: frame["mesorregiao_nome"].astype(str).str.strip())
-        )
-        label_df = label_df[label_df["mesorregiao_nome"].ne("")]
-        if not label_df.empty:
-            label_df = (
-                label_df.groupby("mesorregiao_nome", as_index=False)
-                .agg({"qt_votos": "first", "latitude": "mean", "longitude": "mean"})
-            )
-            total_meso_votes = float(pd.to_numeric(label_df["qt_votos"], errors="coerce").fillna(0).sum())
-            if total_meso_votes > 0:
-                label_df["pct_votos"] = (
-                    pd.to_numeric(label_df["qt_votos"], errors="coerce").fillna(0)
-                    / total_meso_votes
-                )
-                label_df = label_df[label_df["pct_votos"] > 0]
-                fig.add_trace(
-                    go.Scattergeo(
-                        lon=label_df["longitude"],
-                        lat=label_df["latitude"],
-                        mode="text",
-                        text=label_df["pct_votos"].map(_format_percent),
-                        textfont={"color": "#ffffff", "size": 13, "family": "Segoe UI, Inter, sans-serif"},
-                        hoverinfo="skip",
-                        showlegend=False,
-                        name="Participacao da mesorregiao",
-                    )
-                )
-    fig.update_geos(fitbounds="locations", visible=False, bgcolor="rgba(0,0,0,0)")
-    fig.update_layout(
-        margin={"l": 6, "r": 36, "t": 52, "b": 6},
-        height=560,
-        coloraxis_colorbar={
-            "title": {"text": "Votos", "font": {"color": "#eaf2ff"}},
-            "tickvals": tickvals,
-            "ticktext": ticktext,
-            "len": 0.8,
-            "thickness": 13,
-            "xpad": 8,
-            "x": 1.02,
-            "xanchor": "left",
-            "tickfont": {"color": "#b7c7e6"},
-        },
-        paper_bgcolor="rgba(255,255,255,0.0)",
-        plot_bgcolor="rgba(255,255,255,0.0)",
-        font={"color": "#eaf2ff", "family": "Segoe UI, Inter, sans-serif"},
-        title={"font": {"size": 20, "color": "#eaf2ff"}},
-    )
-    return fig
 
 
-def _neighborhood_map(df: pd.DataFrame, municipio: str) -> tuple[go.Figure | None, str | None]:
-    if municipio == "Todos" or df is None or df.empty:
-        return None, "Selecione um município com votos para ver o mapa de bairros."
-    try:
-        municipalities = load_geo_layer("municipio")
-        sectors = load_geo_layer("setor")
-    except Exception as exc:
-        return None, f"Não foi possível carregar as malhas territoriais: {exc}"
-
-    municipality_code = None
-    if "cd_ibge_municipio" in df.columns:
-        codes = pd.to_numeric(df["cd_ibge_municipio"], errors="coerce").dropna()
-        if not codes.empty:
-            municipality_code = int(codes.mode().iloc[0])
-    if municipality_code is None:
-        matching = municipalities[
-            municipalities["name_muni"].map(_normalize_municipio_name).eq(_normalize_municipio_name(municipio))
-        ]
-    else:
-        matching = municipalities[pd.to_numeric(municipalities["code_muni"], errors="coerce").eq(municipality_code)]
-    if matching.empty:
-        return None, "O município selecionado não foi encontrado na malha oficial do IBGE."
-
-    municipality = matching.iloc[0]
-    municipality_code = int(municipality["code_muni"])
-    votes = df.copy()
-    votes["qt_votos"] = pd.to_numeric(votes["qt_votos"], errors="coerce").fillna(0)
-    neighborhoods = sectors.loc[
-        pd.to_numeric(sectors["code_muni"], errors="coerce").eq(municipality_code)
-    ].copy()
-    neighborhoods["cd_setor_censitario"] = pd.to_numeric(
-        neighborhoods["code_tract"], errors="coerce"
-    ).astype("Int64").astype(str)
-    neighborhoods = neighborhoods.drop_duplicates(subset="cd_setor_censitario").copy()
-    neighborhoods["bairro_id"] = "setor-" + neighborhoods["cd_setor_censitario"]
-    neighborhoods["name_neighborhood"] = "Setor censitário " + neighborhoods["cd_setor_censitario"]
-    if "cd_setor_censitario" not in votes.columns:
-        votes["cd_setor_censitario"] = pd.NA
-    votes["cd_setor_censitario"] = pd.to_numeric(
-        votes["cd_setor_censitario"], errors="coerce"
-    ).astype("Int64").astype(str)
-    grouped_votes = votes.groupby("cd_setor_censitario", as_index=False)["qt_votos"].sum()
-    neighborhoods = neighborhoods.merge(grouped_votes, on="cd_setor_censitario", how="left")
-    unmatched_votes = grouped_votes.loc[
-        ~grouped_votes["cd_setor_censitario"].isin(neighborhoods["cd_setor_censitario"]), "qt_votos"
-    ].sum()
-
-    neighborhoods["qt_votos"] = neighborhoods["qt_votos"].fillna(0)
-    features = [
-        {"type": "Feature", "properties": {"id": row.bairro_id},
-         "geometry": row.geometry.simplify(0.0002, preserve_topology=True).__geo_interface__}
-        for row in neighborhoods.itertuples(index=False)
-    ]
-    fig = go.Figure()
-    if features:
-        neighborhood_customdata = neighborhoods[
-            ["name_neighborhood", "qt_votos", "cd_setor_censitario"]
-        ].fillna("").to_numpy()
-        fig.add_trace(go.Choropleth(
-            geojson={"type": "FeatureCollection", "features": features},
-            locations=neighborhoods["bairro_id"], featureidkey="properties.id",
-            z=np.sqrt(neighborhoods["qt_votos"]), zmin=0,
-            zmax=max(1, float(np.sqrt(neighborhoods["qt_votos"].max()))),
-            colorscale=[
-                [0, "#f5f9ff"], [0.2, "#dceafb"], [0.5, "#b7d3f4"],
-                [0.8, "#80b2e9"], [1, "#4d8fd7"],
-            ],
-            marker_line_color="rgba(12,36,72,0.75)", marker_line_width=0.5,
-            customdata=neighborhood_customdata,
-            hovertemplate="<b>%{customdata[0]}</b><br>Votos associados: %{customdata[1]:,.0f}<extra></extra>",
-            showscale=False,
-        ))
-    boundary = municipality.geometry.boundary.simplify(0.0002, preserve_topology=True)
-    boundary_lon, boundary_lat = _boundary_lines(boundary)
-    fig.add_trace(go.Scattergeo(
-        lon=boundary_lon, lat=boundary_lat, mode="lines", hoverinfo="skip",
-        line={"color": "#f8fbff", "width": 2}, showlegend=False,
-    ))
-    minx, miny, maxx, maxy = municipality.geometry.bounds
-    pad_x, pad_y = max((maxx - minx) * 0.06, 0.005), max((maxy - miny) * 0.06, 0.005)
-    fig.update_geos(
-        lonaxis_range=[minx - pad_x, maxx + pad_x], lataxis_range=[miny - pad_y, maxy + pad_y],
-        visible=False, bgcolor="rgba(0,0,0,0)", projection_type="mercator",
-    )
-    fig.update_layout(height=500, margin={"l": 8, "r": 8, "t": 8, "b": 8},
-                      paper_bgcolor="rgba(0,0,0,0)", font={"color": "#eaf2ff"})
-    if neighborhoods.empty:
-        return fig, "Não há setores censitários para este município; o contorno municipal está exibido."
-    note = "Malha: setores censitários do IBGE."
-    if unmatched_votes > 0:
-        note += f" {_format_number(unmatched_votes)} votos não puderam ser associados à malha."
-    return fig, note
 
 
-def _boundary_lines(boundary: object) -> tuple[list[float | None], list[float | None]]:
-    lon: list[float | None] = []
-    lat: list[float | None] = []
-    for part in getattr(boundary, "geoms", [boundary]):
-        for x, y in part.coords:
-            lon.append(float(x))
-            lat.append(float(y))
-        lon.append(None)
-        lat.append(None)
-    return lon, lat
 
 
 def _demographic_label(column: str, prefix: str) -> str:
@@ -1901,41 +1448,6 @@ def _demographic_label(column: str, prefix: str) -> str:
     return label.title() if label else column
 
 
-def _neighborhood_map_selection(event: object | None, fig: go.Figure) -> dict[str, str]:
-    if not event:
-        return {}
-    if hasattr(event, "selection"):
-        selection = getattr(event, "selection")
-    elif isinstance(event, dict):
-        selection = event.get("selection", {})
-    else:
-        selection = {}
-
-    if isinstance(selection, dict):
-        points = selection.get("points", [])
-    else:
-        points = getattr(selection, "points", [])
-    if not points:
-        return {}
-
-    point = points[0]
-    customdata = point.get("customdata") if isinstance(point, dict) else getattr(point, "customdata", None)
-    if customdata is None:
-        location = point.get("location") if isinstance(point, dict) else getattr(point, "location", None)
-        if location is not None and fig.data:
-            locations = list(fig.data[0].locations)
-            if str(location) in locations:
-                customdata = fig.data[0].customdata[locations.index(str(location))]
-    if customdata is None:
-        point_index = point.get("point_index") if isinstance(point, dict) else getattr(point, "point_index", None)
-        curve_number = point.get("curve_number") if isinstance(point, dict) else getattr(point, "curve_number", 0)
-        if point_index is not None and curve_number is not None:
-            trace = fig.data[int(curve_number)]
-            if getattr(trace, "customdata", None) is not None and int(point_index) < len(trace.customdata):
-                customdata = trace.customdata[int(point_index)]
-    if customdata is None or len(customdata) < 3:
-        return {}
-    return {"cd_setor_censitario": str(customdata[2])} if customdata[2] else {}
 
 
 def _neighborhood_vote_cards(
@@ -1960,10 +1472,13 @@ def _neighborhood_vote_cards(
         f'<div class="raiox-neighborhood-kpi-value">{_format_number(city_votes)}</div>'
         f'</div>'
     ]
-    if context.get("cd_setor_censitario"):
+    if context.get("cd_setor_censitario") or context.get("codigo_bairro_ibge"):
         selected_rows = _apply_territorial_context(neighborhood_votes, context, "Todas", municipio)
         neighborhood_total = pd.to_numeric(selected_rows["qt_votos"], errors="coerce").fillna(0).sum()
-        selected_label = f"setor {context['cd_setor_censitario']}"
+        selected_label = (
+            f"bairro {context['codigo_bairro_ibge']}" if context.get("codigo_bairro_ibge")
+            else f"setor {context['cd_setor_censitario']}"
+        )
         cards.append(
             f'<div class="raiox-neighborhood-kpi">'
             f'<div class="raiox-neighborhood-kpi-label">Votos em {html.escape(selected_label)}</div>'
@@ -1984,7 +1499,14 @@ def _apply_territorial_context(
     for column in ("cd_municipio", "cd_bairro", "nm_municipio", "nm_bairro", "cd_setor_censitario"):
         value = context.get(column)
         if column in result.columns and value:
-                result = result[result[column].astype(str).str.strip() == value]
+            result = result[result[column].astype(str).str.strip() == value]
+    if context.get("codigo_bairro_ibge") and {"cd_setor_censitario", "cd_ibge_municipio"}.issubset(result.columns):
+        code = pd.to_numeric(result["cd_ibge_municipio"], errors="coerce").dropna()
+        if not code.empty:
+            official = load_geo_layer("bairro_geopedia")
+            official = official[official["codigo_municipio_ibge"].eq(str(int(code.iloc[0])))]
+            result = assign_vote_polygons(result, official)
+            result = result[result["codigo_bairro_ibge"].eq(context["codigo_bairro_ibge"])]
     return result
 
 
@@ -2018,6 +1540,7 @@ def _clear_section_context(key: str) -> None:
 
 def _context_label(context: dict[str, str]) -> str:
     return (
+        f"bairro oficial {context['codigo_bairro_ibge']}" if context.get("codigo_bairro_ibge") else
         f"setor censitário {context['cd_setor_censitario']}"
         if context.get("cd_setor_censitario") else context.get("nm_municipio") or "recorte selecionado"
     )
@@ -2037,12 +1560,10 @@ def _demographic_bar(kind: str, context: dict[str, str], mesorregiao: str, munic
         bar_df = pd.DataFrame({"categoria": ["Parquet pendente"], "percentual": [0.0]})
     else:
         df = _apply_territorial_context(df, context, mesorregiao, municipio)
-        if context.get("cd_setor_censitario") and "cd_bairro" in df.columns:
+        if (context.get("cd_setor_censitario") or context.get("codigo_bairro_ibge")) and "cd_bairro" in df.columns:
             area_votes = _read_selected_parquet("votos_bairro")
             if area_votes is not None and {"cd_setor_censitario", "cd_bairro"}.issubset(area_votes.columns):
-                area_rows = area_votes[
-                    area_votes["cd_setor_censitario"].astype(str).eq(context["cd_setor_censitario"])
-                ]
+                area_rows = _apply_territorial_context(area_votes, context, mesorregiao, municipio)
                 df = df[df["cd_bairro"].astype(str).isin(area_rows["cd_bairro"].astype(str))]
             else:
                 df = df.iloc[0:0]
@@ -2648,125 +2169,6 @@ def _parliamentary_action_frame(
     return result
 
 
-def _parliamentary_action_map(action_df: pd.DataFrame) -> go.Figure:
-    if action_df.empty:
-        return _empty_map()
-
-    geojson_mg, _, _, _ = _load_geo_reference()
-    legend_labels = {
-        "Reduto Atendido": "Reduto atendido | muitos votos + muitas emendas",
-        "Investimento": "Investimento | poucas urnas + muitas emendas",
-        "Reduto Desassistido": "Reduto desassistido | muitos votos + poucas emendas",
-        "Sem Expressão": "Baixa expressão | poucos votos + poucas emendas",
-        "Votos sem emendas": "Votos recebidos | nenhuma emenda",
-        "Sem votos nem emendas": "Sem votos e sem emendas",
-    }
-    category_order = [
-        legend_labels["Reduto Atendido"],
-        legend_labels["Investimento"],
-        legend_labels["Reduto Desassistido"],
-        legend_labels["Sem Expressão"],
-        legend_labels["Votos sem emendas"],
-        legend_labels["Sem votos nem emendas"],
-    ]
-    category_colors = {
-        legend_labels["Reduto Atendido"]: "#2563EB",
-        legend_labels["Investimento"]: "#16A34A",
-        legend_labels["Reduto Desassistido"]: "#FACC15",
-        legend_labels["Sem Expressão"]: "#F97316",
-        legend_labels["Votos sem emendas"]: "#64748B",
-        legend_labels["Sem votos nem emendas"]: "#FFFFFF",
-    }
-    plot_df = action_df.copy()
-    plot_df["categoria_legenda"] = plot_df["categoria_coerencia"].map(legend_labels).fillna(legend_labels["Sem Expressão"])
-    plot_df["categoria_indice"] = plot_df["categoria_legenda"].map(
-        {label: index for index, label in enumerate(category_order)}
-    )
-    custom_columns = [
-            "codigo_ibge_str",
-            "municipio_exibicao",
-            "mesorregiao_exibicao",
-            "qt_votos",
-            "pct_votos_total",
-            "valor_emendas",
-            "indice_retorno",
-            "motivo_cor",
-            "municipio_contexto",
-    ]
-    colors = [category_colors[label] for label in category_order]
-    color_scale = [
-        stop
-        for index, color in enumerate(colors)
-        for stop in ((index / len(colors), color), ((index + 1) / len(colors), color))
-    ]
-    fig = go.Figure(
-        go.Choropleth(
-            geojson=geojson_mg,
-            locations=plot_df["codigo_ibge_str"],
-            featureidkey="properties.id",
-            z=plot_df["categoria_indice"],
-            zmin=-0.5,
-            zmax=len(colors) - 0.5,
-            colorscale=color_scale,
-            showscale=False,
-            hovertext=plot_df["municipio_exibicao"],
-            customdata=plot_df[custom_columns].to_numpy(),
-            showlegend=False,
-        )
-    )
-    fig.update_traces(
-        marker_line_color="rgba(210,228,255,0.75)",
-        marker_line_width=0.6,
-        hovertemplate=(
-            "<b>📍 %{hovertext} - %{customdata[2]}</b><br>"
-            "────────────────────────────<br>"
-            "🗳️ <b>Votos Recebidos:</b> %{customdata[3]:,.0f} (%{customdata[4]:.1%} do total)<br>"
-            "💰 <b>Emendas Destinadas:</b> R$ %{customdata[5]:,.2f}<br>"
-            "📊 <b>Retorno por Voto:</b> R$ %{customdata[6]:,.2f} / voto<br>"
-            "<br><span style='color:#b7c7e6'>%{customdata[7]}</span><extra></extra>"
-        ),
-    )
-    for label in category_order:
-        fig.add_trace(
-            go.Scattergeo(
-                lon=[None], lat=[None], mode="markers",
-                marker={"size": 10, "color": category_colors[label]},
-                name=label, showlegend=True, hoverinfo="skip",
-            )
-        )
-
-    fig.update_geos(fitbounds="locations", visible=False, bgcolor="rgba(0,0,0,0)")
-    fig.update_layout(
-        margin={"l": 6, "r": 390, "t": 52, "b": 6},
-        height=610,
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        font={"color": "#eaf2ff", "family": "Segoe UI, Inter, sans-serif"},
-        title={"font": {"size": 20, "color": "#eaf2ff"}},
-        legend={
-            "title": {
-                "text": "<b>O que cada cor representa</b>",
-                "font": {"size": 16, "color": "#f8fbff"},
-            },
-            "orientation": "v",
-            "y": 0.5,
-            "yanchor": "middle",
-            "x": 1.02,
-            "xanchor": "left",
-            "font": {"size": 14, "color": "#f8fbff"},
-            "itemsizing": "constant",
-            "itemwidth": 38,
-            "bgcolor": "rgba(7,24,54,0.88)",
-            "bordercolor": "rgba(219,234,254,0.52)",
-            "borderwidth": 1.4,
-        },
-        hoverlabel={
-            "bgcolor": "rgba(5,12,28,0.95)",
-            "font_color": "#EAF2FF",
-            "bordercolor": "rgba(147,197,253,0.55)",
-        },
-    )
-    return fig
 
 
 def _parliamentary_action_kpis(action_df: pd.DataFrame) -> dict[str, str]:
@@ -2876,11 +2278,11 @@ def _render_parliamentary_action_section(
     action_df = _parliamentary_action_frame(votos_df, emendas_df)
     _render_parliamentary_action_kpis(action_df)
     with st.container(border=True):
-        st.plotly_chart(
-            _parliamentary_action_map(action_df),
-            use_container_width=True,
-            key="pagina1_parliamentary_action_map",
-        )
+        deck = parliamentary_deck(action_df)
+        if deck is not None:
+            st.pydeck_chart(deck, width="stretch", height=610, key="pagina1_parliamentary_action_map")
+        else:
+            st.info("Mapa parlamentar indisponível.")
 
 
 _apply_visual_model()
@@ -2903,7 +2305,11 @@ votos_df = _territorial_map_view(_read_selected_parquet(territorial_kind), terri
 map_col, concentration_col = st.columns([0.60, 0.40], gap="large")
 with map_col:
     with st.container(border=True):
-        st.plotly_chart(_territorial_map(votos_df), use_container_width=True)
+        deck = territorial_deck(votos_df, territorial_kind)
+        if deck is not None:
+            st.pydeck_chart(deck, width="stretch", height=560, key="pagina1_territorial_map")
+        else:
+            st.info("Mapa territorial indisponível.")
 with concentration_col:
     with st.container(border=True):
         st.markdown(
@@ -2916,7 +2322,7 @@ with concentration_col:
         )
 _section_header(
     "Votação por Bairro de cada município e Perfil demográfico",
-    "Setores censitários do IBGE em todos os municípios, com votação e perfil demográfico do recorte selecionado.",
+    "Bairros oficiais onde há malha disponível; setores censitários nos demais locais, com votação e perfil demográfico do recorte selecionado.",
 )
 neighborhood_df, mesorregiao, municipio = _mesorregiao_filter(votos_bairro_df, votos_municipio_df)
 current_filters = (mesorregiao, municipio)
@@ -2932,7 +2338,7 @@ with col_left:
         title_col, cards_col = st.columns([0.56, 0.44], gap="small")
         with title_col:
             st.markdown(
-                "<div class='raiox-chart-card-title'>Votação por setor censitário</div>",
+                "<div class='raiox-chart-card-title'>Votação por bairro e setor censitário</div>",
                 unsafe_allow_html=True,
             )
         with cards_col:
@@ -2942,17 +2348,22 @@ with col_left:
             )
             if cards_html:
                 st.markdown(cards_html, unsafe_allow_html=True)
-        neighborhood_fig, map_note = _neighborhood_map(neighborhood_df, municipio)
-        if neighborhood_fig is not None:
-            map_event = st.plotly_chart(
-                neighborhood_fig,
-                use_container_width=True,
+        municipality_codes = pd.to_numeric(neighborhood_df.get("cd_ibge_municipio", pd.Series(dtype=str)), errors="coerce").dropna()
+        neighborhood_deck, map_note = (
+            detailed_map(neighborhood_df, int(municipality_codes.mode().iloc[0]))
+            if municipio != "Todos" and not municipality_codes.empty
+            else (None, "Selecione um município com votos para ver o mapa.")
+        )
+        if neighborhood_deck is not None:
+            map_event = st.pydeck_chart(
+                neighborhood_deck,
+                width="stretch", height=500,
                 key=f"pagina1_bairro_mapa_{st.session_state.get('pagina1_bairro_mapa_revisao', 0)}",
                 on_select="rerun",
-                selection_mode="points",
+                selection_mode="single-object",
             )
-            selected_context = _neighborhood_map_selection(map_event, neighborhood_fig)
-            if selected_context and _set_section_context(DEMOGRAPHIC_CONTEXT_KEY, selected_context):
+            selection_context = selected_context(map_event)
+            if selection_context and _set_section_context(DEMOGRAPHIC_CONTEXT_KEY, selection_context):
                 st.rerun()
         if map_note:
             st.caption(map_note)

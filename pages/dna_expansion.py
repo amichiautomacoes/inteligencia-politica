@@ -1,19 +1,18 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import re
 import unicodedata
 
 import numpy as np
 import pandas as pd
-import plotly.express as px
 import streamlit as st
 
 from hf_sync import file_by_kind, load_env, load_parquet
 from pages.dna_geo_reference import load_geo_reference
+from pages.deck_maps import deck_geojson, municipality_features, rgb
 from pages.shared_header import selected_files
 
 
-CLASS_ORDER = ["VERDE", "AZUL", "AMARELO", "CINZA"]
 CLASS_COLORS = {
     "VERDE": "#22c55e",
     "AZUL": "#3b82f6",
@@ -325,47 +324,18 @@ def _expansion_map(city_data: pd.DataFrame) -> object | None:
         "AMARELO": "Oportunidade com menor aderência",
         "CINZA": "Baixa similaridade ou sem dados completos",
     })
-    fig = px.choropleth(
-        frame,
-        geojson=geojson,
-        locations="codigo_ibge",
-        featureidkey="properties.id",
-        color="classe_expansao",
-        hover_name="municipio",
-        category_orders={"classe_expansao": CLASS_ORDER},
-        color_discrete_map=CLASS_COLORS,
-        labels={
-            "classe_expansao": "Leitura tática",
-            "votos_base": "Votos atuais do candidato",
-            "oportunidade_demografica": "População em oportunidade (índice)",
-            "similaridade": "Similaridade demográfica",
-            "diferenca_media_absoluta": "Diferença média (p.p.)",
-            "dimensoes_com_dados": "Dimensões com dados",
-        },
-    )
-    fig.update_traces(
-        marker_line_color="rgba(210,228,255,0.72)", marker_line_width=0.55,
-        showlegend=False,
-        customdata=frame[[
-            "classe_label", "votos_base", "oportunidade_demografica", "similaridade",
-            "diferenca_media_absoluta", "dimensoes_com_dados",
-        ]].to_numpy(),
-        hovertemplate=(
-            "<b>%{hovertext}</b><br>%{customdata[0]}"
-            "<br>Votos atuais: %{customdata[1]:,.0f}"
-            "<br>População em oportunidade (índice): %{customdata[2]:,.0f}"
-            "<br>Similaridade demográfica: %{customdata[3]:.1f}/100"
-            "<br>Diferença média: %{customdata[4]:.1f} p.p."
-            "<br>Dimensões completas: %{customdata[5]} de 3<extra></extra>"
-        ),
-        hoverlabel={"bgcolor": "rgba(5,12,28,0.95)", "font": {"color": "#EAF2FF"}},
-    )
-    fig.update_geos(fitbounds="locations", visible=False, bgcolor="rgba(0,0,0,0)")
-    fig.update_layout(
-        title="Expansão de votos por município (MG)", height=640,
-        margin={"l": 0, "r": 0, "t": 55, "b": 0},
-        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        font={"color": "#eaf2ff"}, showlegend=False,
+    values = {}
+    for row in frame.itertuples(index=False):
+        values[str(row.codigo_ibge)] = {
+            "nome": str(row.municipio), "classe": str(row.classe_label),
+            "votos": int(row.votos_base),
+            "oportunidade": f"{row.oportunidade_demografica:,.0f}",
+            "similaridade": f"{row.similaridade:.1f}" if pd.notna(row.similaridade) else "sem dados",
+            "fill_color": rgb(CLASS_COLORS.get(row.classe_expansao, CLASS_COLORS["CINZA"])),
+        }
+    fig = deck_geojson(
+        municipality_features(geojson, values), layer_id="expansao-municipal",
+        tooltip="<b>{nome}</b><br/>{classe}<br/>Votos: {votos}<br/>Oportunidade: {oportunidade}<br/>Similaridade: {similaridade}",
     )
     return fig
 
@@ -400,7 +370,7 @@ def render_vote_expansion() -> None:
     if fig is None:
         st.info("A malha municipal de Minas Gerais não está disponível.")
         return
-    st.plotly_chart(fig, use_container_width=True, key="dna_vote_expansion_map", config={"displayModeBar": False, "scrollZoom": False})
+    st.pydeck_chart(fig, width="stretch", height=640, key="dna_vote_expansion_map")
     st.caption(
         "O potencial combina a população acima da participação do ICP (`diferenca_pontos_percentuais` negativa) nas dimensões de gênero, idade e escolaridade. "
         "As faixas são relativas ao ICP selecionado: azul destaca o quartil superior de votos atuais; verde exige potencial demográfico no quartil superior e similaridade acima da mediana; "

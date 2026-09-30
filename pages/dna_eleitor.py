@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import html
 import re
@@ -7,7 +7,6 @@ from textwrap import dedent
 
 import numpy as np
 import pandas as pd
-import plotly.express as px
 import streamlit as st
 
 from hf_sync import file_by_kind, load_env, load_parquet
@@ -16,6 +15,7 @@ from pages.dna_copy import sentence_label
 from pages.dna_distribution import render_electorate_distribution
 from pages.dna_expansion import render_vote_expansion
 from pages.dna_geo_reference import load_geo_reference
+from pages.deck_maps import deck_geojson, municipality_features, ramp
 from pages.shared_header import (
     apply_shared_visual_model,
     major_section_header,
@@ -443,8 +443,6 @@ def _potential_map(
         frame["votos_candidato"].gt(0), frame["aderencia_demografica"].fillna(0), 0.0
     )
     positive_scores = frame.loc[frame["compatibilidade"].gt(0), "compatibilidade"]
-    colorbar_tickvals = [0.0]
-    colorbar_ticktext = ["0"]
     frame["compatibilidade_log"] = 0.0
     if not positive_scores.empty:
         low_score = float(positive_scores.min())
@@ -454,64 +452,22 @@ def _potential_map(
             frame.loc[frame["compatibilidade"].gt(0), "compatibilidade_log"] = 0.08 + 0.92 * (
                 np.log1p(positive_scores) - log_low
             ) / (log_high - log_low)
-            tick_scores = np.unique(np.round(np.linspace(low_score, high_score, 4)).astype(int))
-            colorbar_tickvals += [
-                float(0.08 + 0.92 * (np.log1p(score) - log_low) / (log_high - log_low))
-                for score in tick_scores
-            ]
-            colorbar_ticktext += [str(score) for score in tick_scores]
         else:
             frame.loc[frame["compatibilidade"].gt(0), "compatibilidade_log"] = 0.85
-            colorbar_tickvals.append(0.85)
-            colorbar_ticktext.append(f"{low_score:.0f}")
     frame["municipio"] = frame["nome"].fillna("Município")
 
-    fig = px.choropleth(
-        frame,
-        geojson=geojson_mg,
-        locations="codigo_ibge_str",
-        featureidkey="properties.id",
-        color="compatibilidade_log",
-        hover_name="municipio",
-        color_continuous_scale=[[0, "#e8f5e9"], [0.25, "#c8e6c9"], [0.5, "#81c784"], [0.75, "#43a047"], [1, "#14532d"]],
-        range_color=[0, 1],
-        labels={
-            "compatibilidade": "Compatibilidade final (0–100)",
-            "aderencia_demografica": "Aderência demográfica (0–100)",
-            "aderencia_genero": "Aderência de gênero (0–100)",
-            "aderencia_idade": "Aderência de idade (0–100)",
-            "aderencia_escolaridade": "Aderência de escolaridade (0–100)",
-            "votos_candidato": "Votos do candidato",
-        },
-    )
-    fig.update_traces(
-        marker_line_color="rgba(210,228,255,0.75)", marker_line_width=0.55,
-        hovertemplate=(
-            "<b>%{hovertext}</b><br>Compatibilidade final: %{customdata[0]:.1f}/100"
-            "<br>Aderência demográfica: %{customdata[1]:.1f}/100"
-            "<br>Gênero — ICP: %{customdata[2]:.1f}% · Censo municipal: %{customdata[3]:.1f}% · Aderência: %{customdata[4]:.1f}"
-            "<br>Idade — ICP: %{customdata[5]:.1f}% · Censo municipal: %{customdata[6]:.1f}% · Aderência: %{customdata[7]:.1f}"
-            "<br>Escolaridade — ICP: %{customdata[8]:.1f}% · Censo municipal: %{customdata[9]:.1f}% · Aderência: %{customdata[10]:.1f}"
-            "<br>Votos do candidato: %{customdata[11]:,.0f}<extra></extra>"
-        ),
-        customdata=np.column_stack([
-            frame["compatibilidade"], frame["aderencia_demografica"],
-            np.full(len(frame), float(profile.get("genero_pct", np.nan))), frame["censo_genero_pct"], frame["aderencia_genero"],
-            np.full(len(frame), float(profile.get("idade_pct", np.nan))), frame["censo_idade_pct"], frame["aderencia_idade"],
-            np.full(len(frame), float(profile.get("escolaridade_pct", np.nan))), frame["censo_escolaridade_pct"], frame["aderencia_escolaridade"],
-            frame["votos_candidato"],
-        ]),
-        hoverlabel={"bgcolor": "rgba(5,12,28,0.95)", "font": {"color": "#EAF2FF"}},
-    )
-    fig.update_geos(fitbounds="locations", visible=False, bgcolor="rgba(0,0,0,0)")
-    fig.update_layout(
-        title="Compatibilidade demográfica por município (MG)", height=620,
-        margin={"l": 0, "r": 0, "t": 55, "b": 0},
-        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        font={"color": "#eaf2ff"}, coloraxis_colorbar={
-            "title": "Compatibilidade", "tickvals": colorbar_tickvals,
-            "ticktext": colorbar_ticktext,
-        },
+    values = {}
+    for row in frame.itertuples(index=False):
+        score = float(row.compatibilidade) if pd.notna(row.compatibilidade) else 0.0
+        values[str(row.codigo_ibge_str)] = {
+            "nome": str(row.municipio), "compatibilidade": f"{score:.1f}",
+            "aderencia": f"{row.aderencia_demografica:.1f}" if pd.notna(row.aderencia_demografica) else "sem dados",
+            "votos": int(row.votos_candidato),
+            "fill_color": ramp(float(row.compatibilidade_log), ["#e8f5e9", "#c8e6c9", "#81c784", "#43a047", "#14532d"]),
+        }
+    fig = deck_geojson(
+        municipality_features(geojson_mg, values), layer_id="potencial-demografico",
+        tooltip="<b>{nome}</b><br/>Compatibilidade: {compatibilidade}/100<br/>Aderência: {aderencia}/100<br/>Votos: {votos}",
     )
     note = "A compatibilidade é a média das aderências de gênero, idade e escolaridade. Municípios sem votos ou sem os três cruzamentos completos ficam no valor mínimo; a escala de cor é logarítmica."
     return fig, note
@@ -552,7 +508,7 @@ def _render_demographic_potential() -> None:
             for dimension, label in (("genero", "Gênero"), ("idade", "Idade"), ("escolaridade", "Escolaridade"))
         )
     )
-    st.plotly_chart(fig, use_container_width=True, key="dna_demographic_potential_map", config={"displayModeBar": False, "scrollZoom": False})
+    st.pydeck_chart(fig, width="stretch", height=620, key="dna_demographic_potential_map")
     st.caption(note)
 
 
