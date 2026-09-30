@@ -91,7 +91,7 @@ def load_geo_reference() -> tuple[dict | None, pd.DataFrame | None, pd.DataFrame
     fs = hf_filesystem(env.get("HF_TOKEN"))
     try:
         municipalities = load_geo_layer("municipio")[["code_muni", "name_muni", "geometry"]]
-        mesoregions = load_geo_layer("mesorregiao")[["geometry"]]
+        mesoregions = load_geo_layer("mesorregiao")[["name_meso", "geometry"]]
         with fs.open(geography_path(env, "municipios_mg_mesorregioes.parquet"), "rb") as source:
             reference = pd.read_parquet(source)
     except Exception as exc:
@@ -117,6 +117,14 @@ def load_geo_reference() -> tuple[dict | None, pd.DataFrame | None, pd.DataFrame
         point = geometry.representative_point()
         coordinates.append((int(row.codigo_ibge), row.name_muni, point.y, point.x))
     region_geometries = list(mesoregions.geometry.dropna())
+    mesoregion_centers = []
+    for row in mesoregions.itertuples(index=False):
+        if row.geometry is None or row.geometry.is_empty:
+            continue
+        point = row.geometry.representative_point()
+        mesoregion_centers.append({
+            "name": str(row.name_meso), "lon": float(point.x), "lat": float(point.y),
+        })
     geojson_mg = {
         "type": "FeatureCollection",
         "features": features,
@@ -124,6 +132,7 @@ def load_geo_reference() -> tuple[dict | None, pd.DataFrame | None, pd.DataFrame
             "mesoregions": _boundary_coordinates([geometry.boundary for geometry in region_geometries]),
             "state": _boundary_coordinates([unary_union(region_geometries).boundary]),
         },
+        "mesoregion_centers": mesoregion_centers,
     }
 
     df_municipios = pd.DataFrame(coordinates, columns=["codigo_ibge", "nome", "latitude", "longitude"])

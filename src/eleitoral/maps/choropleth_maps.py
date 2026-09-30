@@ -7,6 +7,7 @@ import unicodedata
 import numpy as np
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 from shapely.geometry import mapping
 
 from eleitoral.maps.dna_geo_reference import load_geo_layer, load_geo_reference, load_municipality_sectors
@@ -57,14 +58,24 @@ def categorical_choropleth(
     return fig
 
 
+def _add_boundary(fig, coordinates: tuple[list, list], *, width: float) -> None:
+    lon, lat = coordinates
+    if lon and lat:
+        fig.add_trace(go.Scattergeo(
+            lon=lon, lat=lat, mode="lines",
+            line={"color": "rgba(255,255,255,0.96)", "width": width},
+            hoverinfo="skip", showlegend=False,
+        ))
+
+
 def territorial_map(votes: pd.DataFrame | None, kind: str):
     geojson, tse, municipalities, regions = load_geo_reference()
     if not geojson or votes is None or votes.empty:
         return None
     if kind == "votos_mesorregiao":
-        totals = votes.groupby("nm_mesorregiao")["qt_votos"].sum()
+        totals = votes.groupby(votes["nm_mesorregiao"].map(_normalized_name))["qt_votos"].sum()
         frame = regions[["codigo_ibge", "mesorregiao_nome"]].copy()
-        frame["votos"] = frame["mesorregiao_nome"].map(totals).fillna(0)
+        frame["votos"] = frame["mesorregiao_nome"].map(_normalized_name).map(totals).fillna(0)
     else:
         frame = votes.copy()
         if "nivel_territorial" in frame.columns:
@@ -94,6 +105,36 @@ def territorial_map(votes: pd.DataFrame | None, kind: str):
         hover_name="nome", custom_data=["votos"], colorbar_title="Votos",
     )
     fig.update_traces(hovertemplate="<b>%{hovertext}</b><br>Votos: %{customdata[0]:,.0f}<extra></extra>")
+    boundaries = geojson.get("regional_lines", {})
+    if kind == "votos_mesorregiao":
+        fig.update_traces(marker_line_color="rgba(255,255,255,0.48)", marker_line_width=0.35)
+        _add_boundary(fig, boundaries.get("mesoregions", ([], [])), width=2.2)
+        centers = geojson.get("mesoregion_centers", [])
+        total_votes = float(pd.to_numeric(votes["qt_votos"], errors="coerce").fillna(0).sum())
+        labels = []
+        custom_data = []
+        for center in centers:
+            region_votes = float(totals.get(_normalized_name(center["name"]), 0))
+            percentage = 100 * region_votes / total_votes if total_votes > 0 else 0.0
+            labels.append(f"{percentage:.1f}%".replace(".", ","))
+            custom_data.append([center["name"], region_votes])
+        if centers:
+            fig.add_trace(go.Scattergeo(
+                lon=[center["lon"] for center in centers],
+                lat=[center["lat"] for center in centers],
+                mode="markers+text", text=labels, textposition="middle center",
+                textfont={"color": "#FFFFFF", "size": 11, "family": "Arial Black, Arial, sans-serif"},
+                marker={
+                    "size": 46, "color": "rgba(5,18,43,0.86)",
+                    "line": {"color": "#FFFFFF", "width": 1.2},
+                },
+                customdata=custom_data,
+                hovertemplate="<b>%{customdata[0]}</b><br>Participação: %{text}<br>Votos: %{customdata[1]:,.0f}<extra></extra>",
+                showlegend=False,
+            ))
+    else:
+        fig.update_traces(marker_line_color="rgba(255,255,255,0.92)", marker_line_width=1.0)
+    _add_boundary(fig, boundaries.get("state", ([], [])), width=3.0)
     return fig
 
 
