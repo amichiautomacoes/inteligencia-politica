@@ -3,6 +3,7 @@
 import base64
 import html
 import unicodedata
+import unicodedata
 from pathlib import Path
 
 import numpy as np
@@ -344,6 +345,17 @@ def _apply_visual_model() -> None:
             font-size: 0.8rem;
             margin-top: 0.34rem;
             line-height: 1.25;
+        }}
+        .raiox-map-side-cards {{
+            display: grid;
+            gap: 1rem;
+        }}
+        .raiox-map-side-card {{
+            min-height: 9.25rem;
+            border: 1px solid var(--raiox-outline-border);
+            border-radius: 16px;
+            background: var(--raiox-card-bg);
+            box-shadow: 0 12px 30px rgba(1, 8, 24, 0.22);
         }}
         .mapa-kpi-wide-card {{
             position: relative;
@@ -865,9 +877,12 @@ def _territorial_map_view(df: pd.DataFrame | None, kind: str) -> pd.DataFrame | 
     return result
 
 
-def _territorial_concentration_chart(df: pd.DataFrame | None, kind: str) -> go.Figure:
-    label_col = "nm_mesorregiao" if kind == "votos_mesorregiao" else "nm_municipio"
-    title = "Top 10 mesorregiões" if kind == "votos_mesorregiao" else "Top 10 municípios"
+def _territorial_concentration_chart(
+    df: pd.DataFrame | None, kind: str, *, label_col: str | None = None,
+    title: str | None = None, limit: int | None = 10,
+) -> go.Figure:
+    label_col = label_col or ("nm_mesorregiao" if kind == "votos_mesorregiao" else "nm_municipio")
+    title = title or ("Top 10 mesorregiões" if kind == "votos_mesorregiao" else "Top 10 municípios")
 
     if df is None or df.empty or "qt_votos" not in df.columns or label_col not in df.columns:
         ranking = pd.DataFrame({"territorio": ["Sem dados"], "qt_votos": [0.0], "pct": [0.0]})
@@ -880,8 +895,9 @@ def _territorial_concentration_chart(df: pd.DataFrame | None, kind: str) -> go.F
             ranking.groupby(label_col, as_index=False)["qt_votos"]
             .sum()
             .sort_values("qt_votos", ascending=False)
-            .head(10)
         )
+        if limit is not None:
+            ranking = ranking.head(limit)
         total_votes = float(pd.to_numeric(df["qt_votos"], errors="coerce").fillna(0).sum())
         ranking["pct"] = np.where(total_votes > 0, ranking["qt_votos"] / total_votes, 0.0)
         ranking = ranking.sort_values("qt_votos", ascending=True)
@@ -924,7 +940,7 @@ def _territorial_concentration_chart(df: pd.DataFrame | None, kind: str) -> go.F
         )
     )
     fig.update_layout(
-        height=560,
+        height=max(480, min(1400, 100 + len(ranking) * 30)),
         margin={"l": 200, "r": 28, "t": 58, "b": 22},
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
@@ -954,6 +970,59 @@ def _territorial_concentration_chart(df: pd.DataFrame | None, kind: str) -> go.F
         bargap=0.22,
     )
     return fig
+
+
+def _selected_territory(event: object, kind: str) -> str:
+    selection = getattr(event, "selection", None)
+    if selection is None and isinstance(event, dict):
+        selection = event.get("selection", {})
+    points = selection.get("points", []) if isinstance(selection, dict) else getattr(selection, "points", [])
+    if not points:
+        return ""
+    point = points[0]
+    customdata = point.get("customdata") if isinstance(point, dict) else getattr(point, "customdata", None)
+    if kind == "votos_mesorregiao" and customdata and isinstance(customdata[0], str):
+        return customdata[0]
+    location = point.get("location") if isinstance(point, dict) else getattr(point, "location", None)
+    if not location:
+        return ""
+    _, _, municipalities, regions = load_geo_reference()
+    source = regions if kind == "votos_mesorregiao" else municipalities
+    name_col = "mesorregiao_nome" if kind == "votos_mesorregiao" else "nome"
+    match = source[pd.to_numeric(source["codigo_ibge"], errors="coerce").eq(pd.to_numeric(location, errors="coerce"))]
+    return str(match.iloc[0][name_col]) if not match.empty else ""
+
+
+@st.dialog("Detalhamento territorial", width="large")
+def _territorial_drilldown(territory: str, kind: str, municipal_votes: pd.DataFrame | None,
+                            neighborhood_votes: pd.DataFrame | None) -> None:
+    st.subheader(territory)
+    if kind == "votos_mesorregiao":
+        source = municipal_votes
+        region_col, label_col = "nm_mesorregiao", "nm_municipio"
+        title = "Votos por município"
+    else:
+        source = neighborhood_votes
+        region_col, label_col = "nm_municipio", "nm_bairro"
+        title = "Votos por bairro"
+    if source is None or source.empty or not {region_col, label_col, "qt_votos"}.issubset(source.columns):
+        st.info("Dados do detalhamento indisponíveis para este território.")
+        return
+    selected = source[source[region_col].map(_normalized_text).eq(_normalized_text(territory))].copy()
+    if selected.empty:
+        st.info("Nenhum voto detalhado disponível para este território.")
+        return
+    selected[label_col] = selected[label_col].fillna("Não informado").astype(str).str.strip().replace("", "Não informado")
+    st.plotly_chart(_territorial_concentration_chart(
+        selected, kind, label_col=label_col, title=title, limit=None,
+    ), width="stretch", key="pagina1_drilldown_chart")
+
+
+def _normalized_text(value: object) -> str:
+    return " ".join("".join(
+        char for char in unicodedata.normalize("NFKD", str(value or "").strip().upper())
+        if not unicodedata.combining(char)
+    ).split())
 
 def _municipal_concentration_frame(df: pd.DataFrame | None) -> pd.DataFrame:
     if df is None or df.empty or not {"nm_municipio", "qt_votos"}.issubset(df.columns):
@@ -2309,37 +2378,41 @@ _apply_visual_model()
 
 _render_page_header()
 
-_major_section_header("Mapa Territorial da Votação", "Leitura territorial do desempenho eleitoral no recorte ativo.")
+_major_section_header("Diagnóstico geral da votação", "")
 votos_municipio_df = _read_selected_parquet("votos_municipio")
 votos_bairro_df = _read_selected_parquet("votos_bairro")
 _render_kpis(votos_municipio_df, {})
-header_col, filter_col = st.columns([0.72, 0.28], gap="large")
-with header_col:
-    _section_header(
-        "Sua votação no território de Minas Gerais",
-        "Concentração territorial dos votos por mesorregião e por município.",
-    )
-with filter_col:
-    territorial_kind = _territorial_kind_select()
-votos_df = _territorial_map_view(_read_selected_parquet(territorial_kind), territorial_kind)
-map_col, concentration_col = st.columns([0.60, 0.40], gap="large")
+_major_section_header("Mapa Territorial da Votação", "Leitura territorial do desempenho eleitoral no recorte ativo.")
+map_col, cards_col = st.columns([0.70, 0.30], gap="large")
 with map_col:
     with st.container(border=True):
+        header_col, filter_col = st.columns([0.70, 0.30], gap="small")
+        with header_col:
+            _section_header(
+                "Sua votação no território de Minas Gerais",
+                "Clique em uma área do mapa para ver o detalhamento dos votos.",
+            )
+        with filter_col:
+            territorial_kind = _territorial_kind_select()
+        votos_df = _territorial_map_view(_read_selected_parquet(territorial_kind), territorial_kind)
         fig = territorial_map(votos_df, territorial_kind)
         if fig is not None:
-            st.plotly_chart(fig, width="stretch", height=560, key="pagina1_territorial_map")
+            map_event = st.plotly_chart(
+                fig, width="stretch", height=560, key=f"pagina1_territorial_map_{territorial_kind}",
+                on_select="rerun", selection_mode="points",
+            )
+            territory = _selected_territory(map_event, territorial_kind)
+            if territory:
+                _territorial_drilldown(territory, territorial_kind, votos_municipio_df, votos_bairro_df)
         else:
             st.info("Mapa territorial indisponível.")
-with concentration_col:
-    with st.container(border=True):
-        st.markdown(
-            "<div class='raiox-chart-card-title'>Concentração territorial</div>",
-            unsafe_allow_html=True,
-        )
-        st.plotly_chart(
-            _territorial_concentration_chart(votos_df, territorial_kind),
-            width="stretch",
-        )
+with cards_col:
+    st.markdown(
+        '<div class="raiox-map-side-cards">'
+        + '<div class="raiox-map-side-card"></div>' * 4
+        + '</div>',
+        unsafe_allow_html=True,
+    )
 _section_header(
     "Votação por Setor Censitário e Perfil Demográfico",
     "Votação por setor censitário do IBGE, com nome do bairro associado e perfil demográfico do recorte selecionado.",
