@@ -18,7 +18,7 @@ O app consome arquivos remotos do Hugging Face, configurados pelo `.env`, e apre
 - `pages/dna_distribution.py`: grafico de rosca e filtros da distribuicao demografica do eleitorado.
 - `pages/shared_header.py`: componente compartilhado de cabecalho, fundo, foto do candidato, seletor entre paginas e helpers visuais comuns.
 - `pages/dna_geo_reference.py`: carrega dos parquets a malha, os contornos e os codigos municipais de MG para os mapas do Raio X e do DNA Eleitoral.
-- As malhas dos mapas são GeoParquet lidos com `geopandas.read_parquet`. Os cinco mapas do dashboard usam PyDeck/Deck.gl. O mapa detalhado usa bairros oficiais quando o voto pode ser associado à malha e setores censitários como fallback.
+- As malhas dos mapas são GeoParquet lidos com `geopandas.read_parquet`. Os cinco mapas do dashboard usam PyDeck/Deck.gl. O mapa detalhado usa apenas setores censitários do IBGE.
 - `hf_sync.py`: leitura de `.env`, listagem remota no Hugging Face, cache e mapeamento dos parquets por tipo.
 - `assets/background.png`: imagem de fundo usada no modelo visual.
 - `Visual.md`: briefing visual do produto, separado da documentacao tecnica.
@@ -64,19 +64,18 @@ O app localiza as pastas dos candidatos a partir do prefixo geral da eleicao, li
 - `IBGE/MG/dadosterritorio/MG_AreaPonderada_CD2022.parquet`: 1.814 areas ponderadas.
 - `IBGE/MG/dadosterritorio/MG_bairros_CD2022.parquet`: 2.066 bairros.
 - `IBGE/MG/dadosterritorio/MG_setores_CD2022.parquet`: 51.387 setores censitarios distintos (102.774 registros duplicados no arquivo); malha do mapa detalhado da votação.
-- `IBGE/MG/dadosterritorio/malha_bairros_completa.parquet`: 1.994 bairros oficiais em 55 municípios.
-- `IBGE/MG/dadosterritorio/setor_bairro_lookup.parquet`: índice leve para associar votos por setor aos bairros oficiais.
-- `IBGE/MG/dadosterritorio/MG_setores_mapa_CD2022.parquet`: setores únicos com geometria simplificada, organizados para leitura por município no fallback do mapa.
+- `IBGE/MG/dadosterritorio/setor_bairro_lookup.parquet`: índice leve de setores, com código e nome de bairro informados pelo IBGE.
+- `IBGE/MG/dadosterritorio/MG_setores_mapa_CD2022.parquet`: setores únicos com geometria simplificada, organizados para leitura por município.
 - `IBGE/MG/dadosterritorio/municipios_mg_mesorregioes.parquet`: correspondencia entre codigos TSE e IBGE e classificacao por mesorregiao.
 
-`load_geo_layer()` lê a geometria e o CRS dos GeoParquets com GeoPandas e transforma as coordenadas para EPSG:4326, usado pelos mapas Deck.gl. O mapa detalhado associa votos aos bairros pelo setor censitário ou nome do bairro eleitoral; os votos restantes usam o setor como fallback. Ao selecionar um bairro ou setor, o perfil demográfico é filtrado pelos bairros eleitorais vinculados a ele. O parquet otimizado dos setores é lido por município. Se a referência remota falhar, o app informa a indisponibilidade.
+`load_geo_layer()` lê a geometria e o CRS dos GeoParquets com GeoPandas e transforma as coordenadas para EPSG:4326, usado pelos mapas Deck.gl. O mapa detalhado associa votos diretamente ao setor censitário. O tooltip mostra os nomes de bairro informados pelo IBGE e pelos registros eleitorais associados ao setor. Quando não há nome em nenhuma fonte, informa a ausência. Ao selecionar um setor, o perfil demográfico é filtrado pelos bairros eleitorais vinculados a ele. O parquet otimizado dos setores é lido por município. Se a referência remota falhar, o app informa a indisponibilidade.
 
 ### Demografia
 
-Na seção **Votação por Bairro de cada município e Perfil demográfico**, a escolha da malha é feita por município:
+Na seção **Votação por Setor Censitário e Perfil Demográfico**, a malha é lida por município:
 
-- O mapa usa os bairros oficiais nos 55 municípios disponíveis. Votos sem bairro correspondente e municípios sem essa malha usam polígonos de setores censitários.
-- Ao selecionar um bairro ou setor, o perfil demográfico considera os registros dos bairros eleitorais ligados a ele. Votos sem correspondência com qualquer malha são informados abaixo do mapa.
+- O mapa usa setores censitários em todos os municípios. A cor azul é relativa à maior votação de um setor no município selecionado, e os limites entre setores aparecem em branco.
+- Ao selecionar um setor, o perfil demográfico considera os registros dos bairros eleitorais ligados a ele. Votos sem setor correspondente são informados abaixo do mapa.
 
 - `demografico/stage02_genero.parquet`
 - `demografico/stage02_idade.parquet`
@@ -162,10 +161,10 @@ Esta secao traz:
 
 - filtro de mesorregiao;
 - filtro de municipio abaixo do filtro de mesorregiao; a mesorregiao inicial e a de maior votacao total do candidato, e o municipio inicial e o mais votado dentro dela;
-- mapa do municipio selecionado com bairros oficiais e fallback por setores censitarios do IBGE;
-- dois indicadores compactos no canto superior direito do card: votos do municipio e, quando houver selecao, votos do bairro ou setor;
-- bairros e setores coloridos por uma escala azul suave conforme os votos associados; o total aparece no hover e areas sem correspondencia permanecem visiveis com zero;
-- selecao interativa de bairro ou setor no mapa para recortar o perfil demografico;
+- mapa do municipio selecionado com setores censitarios do IBGE;
+- dois indicadores compactos no canto superior direito do card: votos do municipio e, quando houver selecao, votos do setor;
+- setores coloridos por uma escala azul relativa ao municipio; o total aparece no hover e setores sem votos permanecem visiveis com zero;
+- selecao interativa de setor no mapa para recortar o perfil demografico;
 - persistencia do recorte da secao em `st.session_state["pagina1_demographic_territorial_context"]`;
 - botao para limpar o recorte territorial ativo;
 - grafico de barras do perfil demografico, com filtros por:

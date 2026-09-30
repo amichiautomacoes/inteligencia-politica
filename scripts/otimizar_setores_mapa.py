@@ -16,15 +16,16 @@ def main() -> None:
     env = load_env(ROOT / ".env")
     path = env["HF_BUCKET_URL"].rstrip("/") + "/IBGE/MG/dadosterritorio/MG_setores_CD2022.parquet"
     with hf_filesystem(env.get("HF_TOKEN")).open(path, "rb") as source:
-        sectors = gpd.read_parquet(source, columns=["code_tract", "code_muni", "code_neighborhood", "geometry"])
+        sectors = gpd.read_parquet(source, columns=["code_tract", "code_muni", "code_neighborhood", "name_neighborhood", "geometry"])
     sectors = sectors.drop_duplicates("code_tract")
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     lookup = pd.DataFrame({
         "cd_setor_censitario": pd.to_numeric(sectors["code_tract"], errors="coerce").astype("Int64").astype(str),
         "codigo_bairro_ibge": pd.to_numeric(sectors["code_neighborhood"], errors="coerce").astype("Int64").astype(str),
+        "nome_bairro_ibge": sectors["name_neighborhood"].fillna("").astype(str).str.strip(),
     })
     lookup.to_parquet(OUTPUT.parent / "setor_bairro_lookup.parquet", index=False)
-    sectors = sectors.drop(columns="code_neighborhood")
+    sectors = sectors.drop(columns=["code_neighborhood", "name_neighborhood"])
     sectors["code_muni"] = pd.to_numeric(sectors["code_muni"], errors="coerce").astype("Int64")
     sectors["code_tract"] = pd.to_numeric(sectors["code_tract"], errors="coerce").astype("Int64")
     sectors = sectors.dropna(subset=["code_muni", "code_tract", "geometry"])

@@ -25,6 +25,7 @@ def deck_geojson(
     features: list[dict], *, tooltip: str, layer_id: str,
     latitude: float = -18.5, longitude: float = -44.0, zoom: float = 5.4,
     pickable: bool = False, line_width: int = 1,
+    line_color: list[int] | None = None,
 ) -> pdk.Deck:
     layer = pdk.Layer(
         "GeoJsonLayer",
@@ -35,7 +36,7 @@ def deck_geojson(
         pickable=pickable,
         auto_highlight=pickable,
         get_fill_color="properties.fill_color",
-        get_line_color=[200, 220, 245, 170],
+        get_line_color=line_color or [200, 220, 245, 170],
         line_width_min_pixels=line_width,
     )
     return pdk.Deck(

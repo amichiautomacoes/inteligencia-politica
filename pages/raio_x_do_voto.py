@@ -14,7 +14,7 @@ import streamlit as st
 from hf_sync import data_files, file_by_kind, hf_filesystem, load_env, load_parquet, selected_deputado_files
 from pages.dna_geo_reference import load_geo_layer, load_geo_reference
 from pages.municipal_deck import parliamentary_deck, territorial_deck
-from pages.neighborhood_deck import assign_vote_polygons, detailed_map, selected_context
+from pages.neighborhood_deck import detailed_map, selected_context
 from pages.shared_header import render_page_header
 
 try:
@@ -1472,13 +1472,10 @@ def _neighborhood_vote_cards(
         f'<div class="raiox-neighborhood-kpi-value">{_format_number(city_votes)}</div>'
         f'</div>'
     ]
-    if context.get("cd_setor_censitario") or context.get("codigo_bairro_ibge"):
+    if context.get("cd_setor_censitario"):
         selected_rows = _apply_territorial_context(neighborhood_votes, context, "Todas", municipio)
         neighborhood_total = pd.to_numeric(selected_rows["qt_votos"], errors="coerce").fillna(0).sum()
-        selected_label = (
-            f"bairro {context['codigo_bairro_ibge']}" if context.get("codigo_bairro_ibge")
-            else f"setor {context['cd_setor_censitario']}"
-        )
+        selected_label = context.get("nome_bairro") or "setor selecionado"
         cards.append(
             f'<div class="raiox-neighborhood-kpi">'
             f'<div class="raiox-neighborhood-kpi-label">Votos em {html.escape(selected_label)}</div>'
@@ -1500,13 +1497,6 @@ def _apply_territorial_context(
         value = context.get(column)
         if column in result.columns and value:
             result = result[result[column].astype(str).str.strip() == value]
-    if context.get("codigo_bairro_ibge") and {"cd_setor_censitario", "cd_ibge_municipio"}.issubset(result.columns):
-        code = pd.to_numeric(result["cd_ibge_municipio"], errors="coerce").dropna()
-        if not code.empty:
-            official = load_geo_layer("bairro_geopedia")
-            official = official[official["codigo_municipio_ibge"].eq(str(int(code.iloc[0])))]
-            result = assign_vote_polygons(result, official)
-            result = result[result["codigo_bairro_ibge"].eq(context["codigo_bairro_ibge"])]
     return result
 
 
@@ -1540,8 +1530,7 @@ def _clear_section_context(key: str) -> None:
 
 def _context_label(context: dict[str, str]) -> str:
     return (
-        f"bairro oficial {context['codigo_bairro_ibge']}" if context.get("codigo_bairro_ibge") else
-        f"setor censitário {context['cd_setor_censitario']}"
+        (context.get("nome_bairro") or "setor censitário selecionado")
         if context.get("cd_setor_censitario") else context.get("nm_municipio") or "recorte selecionado"
     )
 
@@ -1560,7 +1549,7 @@ def _demographic_bar(kind: str, context: dict[str, str], mesorregiao: str, munic
         bar_df = pd.DataFrame({"categoria": ["Parquet pendente"], "percentual": [0.0]})
     else:
         df = _apply_territorial_context(df, context, mesorregiao, municipio)
-        if (context.get("cd_setor_censitario") or context.get("codigo_bairro_ibge")) and "cd_bairro" in df.columns:
+        if context.get("cd_setor_censitario") and "cd_bairro" in df.columns:
             area_votes = _read_selected_parquet("votos_bairro")
             if area_votes is not None and {"cd_setor_censitario", "cd_bairro"}.issubset(area_votes.columns):
                 area_rows = _apply_territorial_context(area_votes, context, mesorregiao, municipio)
@@ -2321,8 +2310,8 @@ with concentration_col:
             use_container_width=True,
         )
 _section_header(
-    "Votação por Bairro de cada município e Perfil demográfico",
-    "Bairros oficiais onde há malha disponível; setores censitários nos demais locais, com votação e perfil demográfico do recorte selecionado.",
+    "Votação por Setor Censitário e Perfil Demográfico",
+    "Votação por setor censitário do IBGE, com nome do bairro associado e perfil demográfico do recorte selecionado.",
 )
 neighborhood_df, mesorregiao, municipio = _mesorregiao_filter(votos_bairro_df, votos_municipio_df)
 current_filters = (mesorregiao, municipio)
@@ -2338,7 +2327,7 @@ with col_left:
         title_col, cards_col = st.columns([0.56, 0.44], gap="small")
         with title_col:
             st.markdown(
-                "<div class='raiox-chart-card-title'>Votação por bairro e setor censitário</div>",
+                "<div class='raiox-chart-card-title'>Votação por setor censitário</div>",
                 unsafe_allow_html=True,
             )
         with cards_col:
