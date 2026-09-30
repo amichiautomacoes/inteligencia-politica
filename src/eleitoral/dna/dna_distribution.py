@@ -18,6 +18,7 @@ DIMENSIONS = {
     "Estado civil": ("estado_civil", "pct_estado_civil_"),
 }
 PALETTE = ["#60A5FA", "#38BDF8", "#A78BFA", "#34D399", "#FBBF24", "#FB923C", "#94A3B8"]
+GENDER_COLORS = {"feminino": "#3B82F6", "masculino": "#F97316", "nao informado": "#94A3B8"}
 
 
 def _code(value: object) -> str:
@@ -28,6 +29,12 @@ def _code(value: object) -> str:
 def _name(value: object) -> str:
     normalized = unicodedata.normalize("NFKD", str(value or "").casefold())
     return re.sub(r"\s+", " ", "".join(c for c in normalized if not unicodedata.combining(c))).strip()
+
+
+def _category_colors(labels: list[str], kind: str) -> list[str]:
+    if kind == "genero":
+        return [GENDER_COLORS.get(_name(label), "#A78BFA") for label in labels]
+    return [PALETTE[index % len(PALETTE)] for index in range(len(labels))]
 
 
 def _municipalities(votes: pd.DataFrame | None) -> list[tuple[str, str]]:
@@ -82,20 +89,18 @@ def _votes_in_scope(votes: pd.DataFrame | None, code: str, name: str) -> float |
     return float(pd.to_numeric(frame["qt_votos"], errors="coerce").fillna(0).sum())
 
 
-def _legend_html(labels: list[str], shares: list[float], total_votes: float | None, colors: list[str]) -> str:
+def _legend_html(labels: list[str], shares: list[float], colors: list[str]) -> str:
     rows = []
     for label, share, color in zip(labels, shares, colors):
-        estimated = f"≈ {share / 100 * total_votes:,.0f}".replace(",", ".") if total_votes is not None else "—"
         rows.append(
             '<div class="dna-distribution-legend-row">'
             f'<span class="dna-distribution-legend-category"><span class="dna-distribution-swatch" style="background:{color}"></span>{html.escape(label)}</span>'
-            f'<span class="dna-distribution-legend-votes">{estimated}</span>'
             f'<strong>{share:.1f}%</strong>'.replace(".", ",")
             + '</div>'
         )
     return (
         '<div class="dna-distribution-legend" aria-label="Categorias da distribuição">'
-        '<div class="dna-distribution-legend-head"><span>Categoria</span><span>Votos estimados</span><span>%</span></div>'
+        '<div class="dna-distribution-legend-head"><span>Categoria</span><span>%</span></div>'
         + "".join(rows) + '</div>'
     )
 
@@ -106,15 +111,14 @@ def render_electorate_distribution(read_parquet: Callable[[str], pd.DataFrame | 
     st.html('''<style>
         .dna-distribution-leader{display:inline-flex;align-items:center;gap:.35rem;padding:.45rem .8rem;border:1px solid rgba(96,165,250,.35);border-radius:999px;background:rgba(37,99,235,.16);color:#eaf2ff;font-size:.83rem;font-weight:700}
         .dna-distribution-leader strong{color:#fff}
-        .dna-distribution-legend{display:grid;gap:5px;margin:.2rem 0 .75rem}
-        .dna-distribution-legend-head,.dna-distribution-legend-row{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(7rem,1fr) 4rem;align-items:center;gap:8px}
+        .dna-distribution-legend{display:grid;gap:5px;margin:1rem 0 .75rem}
+        .dna-distribution-legend-head,.dna-distribution-legend-row{display:grid;grid-template-columns:minmax(0,1fr) 4rem;align-items:center;gap:8px}
         .dna-distribution-legend-head{color:#9fb2d4;font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;padding:0 10px 3px}
         .dna-distribution-legend-row{padding:9px 10px;border:1px solid rgba(147,197,253,.14);border-radius:9px;background:rgba(10,29,64,.42);font-size:.8rem;color:#eaf2ff}
         .dna-distribution-legend-category{display:flex;align-items:center;gap:8px;min-width:0}
         .dna-distribution-swatch{width:11px;height:11px;border-radius:3px;flex:none}
-        .dna-distribution-legend-votes{color:#b7c7e6;font-variant-numeric:tabular-nums}
         .dna-distribution-legend-row strong{text-align:right;color:#fff;font-variant-numeric:tabular-nums}
-        @media(max-width:560px){.dna-distribution-legend-head,.dna-distribution-legend-row{grid-template-columns:minmax(0,1fr) 5.7rem 3.5rem;gap:4px}.dna-distribution-legend-head{font-size:.58rem}.dna-distribution-legend-row{font-size:.72rem;padding:8px 6px}}
+        @media(max-width:560px){.dna-distribution-legend-head,.dna-distribution-legend-row{grid-template-columns:minmax(0,1fr) 3.5rem;gap:4px}.dna-distribution-legend-head{font-size:.58rem}.dna-distribution-legend-row{font-size:.72rem;padding:8px 6px}}
     </style>''')
     with st.container(border=True):
         st.markdown("#### Distribuição do eleitorado")
@@ -143,19 +147,15 @@ def render_electorate_distribution(read_parquet: Callable[[str], pd.DataFrame | 
             labels = distribution["categoria"].tolist()
             values = distribution["percentual"].tolist()
             shares = [value / sum(values) * 100 for value in values]
-            colors = [PALETTE[index % len(PALETTE)] for index in range(len(labels))]
+            colors = _category_colors(labels, kind)
             leader = f"🏆 {dimension} dominante: <strong>{html.escape(labels[0])} ({shares[0]:.1f}%)</strong>".replace(".", ",")
             st.html(f'<div class="dna-distribution-leader">{leader}</div>')
             center = f"{total_votes:,.0f}".replace(",", ".") if total_votes is not None else "—"
-            estimated_votes = [share / 100 * total_votes for share in shares] if total_votes is not None else None
-            hover = (
-                "<b>%{label}</b><br>%{value:.1f}% da distribuição<br>≈ %{customdata:,.0f} votos estimados<extra></extra>"
-                if estimated_votes is not None else "<b>%{label}</b><br>%{value:.1f}% da distribuição<extra></extra>"
-            )
+            hover = "<b>%{label}</b><br>%{value:.1f}% da distribuição<extra></extra>"
             fig = go.Figure(go.Pie(
                 labels=labels, values=shares, hole=0.66, sort=False,
                 marker={"colors": colors, "line": {"color": "rgba(255,255,255,.25)", "width": 1}},
-                customdata=estimated_votes, hovertemplate=hover,
+                hovertemplate=hover,
                 textinfo="none", showlegend=False,
             ))
             fig.update_layout(
@@ -167,5 +167,6 @@ def render_electorate_distribution(read_parquet: Callable[[str], pd.DataFrame | 
                               "showarrow": False, "font": {"size": 16, "color": "#ffffff"}}],
             )
             st.plotly_chart(fig, width="stretch", key="dna_distribution_donut", config={"displayModeBar": False})
-            st.html(_legend_html(labels, shares, total_votes, colors))
             st.caption("Os percentuais são estimativas de dimensões separadas; as categorias exibidas não representam cruzamentos entre perfis.")
+        with filter_col:
+            st.html(_legend_html(labels, shares, colors))

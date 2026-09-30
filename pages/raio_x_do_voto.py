@@ -154,7 +154,7 @@ def _apply_visual_model() -> None:
             top: 2.05rem;
             right: 2.35rem;
             display: inline-grid;
-            grid-template-columns: repeat(2, minmax(8.9rem, 1fr));
+            grid-template-columns: repeat(3, minmax(8.9rem, 1fr));
             gap: 0.25rem;
             padding: 0.28rem;
             border: 1px solid rgba(147, 197, 253, 0.32);
@@ -194,7 +194,7 @@ def _apply_visual_model() -> None:
                 inset: auto;
                 margin-bottom: 1.1rem;
                 width: 100%;
-                grid-template-columns: 1fr 1fr;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
             }}
             .raiox-hero-title,
             .raiox-hero-subtitle {{
@@ -250,6 +250,10 @@ def _apply_visual_model() -> None:
             box-shadow: none;
             backdrop-filter: none;
             -webkit-backdrop-filter: none;
+        }}
+        .st-key-parliamentary-map-container [data-testid="stVerticalBlockBorderWrapper"] {{
+            padding-left: 0 !important;
+            padding-right: 0 !important;
         }}
         .mapa-major-section {{
             position: relative;
@@ -466,6 +470,9 @@ def _apply_visual_model() -> None:
             gap: 0.75rem;
             margin-top: 0.75rem;
         }}
+        .raiox-cost-kpi-row {{
+            margin-bottom: 1.5rem;
+        }}
         .raiox-heatmap-kpi {{
             background: transparent;
             border: 1px solid var(--raiox-outline-border);
@@ -571,11 +578,11 @@ def _apply_visual_model() -> None:
             margin-top: 0.6rem;
         }}
         .raiox-concentration-pill-label {{
-            color: #9fb2d4;
-            font-size: 0.7rem;
-            font-weight: 750;
+            color: #f8fbff;
+            font-size: 1.08rem;
+            font-weight: 800;
             text-transform: uppercase;
-            letter-spacing: 0.11em;
+            letter-spacing: 0.05em;
         }}
         .raiox-concentration-pill-value {{
             color: #ffffff;
@@ -586,9 +593,16 @@ def _apply_visual_model() -> None:
             font-variant-numeric: tabular-nums;
         }}
         .raiox-concentration-pill-city {{
+            color: #ffffff;
+            font-size: 1.3rem;
+            font-weight: 800;
+            line-height: 1.2;
+            margin-top: 0.35rem;
+        }}
+        .raiox-concentration-pill-city span {{
             color: #b7c7e6;
-            font-size: 0.78rem;
-            line-height: 1.3;
+            font-size: 0.82rem;
+            font-weight: 500;
         }}
         .raiox-concentration-leader {{
             color: #f8fbff;
@@ -662,15 +676,38 @@ def _apply_visual_model() -> None:
         .raiox-concentration-city-list {{
             display: grid;
             grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 0.48rem 1rem;
+            gap: 0.55rem 0.8rem;
             padding: 0.25rem 0 0.5rem;
             color: #eaf2ff;
             font-size: 0.83rem;
         }}
+        .raiox-concentration-city-item {{
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr) auto;
+            align-items: center;
+            gap: 0.4rem;
+            min-width: 0;
+            padding: 0.5rem 0.65rem;
+            border: 1px solid rgba(147, 197, 253, 0.15);
+            border-radius: 8px;
+            background: rgba(10, 30, 65, 0.45);
+        }}
         .raiox-concentration-city-rank {{
             color: #93c5fd;
             font-weight: 750;
-            margin-right: 0.35rem;
+            font-variant-numeric: tabular-nums;
+        }}
+        .raiox-concentration-city-name {{
+            min-width: 0;
+            overflow-wrap: anywhere;
+        }}
+        .raiox-concentration-city-votes {{
+            color: #dbeafe;
+            font-weight: 750;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+            padding-left: 0.5rem;
+            border-left: 1px solid rgba(147, 197, 253, 0.2);
         }}
         .raiox-bar-filter [data-testid="stSelectbox"] {{
             max-width: 16rem;
@@ -1467,8 +1504,8 @@ def _render_accumulated_concentration_section(df: pd.DataFrame | None) -> None:
                     st.markdown(
                         f'<div class="raiox-concentration-pill-label">Top {rank}</div>'
                         f'<div class="raiox-concentration-pill-city">'
-                        f'{_format_number(float(row["votos_acumulados"]))} votos · '
-                        f'{effective_rank} {"município" if effective_rank == 1 else "municípios"}'
+                        f'{_format_number(float(row["votos_acumulados"]))} votos'
+                        f'<span> · {effective_rank} {"município" if effective_rank == 1 else "municípios"}</span>'
                         '</div>', unsafe_allow_html=True,
                     )
                     st.plotly_chart(
@@ -1482,8 +1519,6 @@ def _render_accumulated_concentration_section(df: pd.DataFrame | None) -> None:
                     )
                     st.markdown('<div class="raiox-concentration-donut-hint">Clique na rosca para detalhar</div>',
                                 unsafe_allow_html=True)
-                    if rank == 1:
-                        st.caption(f"Município líder: {str(row['nm_municipio']).title()}")
         selected_rank = st.session_state.pop("pagina1_concentration_selected_rank", None)
         if selected_rank in (1, 5, 15, 20):
             _concentration_breakdown_dialog(concentration_df, selected_rank)
@@ -1498,9 +1533,10 @@ def _render_accumulated_concentration_section(df: pd.DataFrame | None) -> None:
         for rank in (5, 15, 20):
             with st.expander(f"Ver municípios do Top {rank}"):
                 city_items = "".join(
-                    '<div>'
+                    '<div class="raiox-concentration-city-item">'
                     f'<span class="raiox-concentration-city-rank">{int(city_row["rank_municipio"]):02d}</span>'
-                    f'{html.escape(str(city_row["nm_municipio"]).title())}'
+                    f'<span class="raiox-concentration-city-name">{html.escape(str(city_row["nm_municipio"]).title())}</span>'
+                    f'<span class="raiox-concentration-city-votes">{_format_number(float(city_row["qt_votos"]))} votos</span>'
                     '</div>'
                     for _, city_row in concentration_df.head(rank).iterrows()
                 )
@@ -2011,7 +2047,7 @@ def _render_cost_efficiency_kpis(chart_df: pd.DataFrame, selected_expense: str |
     kpis = _cost_efficiency_kpis(chart_df, selected_expense)
     st.markdown(
         f"""
-        <div class="raiox-heatmap-kpi-row">
+        <div class="raiox-heatmap-kpi-row raiox-cost-kpi-row">
             <div class="raiox-heatmap-kpi">
                 <div class="raiox-heatmap-kpi-label">{html.escape(kpis["custo_label"])}</div>
                 <div class="raiox-heatmap-kpi-value">{html.escape(kpis["custo_por_voto"])}</div>
@@ -2126,7 +2162,50 @@ def _territorial_expense_cost_frame(
     return result.sort_values("qt_votos", ascending=False)
 
 
-def _territorial_expense_cost_chart(frame: pd.DataFrame, territory: str) -> go.Figure:
+def _territorial_expense_cost_by_type_frame(
+    gastos_por_tipo_df: pd.DataFrame | None,
+    selected_expense: str | None,
+    territory: str,
+) -> pd.DataFrame:
+    required = {
+        "cd_municipio", "nm_municipio", "nm_mesorregiao", "tipo_despesa",
+        "valor_total_tipo_despesa", "qt_votos_municipio",
+    }
+    if gastos_por_tipo_df is None or gastos_por_tipo_df.empty or not required.issubset(gastos_por_tipo_df.columns):
+        return pd.DataFrame()
+
+    frame = gastos_por_tipo_df.copy()
+    frame["qt_votos_municipio"] = pd.to_numeric(frame["qt_votos_municipio"], errors="coerce")
+    frame["valor_total_tipo_despesa"] = pd.to_numeric(
+        frame["valor_total_tipo_despesa"], errors="coerce"
+    )
+    frame = frame.dropna(subset=["qt_votos_municipio", "valor_total_tipo_despesa"])
+    if frame.empty:
+        return pd.DataFrame()
+
+    # Each type's campaign total and each city's votes repeat across the city/type rows.
+    type_totals = frame.groupby("tipo_despesa")["valor_total_tipo_despesa"].first()
+    if selected_expense:
+        if selected_expense not in type_totals.index:
+            return pd.DataFrame()
+        campaign_spend = float(type_totals.loc[selected_expense])
+    else:
+        campaign_spend = float(type_totals.sum())
+
+    municipalities = frame.drop_duplicates("cd_municipio").copy()
+    group_col = "nm_municipio" if territory == "Municípios" else "nm_mesorregiao"
+    municipalities[group_col] = municipalities[group_col].fillna("Não informado").astype(str).str.strip()
+    result = municipalities.groupby(group_col, as_index=False)["qt_votos_municipio"].sum()
+    result = result[result["qt_votos_municipio"].gt(0)].copy()
+    result = result.rename(columns={"qt_votos_municipio": "qt_votos"})
+    result["gasto_atribuido"] = campaign_spend
+    result["custo_por_voto"] = campaign_spend / result["qt_votos"]
+    return result.sort_values("qt_votos", ascending=False)
+
+
+def _territorial_expense_cost_chart(
+    frame: pd.DataFrame, territory: str, campaign_total: bool = False
+) -> go.Figure:
     fig = go.Figure()
     if frame.empty:
         fig.add_annotation(
@@ -2145,7 +2224,7 @@ def _territorial_expense_cost_chart(frame: pd.DataFrame, territory: str) -> go.F
             customdata=display[["gasto_atribuido", "qt_votos"]].to_numpy(),
             hovertemplate=(
                 "<b>%{y}</b><br>Custo por voto: R$ %{x:,.2f}<br>"
-                "Gasto atribuído: R$ %{customdata[0]:,.2f}<br>"
+                f"{'Total da campanha' if campaign_total else 'Gasto atribuído'}: R$ %{{customdata[0]:,.2f}}<br>"
                 "Votos: %{customdata[1]:,.0f}<extra></extra>"
             ),
         ))
@@ -2166,6 +2245,7 @@ def _render_cost_efficiency_section(
     votos_df: pd.DataFrame | None,
     despesas_df: pd.DataFrame | None,
     gastos_df: pd.DataFrame | None,
+    gastos_por_tipo_df: pd.DataFrame | None,
 ) -> None:
     _major_section_header(
         "Eficiência por Custo do Voto",
@@ -2217,16 +2297,28 @@ def _render_cost_efficiency_section(
                 share = float(chart_df.loc[
                     chart_df["tipo_despesa"].eq(selected_expense), "pct_gasto"
                 ].iloc[0])
-            territorial_cost = _territorial_expense_cost_frame(gastos_df, share, territory)
+            has_type_data = gastos_por_tipo_df is not None and not gastos_por_tipo_df.empty
+            territorial_cost = (
+                _territorial_expense_cost_by_type_frame(gastos_por_tipo_df, selected_expense, territory)
+                if has_type_data else _territorial_expense_cost_frame(gastos_df, share, territory)
+            )
             st.plotly_chart(
-                _territorial_expense_cost_chart(territorial_cost, territory),
+                _territorial_expense_cost_chart(territorial_cost, territory, has_type_data),
                 width="stretch",
             )
-            st.caption(
-                "Gasto atribuído proporcionalmente aos votos em cada território. "
-                "O parquet não identifica o tipo de despesa por local; por isso "
-                "o custo por voto é igual entre territórios neste rateio."
-            )
+            if has_type_data:
+                st.caption(
+                    "Custo de referência: valor total da campanha para o tipo selecionado "
+                    "(ou todos os tipos) dividido pelos votos do território. "
+                    "O parquet repete o total da campanha em cada município; "
+                    "não registra gasto realizado em cada local."
+                )
+            else:
+                st.caption(
+                    "Gasto atribuído proporcionalmente aos votos em cada território. "
+                    "O parquet não identifica o tipo de despesa por local; por isso "
+                    "o custo por voto é igual entre territórios neste rateio."
+                )
 
 
 def _parliamentary_action_frame(
@@ -2524,11 +2616,58 @@ def _parliamentary_map_selection(event: object | None) -> dict[str, str]:
         return {}
     point = points[0]
     customdata = point.get("customdata") if isinstance(point, dict) else getattr(point, "customdata", None)
-    if customdata is None or len(customdata) < 9:
+    if customdata is None or len(customdata) < 4:
         return {}
     return {
-        "nm_municipio": str(customdata[8]),
+        "codigo_ibge": str(customdata[3]),
     }
+
+
+@st.dialog("Emendas destinadas ao município", width="large")
+def _parliamentary_emendas_dialog(
+    codigo_ibge: str, action_df: pd.DataFrame, emendas_df: pd.DataFrame | None,
+) -> None:
+    selected = action_df[action_df["codigo_ibge_str"].eq(codigo_ibge)]
+    if selected.empty:
+        st.info("Município não encontrado no recorte atual.")
+        return
+    row = selected.iloc[0]
+    st.subheader(str(row["municipio_exibicao"]).title())
+    st.caption(
+        f'{_format_number(float(row["qt_votos"]))} votos · '
+        f'{row["categoria_coerencia"]}'
+    )
+    st.metric("Total de emendas indicado ao município", _format_currency(float(row["valor_emendas"])))
+    if emendas_df is None or emendas_df.empty or "cd_ibge_municipio" not in emendas_df.columns:
+        st.info("Detalhamento das emendas indisponível.")
+        return
+    emendas = emendas_df.copy()
+    codes = pd.to_numeric(emendas["cd_ibge_municipio"], errors="coerce").astype("Int64")
+    emendas = emendas[codes.astype(str).str.zfill(7).eq(codigo_ibge)].copy()
+    if emendas.empty:
+        st.info("Não há emendas registradas para este município.")
+        return
+    emendas["valor_indicado"] = pd.to_numeric(emendas["valor_indicado"], errors="coerce").fillna(0)
+    for col in ("funcao_descricao", "tipo_indicacao"):
+        emendas[col] = emendas[col].fillna("Não informado").astype(str).str.strip()
+        emendas.loc[emendas[col].eq(""), col] = "Não informado"
+    summary = (
+        emendas.groupby(["funcao_descricao", "tipo_indicacao"], as_index=False)
+        .agg(indicacoes=("valor_indicado", "size"), valor_indicado=("valor_indicado", "sum"))
+        .sort_values("valor_indicado", ascending=False)
+        .rename(columns={
+            "funcao_descricao": "Finalidade", "tipo_indicacao": "Tipo de indicação",
+            "indicacoes": "Indicações", "valor_indicado": "Valor indicado",
+        })
+    )
+    st.dataframe(
+        summary, hide_index=True, width="stretch",
+        column_config={
+            "Indicações": st.column_config.NumberColumn(format="%d"),
+            "Valor indicado": st.column_config.NumberColumn(format="R$ %.2f"),
+        },
+    )
+    st.caption("Valores indicados; o pagamento pode ser diferente. Finalidade e tipo seguem a classificação do parquet de emendas.")
 
 
 def _render_parliamentary_action_section(
@@ -2545,10 +2684,19 @@ def _render_parliamentary_action_section(
     )
     action_df = _parliamentary_action_frame(votos_df, emendas_df)
     _render_parliamentary_action_kpis(action_df)
-    with st.container(border=True):
+    with st.container(border=True, key="parliamentary-map-container"):
         fig = parliamentary_map(action_df)
         if fig is not None:
-            st.plotly_chart(fig, width="stretch", height=610, key="pagina1_parliamentary_action_map")
+            revision = st.session_state.get("pagina1_parliamentary_map_revision", 0)
+            event = st.plotly_chart(
+                fig, width="stretch", height=610,
+                key=f"pagina1_parliamentary_action_map_{revision}",
+                on_select="rerun", selection_mode="points",
+            )
+            selection = _parliamentary_map_selection(event)
+            if selection:
+                st.session_state["pagina1_parliamentary_map_revision"] = revision + 1
+                _parliamentary_emendas_dialog(selection["codigo_ibge"], action_df, emendas_df)
         else:
             st.info("Mapa parlamentar indisponível.")
 
@@ -2669,7 +2817,10 @@ emendas_legislativa_df = _read_selected_parquet("emendas_legislativa")
 _render_parliamentary_action_section(votos_municipio_df, emendas_legislativa_df)
 despesas_campanha_df = _read_selected_parquet("despesas_campanha")
 gastos_territoriais_df = _read_selected_parquet("gastos_territoriais")
-_render_cost_efficiency_section(votos_municipio_df, despesas_campanha_df, gastos_territoriais_df)
+gastos_territoriais_por_tipo_df = _read_selected_parquet("gastos_territoriais_por_tipo")
+_render_cost_efficiency_section(
+    votos_municipio_df, despesas_campanha_df, gastos_territoriais_df, gastos_territoriais_por_tipo_df
+)
 
 
 

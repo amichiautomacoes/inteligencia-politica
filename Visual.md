@@ -94,6 +94,8 @@ O mapa PyDeck ocupa um card de largura total e aproximadamente **610 px** de alt
 
 O mapa depende de votos e emendas do candidato. Se a combinação não estiver disponível, o card mostra `Mapa parlamentar indisponível.`. Os KPIs também têm rótulos de ausência ou zero quando faltam dados.
 
+Ao clicar em um município no mapa parlamentar, uma janela mostra os votos, a categoria, o total indicado de emendas e uma tabela por finalidade e tipo de indicação. A tabela agrega os valores indicados das emendas registradas para o município; pagamentos podem ser diferentes. O card do mapa não acrescenta preenchimento lateral interno.
+
 ### 2.5 Eficiência por Custo do Voto
 
 **Pergunta visual:** que tipos de despesa dominam os gastos e qual o custo estimado por voto nos territórios?
@@ -102,11 +104,11 @@ A seção abre com faixa principal e a frase `Participação de cada tipo de des
 
 Os gráficos ficam em **duas colunas de mesma largura**, cada uma num card. À esquerda, `Gastos por tipo de despesa` é um **treemap Plotly** de cerca de 500 px. A área de cada retângulo corresponde ao valor gasto no tipo; o texto apresenta tipo e participação no gasto. A borda fina separa os retângulos. O hover detalha total em reais, participação e custo por voto. O clique seleciona uma despesa e atualiza a outra coluna.
 
-À direita, `Custo por voto territorial · Gasto total` muda o sufixo para a despesa selecionada. O botão **Mostrar gasto total** restaura o estado inicial. Um rádio horizontal alterna **Municípios / Mesorregiões**. O gráfico de barras horizontais mostra o custo estimado em reais por voto, com até 15 municípios ou todas as mesorregiões disponíveis; o hover inclui gasto atribuído e votos. Uma legenda explica o limite analítico: o parquet rateia o gasto proporcionalmente aos votos e não identifica tipo de despesa por local. Portanto, o custo por voto territorial mostrado para um tipo é uma **estimativa de rateio**, não despesa local observada.
+À direita, `Custo por voto territorial · Gasto total` muda o sufixo para a despesa selecionada. O botão **Mostrar gasto total** restaura o estado inicial. Um rádio horizontal alterna **Municípios / Mesorregiões**. O gráfico mostra até 15 municípios ou todas as mesorregiões, com custo de referência em reais por voto. O novo parquet repete o total da campanha de cada tipo de despesa em todos os municípios; o gráfico conta esse total uma vez e o divide pelos votos do território. O hover mostra o total usado e os votos. O resultado não representa despesa local observada. Na ausência do novo parquet, a interface usa o rateio territorial anterior e informa essa condição.
 
 ## 3. Página 2 — DNA Eleitoral
 
-Depois do hero comum, a página apresenta **três faixas principais** nesta ordem: Identidade da Base Eleitoral, Distribuição do Perfil do Eleitorado e Matriz de Potencial Demográfico. Os dois primeiros blocos caracterizam pessoas e segmentos; o mapa seguinte compara território e perfil. Sunburst, heatmap e composição demográfica por pontos não pertencem à interface atual.
+Depois do hero comum, a página apresenta **três faixas principais** nesta ordem: Identidade da Base Eleitoral, Distribuição do Perfil do Eleitorado e Matriz de Potencial Demográfico. O card Eleitor ideal do candidato aparece na primeira faixa. A seção de distribuição vem em seguida, depois o card BASE ELEITORAL DO CANDIDATO; o mapa de potencial fecha a página. Sunburst, heatmap e composição demográfica por pontos não pertencem à interface atual.
 
 ### 3.1 Identidade da Base Eleitoral
 
@@ -134,7 +136,7 @@ A faixa principal traz `Distribuição demográfica estimada dos votos, com reco
 
 A composição usa **gráfico à esquerda e filtros à direita** (proporção aproximada 2,3:1). À direita há uma chamada `Refine a distribuição`, um seletor **MUNICÍPIO** com opção `Todos os municípios` e um seletor **PERFIL DEMOGRÁFICO** com Gênero, Faixa etária, Escolaridade e Estado civil. O município altera o universo de votos; a dimensão altera as fatias.
 
-À esquerda, uma badge indica a categoria dominante da dimensão selecionada. A **rosca Plotly** tem centro vazado amplo, total de votos em tipografia forte no miolo e subtítulo menor em azul acinzentado. Não há percentuais sobre as fatias. Uma legenda em linhas abaixo do gráfico mostra cor, categoria, votos estimados e percentual. As cores das categorias percorrem azul, ciano, violeta, verde, amarelo, laranja e cinza. O hover informa categoria, participação e, quando o total está disponível, número aproximado de votos estimados. O gráfico mostra **uma dimensão por vez**. A nota abaixo afirma que os parquets não permitem cruzar diretamente idade, gênero e escolaridade de indivíduos. Dados ausentes geram mensagem no lugar da rosca.
+À esquerda, uma badge indica a categoria dominante da dimensão selecionada. A **rosca Plotly** tem centro vazado amplo, total de votos em tipografia forte no miolo e subtítulo menor em azul acinzentado. Não há percentuais sobre as fatias. O hover mostra categoria e participação. À direita, abaixo dos seletores, a legenda mostra cor, categoria e percentual, sem votos estimados. Para gênero, feminino usa azul, masculino usa laranja e não informado usa cinza. O gráfico mostra **uma dimensão por vez**. A nota abaixo afirma que os parquets não permitem cruzar diretamente idade, gênero e escolaridade de indivíduos. Dados ausentes geram mensagem no lugar da rosca.
 
 ### 3.3 Matriz de Potencial Demográfico
 

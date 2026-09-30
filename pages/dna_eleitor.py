@@ -531,11 +531,10 @@ for index, (section_title, section_subtitle) in enumerate(DNA_SECTIONS):
     major_section_header(section_title, section_subtitle)
     if index == 0:
         icp_general_df = _read_selected_parquet("icp_geral")
-        icp_clusters_df = _read_selected_parquet("icp_clusters")
         _render_icp_geral_card(icp_general_df)
-        _render_cluster_profiles(icp_clusters_df)
     elif index == 2:
         _render_demographic_potential()
     else:
         render_electorate_distribution(_read_selected_parquet)
+        _render_cluster_profiles(_read_selected_parquet("icp_clusters"))
 

@@ -162,7 +162,7 @@ def parliamentary_map(action: pd.DataFrame):
     fig = categorical_choropleth(
         frame, geojson, location="codigo_ibge_str", category="categoria_coerencia",
         categories=list(ACTION_COLORS), colors=list(ACTION_COLORS.values()),
-        hover_name="municipio_exibicao", custom_data=["categoria_coerencia", "qt_votos", "valor_emendas"],
+        hover_name="municipio_exibicao", custom_data=["categoria_coerencia", "qt_votos", "valor_emendas", "codigo_ibge_str"],
     )
     fig.update_traces(hovertemplate=(
         "<b>%{hovertext}</b><br>%{customdata[0]}<br>Votos: %{customdata[1]:,.0f}"
