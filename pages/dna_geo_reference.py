@@ -81,7 +81,7 @@ def load_geo_reference() -> tuple[dict | None, pd.DataFrame | None, pd.DataFrame
         features.append({
             "type": "Feature",
             "properties": {"id": municipality_id},
-            "geometry": mapping(geometry.simplify(0.005, preserve_topology=True)),
+            "geometry": mapping(geometry.simplify(0.0001, preserve_topology=True)),
         })
         point = geometry.representative_point()
         coordinates.append((int(row.codigo_ibge), row.name_muni, point.y, point.x))

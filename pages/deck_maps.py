@@ -7,7 +7,7 @@ import math
 import pydeck as pdk
 
 
-def rgb(color: str, alpha: int = 220) -> list[int]:
+def rgb(color: str, alpha: int = 255) -> list[int]:
     value = color.lstrip("#")
     return [int(value[index:index + 2], 16) for index in (0, 2, 4)] + [alpha]
 
@@ -18,7 +18,18 @@ def ramp(value: float, stops: list[str]) -> list[int]:
     low = min(int(position), len(stops) - 2)
     fraction = position - low
     left, right = rgb(stops[low]), rgb(stops[low + 1])
-    return [round(left[index] + fraction * (right[index] - left[index])) for index in range(3)] + [220]
+    return [round(left[index] + fraction * (right[index] - left[index])) for index in range(3)] + [255]
+
+
+MAP_STYLE = {
+    "version": 8,
+    "sources": {},
+    "layers": [{
+        "id": "background",
+        "type": "background",
+        "paint": {"background-color": "#07182e"},
+    }],
+}
 
 
 def deck_geojson(
@@ -42,7 +53,7 @@ def deck_geojson(
     return pdk.Deck(
         layers=[layer],
         initial_view_state=pdk.ViewState(latitude=latitude, longitude=longitude, zoom=zoom),
-        map_style=None,
+        map_style=MAP_STYLE,
         tooltip={"html": tooltip, "style": {"backgroundColor": "#051022", "color": "#eaf2ff"}},
     )
 
