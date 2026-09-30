@@ -493,8 +493,8 @@ def _apply_visual_model() -> None:
         .raiox-concentration-grid {{
             display: grid;
             grid-template-columns: repeat(4, minmax(0, 1fr));
-            margin: 0.2rem 0 0.9rem;
-            border-radius: 12px;
+            margin: 0;
+            border-radius: 12px 12px 0 0;
             background: rgba(7, 24, 54, 0.54);
             overflow: hidden;
         }}
@@ -510,6 +510,21 @@ def _apply_visual_model() -> None:
         .raiox-concentration-pill:last-child {{
             border-right: 0 !important;
         }}
+        .raiox-concentration-pill:first-child {{
+            background: linear-gradient(145deg, rgba(96, 165, 250, 0.14), rgba(96, 165, 250, 0.03));
+            box-shadow: inset 0 0 0 1px rgba(96, 165, 250, 0.3), inset 0 0 24px rgba(96, 165, 250, 0.08);
+        }}
+        .raiox-concentration-leader-badge {{
+            align-self: flex-start;
+            color: #dbeafe;
+            background: rgba(96, 165, 250, 0.18);
+            border: 1px solid rgba(96, 165, 250, 0.3);
+            border-radius: 999px;
+            padding: 0.2rem 0.55rem;
+            font-size: 0.68rem;
+            font-weight: 750;
+            margin-top: 0.6rem;
+        }}
         .raiox-concentration-pill-label {{
             color: #9fb2d4;
             font-size: 0.7rem;
@@ -518,7 +533,7 @@ def _apply_visual_model() -> None:
             letter-spacing: 0.11em;
         }}
         .raiox-concentration-pill-value {{
-            color: #f8fbff;
+            color: #ffffff;
             font-size: clamp(1.55rem, 2vw, 2.1rem);
             font-weight: 800;
             line-height: 1.1;
@@ -538,31 +553,32 @@ def _apply_visual_model() -> None:
         }}
         .raiox-concentration-track {{
             display: flex;
-            height: 9px;
-            flex: 0 0 9px;
-            border-radius: 999px;
-            background: rgba(147, 197, 253, 0.19);
+            height: 12px;
+            width: 100%;
+            background: rgba(147, 197, 253, 0.12);
             overflow: hidden;
         }}
-        .raiox-concentration-fill {{
+        .raiox-concentration-segment {{
             height: 100%;
-            background: #2563eb;
+            flex-shrink: 0;
         }}
-        .raiox-concentration-fill-new {{
-            height: 100%;
-            background: #7dd3fc;
-        }}
-        .raiox-concentration-bar-label {{
+        .raiox-concentration-bar-caption {{
             color: #9fb2d4;
             font-size: 0.7rem;
             line-height: 1.3;
-            margin: auto 0 0.3rem;
-            padding-top: 0.9rem;
+            margin: 0 0 0.9rem;
+            padding: 0.4rem 0.65rem 0;
         }}
         .raiox-concentration-gain {{
-            color: #93c5fd;
+            align-self: flex-start;
+            color: #a5f3fc;
+            background: rgba(34, 211, 238, 0.1);
+            border: 1px solid rgba(103, 232, 249, 0.2);
+            border-radius: 999px;
+            padding: 0.22rem 0.55rem;
             font-size: 0.72rem;
-            margin-top: 0.35rem;
+            font-weight: 700;
+            margin-top: 0.65rem;
         }}
         .raiox-concentration-reading {{
             color: #d6e4f9;
@@ -1176,16 +1192,14 @@ def _render_accumulated_concentration_section(df: pd.DataFrame | None) -> None:
             percent = float(row["pct_acumulado"])
             previous_rank = {5: 1, 15: 5, 20: 15}.get(rank)
             previous_percent = float(row_at(previous_rank)["pct_acumulado"]) if previous_rank else 0.0
-            previous_width = max(0, min(previous_percent, 100))
-            gain_width = max(0, min(percent, 100) - previous_width)
             leader_html = (
                 f'<div class="raiox-concentration-leader">{html.escape(str(row["nm_municipio"]).title())}</div>'
                 if rank == 1 else ""
             )
             gain_html = (
                 f'<div class="raiox-concentration-gain">+'
-                f'{_format_percent(percent - previous_percent).removesuffix("%") } p.p. em relação ao Top {previous_rank}</div>'
-                if rank != 1 else '<div class="raiox-concentration-gain">Município líder</div>'
+                f'{_format_percent(percent - previous_percent).removesuffix("%")} p.p. vs. Top {previous_rank}</div>'
+                if rank != 1 else '<div class="raiox-concentration-leader-badge">📍 Município Líder</div>'
             )
             return (
                 '<div class="raiox-concentration-pill">'
@@ -1197,16 +1211,21 @@ def _render_accumulated_concentration_section(df: pd.DataFrame | None) -> None:
                 "</div>"
                 f'{leader_html}'
                 f'{gain_html}'
-                '<div class="raiox-concentration-bar-label">Participação na votação total</div>'
-                '<div class="raiox-concentration-track">'
-                f'<div class="raiox-concentration-fill" style="width: {previous_width:.2f}%"></div>'
-                f'<div class="raiox-concentration-fill-new" style="width: {gain_width:.2f}%"></div>'
-                '</div>'
                 "</div>"
             )
 
         top1 = row_at(1)
         top15 = row_at(15)
+        cumulative = [float(row_at(rank)["pct_acumulado"]) for rank in (1, 5, 15, 20)]
+        segment_widths = [cumulative[0], *(current - previous for previous, current in zip(cumulative, cumulative[1:]))]
+        segment_widths.append(max(0.0, 1.0 - cumulative[-1]))
+        segment_colors = ("#60a5fa", "#2563eb", "#1d4ed8", "rgba(29, 78, 216, 0.58)", "rgba(147, 197, 253, 0.13)")
+        segment_labels = ("Top 1", "Top 2 a 5", "Top 6 a 15", "Top 16 a 20", "Outros municípios")
+        segments_html = "".join(
+            f'<div class="raiox-concentration-segment" style="width: {width * 100:.4f}%; background: {color}" title="{label}: {_format_percent(width)}"></div>'
+            for width, color, label in zip(segment_widths, segment_colors, segment_labels)
+            if width > 0
+        )
         st.markdown(
             (
                 '<div class="raiox-concentration-grid">'
@@ -1215,6 +1234,8 @@ def _render_accumulated_concentration_section(df: pd.DataFrame | None) -> None:
                 f"{card_html(15)}"
                 f"{card_html(20)}"
                 "</div>"
+                f'<div class="raiox-concentration-track" role="img" aria-label="Participação acumulada dos votos: Top 1 {_format_percent(cumulative[0])}, Top 5 {_format_percent(cumulative[1])}, Top 15 {_format_percent(cumulative[2])}, Top 20 {_format_percent(cumulative[3])}.">{segments_html}</div>'
+                '<div class="raiox-concentration-bar-caption">Participação nos votos totais · segmentos: Top 1, Top 2–5, Top 6–15, Top 16–20 e demais municípios</div>'
             ),
             unsafe_allow_html=True,
         )

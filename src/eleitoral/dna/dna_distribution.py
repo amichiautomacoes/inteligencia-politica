@@ -1,4 +1,4 @@
-﻿"""Demographic distribution panel for the DNA Eleitoral page."""
+"""Demographic distribution panel for the DNA Eleitoral page."""
 from __future__ import annotations
 
 import html
@@ -12,11 +12,12 @@ import streamlit as st
 
 
 DIMENSIONS = {
-    "GÃªnero": ("genero", "pct_genero_"),
-    "Faixa etÃ¡ria": ("idade", "pct_idade_"),
+    "Gênero": ("genero", "pct_genero_"),
+    "Faixa etária": ("idade", "pct_idade_"),
     "Escolaridade": ("escolaridade", "pct_escolaridade_"),
     "Estado civil": ("estado_civil", "pct_estado_civil_"),
 }
+PALETTE = ["#60A5FA", "#38BDF8", "#A78BFA", "#34D399", "#FBBF24", "#FB923C", "#94A3B8"]
 
 
 def _code(value: object) -> str:
@@ -81,59 +82,90 @@ def _votes_in_scope(votes: pd.DataFrame | None, code: str, name: str) -> float |
     return float(pd.to_numeric(frame["qt_votos"], errors="coerce").fillna(0).sum())
 
 
+def _legend_html(labels: list[str], shares: list[float], total_votes: float | None, colors: list[str]) -> str:
+    rows = []
+    for label, share, color in zip(labels, shares, colors):
+        estimated = f"≈ {share / 100 * total_votes:,.0f}".replace(",", ".") if total_votes is not None else "—"
+        rows.append(
+            '<div class="dna-distribution-legend-row">'
+            f'<span class="dna-distribution-legend-category"><span class="dna-distribution-swatch" style="background:{color}"></span>{html.escape(label)}</span>'
+            f'<span class="dna-distribution-legend-votes">{estimated}</span>'
+            f'<strong>{share:.1f}%</strong>'.replace(".", ",")
+            + '</div>'
+        )
+    return (
+        '<div class="dna-distribution-legend" aria-label="Categorias da distribuição">'
+        '<div class="dna-distribution-legend-head"><span>Categoria</span><span>Votos estimados</span><span>%</span></div>'
+        + "".join(rows) + '</div>'
+    )
+
+
 def render_electorate_distribution(read_parquet: Callable[[str], pd.DataFrame | None]) -> None:
     votes = read_parquet("votos_municipio")
     municipalities = _municipalities(votes)
+    st.html('''<style>
+        .dna-distribution-leader{display:inline-flex;align-items:center;gap:.35rem;padding:.45rem .8rem;border:1px solid rgba(96,165,250,.35);border-radius:999px;background:rgba(37,99,235,.16);color:#eaf2ff;font-size:.83rem;font-weight:700}
+        .dna-distribution-leader strong{color:#fff}
+        .dna-distribution-legend{display:grid;gap:5px;margin:.2rem 0 .75rem}
+        .dna-distribution-legend-head,.dna-distribution-legend-row{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(7rem,1fr) 4rem;align-items:center;gap:8px}
+        .dna-distribution-legend-head{color:#9fb2d4;font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;padding:0 10px 3px}
+        .dna-distribution-legend-row{padding:9px 10px;border:1px solid rgba(147,197,253,.14);border-radius:9px;background:rgba(10,29,64,.42);font-size:.8rem;color:#eaf2ff}
+        .dna-distribution-legend-category{display:flex;align-items:center;gap:8px;min-width:0}
+        .dna-distribution-swatch{width:11px;height:11px;border-radius:3px;flex:none}
+        .dna-distribution-legend-votes{color:#b7c7e6;font-variant-numeric:tabular-nums}
+        .dna-distribution-legend-row strong{text-align:right;color:#fff;font-variant-numeric:tabular-nums}
+        @media(max-width:560px){.dna-distribution-legend-head,.dna-distribution-legend-row{grid-template-columns:minmax(0,1fr) 5.7rem 3.5rem;gap:4px}.dna-distribution-legend-head{font-size:.58rem}.dna-distribution-legend-row{font-size:.72rem;padding:8px 6px}}
+    </style>''')
     with st.container(border=True):
-        st.markdown("#### DistribuiÃ§Ã£o do eleitorado")
-        st.caption("ParticipaÃ§Ã£o estimada de cada categoria demogrÃ¡fica na votaÃ§Ã£o do recorte selecionado.")
+        st.markdown("#### Distribuição do eleitorado")
+        st.caption("Participação estimada de cada categoria demográfica na votação do recorte selecionado.")
         chart_col, filter_col = st.columns([2.3, 1], gap="large")
         with filter_col:
-            st.caption("Refine a distribuiÃ§Ã£o")
-            municipality_options = ["Todos os municÃ­pios"] + [name for _, name in municipalities]
-            selected_name = st.selectbox("MUNICÃPIO", municipality_options, key="dna_distribution_municipality")
-            dimension = st.selectbox("PERFIL DEMOGRÃFICO", list(DIMENSIONS), key="dna_distribution_dimension")
+            st.caption("Refine a distribuição")
+            municipality_options = ["Todos os municípios"] + [name for _, name in municipalities]
+            selected_name = st.selectbox("MUNICÍPIO", municipality_options, key="dna_distribution_municipality")
+            dimension = st.selectbox("PERFIL DEMOGRÁFICO", list(DIMENSIONS), key="dna_distribution_dimension")
         code = ""
         name = ""
-        if selected_name != "Todos os municÃ­pios":
+        if selected_name != "Todos os municípios":
             code, name = next(((code, name) for code, name in municipalities if name == selected_name), ("", ""))
         kind, prefix = DIMENSIONS[dimension]
         source = read_parquet(kind)
         with chart_col:
             if source is None or source.empty:
-                st.info(f"Dados de {dimension.lower()} indisponÃ­veis para este candidato.")
+                st.info(f"Dados de {dimension.lower()} indisponíveis para este candidato.")
                 return
-            scoped = _filter_municipality(source, code, name)
-            distribution = _distribution(scoped, prefix)
+            distribution = _distribution(_filter_municipality(source, code, name), prefix)
             if distribution.empty:
-                st.info("NÃ£o hÃ¡ distribuiÃ§Ã£o demogrÃ¡fica disponÃ­vel para este recorte.")
+                st.info("Não há distribuição demográfica disponível para este recorte.")
                 return
             total_votes = _votes_in_scope(votes, code, name)
-            palette = ["#60A5FA", "#38BDF8", "#A78BFA", "#34D399", "#FBBF24", "#FB923C", "#94A3B8"]
             labels = distribution["categoria"].tolist()
             values = distribution["percentual"].tolist()
-            estimated_votes = [value / 100 * total_votes for value in values] if total_votes is not None else None
-            center = f"{total_votes:,.0f}".replace(",", ".") if total_votes is not None else "â€”"
+            shares = [value / sum(values) * 100 for value in values]
+            colors = [PALETTE[index % len(PALETTE)] for index in range(len(labels))]
+            leader = f"🏆 {dimension} dominante: <strong>{html.escape(labels[0])} ({shares[0]:.1f}%)</strong>".replace(".", ",")
+            st.html(f'<div class="dna-distribution-leader">{leader}</div>')
+            center = f"{total_votes:,.0f}".replace(",", ".") if total_votes is not None else "—"
+            estimated_votes = [share / 100 * total_votes for share in shares] if total_votes is not None else None
             hover = (
-                "<b>%{label}</b><br>%{value:.1f}% da distribuiÃ§Ã£o<br>â‰ˆ %{customdata:,.0f} votos estimados<extra></extra>"
-                if estimated_votes is not None else "<b>%{label}</b><br>%{value:.1f}% da distribuiÃ§Ã£o<extra></extra>"
+                "<b>%{label}</b><br>%{value:.1f}% da distribuição<br>≈ %{customdata:,.0f} votos estimados<extra></extra>"
+                if estimated_votes is not None else "<b>%{label}</b><br>%{value:.1f}% da distribuição<extra></extra>"
             )
             fig = go.Figure(go.Pie(
-                labels=labels, values=values, hole=0.62, sort=False,
-                marker={"colors": palette[:len(labels)], "line": {"color": "rgba(255,255,255,.25)", "width": 1}},
+                labels=labels, values=shares, hole=0.66, sort=False,
+                marker={"colors": colors, "line": {"color": "rgba(255,255,255,.25)", "width": 1}},
                 customdata=estimated_votes, hovertemplate=hover,
-                texttemplate="%{percent:.1%}", textposition="outside",
-                textfont={"size": 12, "color": "#eaf2ff"},
+                textinfo="none", showlegend=False,
             ))
             fig.update_layout(
-                height=470, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                font={"color": "#eaf2ff"}, margin={"l": 35, "r": 35, "t": 20, "b": 20},
-                showlegend=True,
-                legend={"orientation": "h", "x": 0.5, "xanchor": "center", "y": -0.08, "yanchor": "top", "font": {"color": "#eaf2ff"}},
-                annotations=[{"x": 0.5, "y": 0.5, "text": f"<b>{html.escape(center)}</b><br><span style='font-size:13px'>votos no recorte</span>",
-                              "showarrow": False, "font": {"size": 24, "color": "#f8fbff"}}],
+                height=390, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                font={"color": "#eaf2ff"}, margin={"l": 10, "r": 10, "t": 8, "b": 8},
+                showlegend=False,
+                annotations=[{"x": 0.5, "y": 0.5,
+                              "text": f"<span style='font-size:29px;color:#ffffff'><b>{html.escape(center)}</b></span><br><span style='font-size:12px;color:#b7c7e6'>votos no recorte</span>",
+                              "showarrow": False, "font": {"size": 16, "color": "#ffffff"}}],
             )
             st.plotly_chart(fig, width="stretch", key="dna_distribution_donut", config={"displayModeBar": False})
-            st.caption("Os percentuais sÃ£o estimativas de dimensÃµes separadas; as categorias exibidas nÃ£o representam cruzamentos entre perfis.")
-
-
+            st.html(_legend_html(labels, shares, total_votes, colors))
+            st.caption("Os percentuais são estimativas de dimensões separadas; as categorias exibidas não representam cruzamentos entre perfis.")
