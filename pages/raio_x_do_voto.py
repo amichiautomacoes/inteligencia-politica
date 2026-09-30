@@ -596,6 +596,30 @@ def _apply_visual_model() -> None:
             font-weight: 700;
             margin-top: 0.45rem;
         }}
+        .raiox-concentration-donut-hint {{
+            color: #93c5fd;
+            font-size: 0.72rem;
+            text-align: center;
+            margin-top: -0.5rem;
+        }}
+        .raiox-concentration-breakdown {{
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.55rem;
+            margin: 1rem 0;
+        }}
+        .raiox-concentration-breakdown-step {{
+            border: 1px solid rgba(147, 197, 253, 0.25);
+            border-radius: 14px;
+            background: rgba(11, 31, 77, 0.72);
+            padding: 0.8rem 1rem;
+            min-width: 9.5rem;
+        }}
+        .raiox-concentration-breakdown-title {{ color: #cbd5e1; font-size: 0.78rem; }}
+        .raiox-concentration-breakdown-value {{ color: #ffffff; font-size: 1.15rem; font-weight: 800; }}
+        .raiox-concentration-breakdown-votes {{ color: #b7c7e6; font-size: 0.78rem; }}
+        .raiox-concentration-breakdown-arrow {{ color: #93c5fd; font-size: 1.5rem; }}
         .raiox-concentration-track {{
             display: flex;
             height: 12px;
@@ -1348,6 +1372,74 @@ def _accumulated_concentration_chart(concentration_df: pd.DataFrame, max_rank: i
     return fig
 
 
+CONCENTRATION_STEPS = (
+    (1, "Top 1", "#60a5fa"),
+    (5, "Top 2–5", "#2563eb"),
+    (15, "Top 6–15", "#1d4ed8"),
+    (20, "Top 16–20", "#1e40af"),
+)
+
+
+def _concentration_donut(share: float, color: str) -> go.Figure:
+    fig = go.Figure(go.Pie(
+        values=[max(0, min(1, share)), max(0, 1 - share)],
+        labels=["Votos acumulados", "Demais votos"],
+        hole=0.73,
+        marker={"colors": [color, "rgba(147, 197, 253, 0.13)"],
+                "line": {"color": "rgba(7, 24, 54, 0.8)", "width": 2}},
+        textinfo="none",
+        sort=False,
+        direction="clockwise",
+        hovertemplate="%{label}: %{percent}<extra></extra>",
+        showlegend=False,
+    ))
+    fig.update_layout(
+        height=170, margin={"l": 4, "r": 4, "t": 4, "b": 4},
+        paper_bgcolor="rgba(0,0,0,0)",
+        annotations=[{"text": _format_percent(share), "x": 0.5, "y": 0.5,
+                      "showarrow": False, "font": {"size": 18, "color": "#ffffff"}}],
+    )
+    return fig
+
+
+@st.dialog("Composição dos votos", width="large")
+def _concentration_breakdown_dialog(concentration_df: pd.DataFrame, selected_rank: int) -> None:
+    st.markdown(f"### Até o Top {selected_rank}")
+    total_rows = len(concentration_df)
+    pieces = []
+    previous_share = 0.0
+    previous_votes = 0.0
+    for rank, label, color in CONCENTRATION_STEPS:
+        effective = min(rank, total_rows)
+        if effective <= 0:
+            break
+        row = concentration_df.iloc[effective - 1]
+        share = float(row["pct_acumulado"])
+        votes = float(row["votos_acumulados"])
+        if share > previous_share:
+            pieces.append(
+                '<div class="raiox-concentration-breakdown-step">'
+                f'<div class="raiox-concentration-breakdown-title"><span style="color:{color}">●</span> {html.escape(label)}</div>'
+                f'<div class="raiox-concentration-breakdown-value">{_format_percent(share - previous_share)}</div>'
+                f'<div class="raiox-concentration-breakdown-votes">{_format_number(votes - previous_votes)} votos</div>'
+                '</div>'
+            )
+        previous_share, previous_votes = share, votes
+        if rank >= selected_rank:
+            break
+    st.markdown(
+        '<div class="raiox-concentration-breakdown">'
+        + '<span class="raiox-concentration-breakdown-arrow">→</span>'.join(pieces)
+        + '</div>', unsafe_allow_html=True,
+    )
+    selected = concentration_df.iloc[min(selected_rank, total_rows) - 1]
+    st.caption(
+        f"Acumulado: {_format_percent(float(selected['pct_acumulado']))} "
+        f"({_format_number(float(selected['votos_acumulados']))} votos) em "
+        f"{min(selected_rank, total_rows)} municípios."
+    )
+
+
 def _render_accumulated_concentration_section(df: pd.DataFrame | None) -> None:
     concentration_df = _municipal_concentration_frame(df)
     _major_section_header(
@@ -1363,60 +1455,38 @@ def _render_accumulated_concentration_section(df: pd.DataFrame | None) -> None:
             idx = min(rank, len(concentration_df)) - 1
             return concentration_df.iloc[idx]
 
-        def card_html(rank: int) -> str:
-            row = row_at(rank)
-            effective_rank = int(row["rank_municipio"])
-            title = f"Top {rank}" if effective_rank >= rank else "Todos"
-            percent = float(row["pct_acumulado"])
-            previous_rank = {5: 1, 15: 5, 20: 15}.get(rank)
-            previous_percent = float(row_at(previous_rank)["pct_acumulado"]) if previous_rank else 0.0
-            leader_html = (
-                f'<div class="raiox-concentration-leader">{html.escape(str(row["nm_municipio"]).title())}</div>'
-                if rank == 1 else ""
-            )
-            gain_html = (
-                f'<div class="raiox-concentration-gain">+'
-                f'{_format_percent(percent - previous_percent).removesuffix("%")} p.p. vs. Top {previous_rank}</div>'
-                if rank != 1 else '<div class="raiox-concentration-leader-badge">📍 Município Líder</div>'
-            )
-            return (
-                '<div class="raiox-concentration-pill">'
-                f'<div class="raiox-concentration-pill-label">{title}</div>'
-                f'<div class="raiox-concentration-pill-value">{_format_percent(percent)}</div>'
-                '<div class="raiox-concentration-pill-city">'
-                f'{_format_number(float(row["votos_acumulados"]))} votos · '
-                f'{effective_rank} {"município" if effective_rank == 1 else "municípios"}'
-                "</div>"
-                f'{leader_html}'
-                f'{gain_html}'
-                "</div>"
-            )
-
         top1 = row_at(1)
         top15 = row_at(15)
-        cumulative = [float(row_at(rank)["pct_acumulado"]) for rank in (1, 5, 15, 20)]
-        segment_widths = [cumulative[0], *(current - previous for previous, current in zip(cumulative, cumulative[1:]))]
-        segment_widths.append(max(0.0, 1.0 - cumulative[-1]))
-        segment_colors = ("#60a5fa", "#2563eb", "#1d4ed8", "rgba(29, 78, 216, 0.58)", "rgba(147, 197, 253, 0.13)")
-        segment_labels = ("Top 1", "Top 2 a 5", "Top 6 a 15", "Top 16 a 20", "Outros municípios")
-        segments_html = "".join(
-            f'<div class="raiox-concentration-segment" style="width: {width * 100:.4f}%; background: {color}" title="{label}: {_format_percent(width)}"></div>'
-            for width, color, label in zip(segment_widths, segment_colors, segment_labels)
-            if width > 0
-        )
-        st.markdown(
-            (
-                '<div class="raiox-concentration-grid">'
-                f"{card_html(1)}"
-                f"{card_html(5)}"
-                f"{card_html(15)}"
-                f"{card_html(20)}"
-                "</div>"
-                f'<div class="raiox-concentration-track" role="img" aria-label="Participação acumulada dos votos: Top 1 {_format_percent(cumulative[0])}, Top 5 {_format_percent(cumulative[1])}, Top 15 {_format_percent(cumulative[2])}, Top 20 {_format_percent(cumulative[3])}.">{segments_html}</div>'
-                '<div class="raiox-concentration-bar-caption">Participação nos votos totais · segmentos: Top 1, Top 2–5, Top 6–15, Top 16–20 e demais municípios</div>'
-            ),
-            unsafe_allow_html=True,
-        )
+        donut_cols = st.columns(4, gap="small")
+        for column, (rank, _, color) in zip(donut_cols, CONCENTRATION_STEPS):
+            row = row_at(rank)
+            effective_rank = int(row["rank_municipio"])
+            share = float(row["pct_acumulado"])
+            with column:
+                with st.container(border=True):
+                    st.markdown(
+                        f'<div class="raiox-concentration-pill-label">Top {rank}</div>'
+                        f'<div class="raiox-concentration-pill-city">'
+                        f'{_format_number(float(row["votos_acumulados"]))} votos · '
+                        f'{effective_rank} {"município" if effective_rank == 1 else "municípios"}'
+                        '</div>', unsafe_allow_html=True,
+                    )
+                    st.plotly_chart(
+                        _concentration_donut(share, color), width="stretch",
+                        key=f"pagina1_concentration_donut_{rank}",
+                        on_select=lambda selected_rank=rank: st.session_state.update(
+                            pagina1_concentration_selected_rank=selected_rank
+                        ),
+                        selection_mode="points",
+                        config={"displayModeBar": False},
+                    )
+                    st.markdown('<div class="raiox-concentration-donut-hint">Clique na rosca para detalhar</div>',
+                                unsafe_allow_html=True)
+                    if rank == 1:
+                        st.caption(f"Município líder: {str(row['nm_municipio']).title()}")
+        selected_rank = st.session_state.pop("pagina1_concentration_selected_rank", None)
+        if selected_rank in (1, 5, 15, 20):
+            _concentration_breakdown_dialog(concentration_df, selected_rank)
         st.markdown(
             '<p class="raiox-concentration-reading">'
             f'<strong>{html.escape(str(top1["nm_municipio"]).title())}</strong> lidera com '
