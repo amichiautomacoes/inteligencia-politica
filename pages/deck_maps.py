@@ -21,15 +21,7 @@ def ramp(value: float, stops: list[str]) -> list[int]:
     return [round(left[index] + fraction * (right[index] - left[index])) for index in range(3)] + [255]
 
 
-MAP_STYLE = {
-    "version": 8,
-    "sources": {},
-    "layers": [{
-        "id": "background",
-        "type": "background",
-        "paint": {"background-color": "#07182e"},
-    }],
-}
+MAP_STYLE = "dark_no_labels"
 
 
 def deck_geojson(
