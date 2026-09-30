@@ -156,11 +156,13 @@ def render_electorate_distribution(read_parquet: Callable[[str], pd.DataFrame | 
                 labels=labels, values=shares, hole=0.66, sort=False,
                 marker={"colors": colors, "line": {"color": "rgba(255,255,255,.25)", "width": 1}},
                 hovertemplate=hover,
-                textinfo="none", showlegend=False,
+                text=[f"{share:.1f}%".replace(".", ",") for share in shares],
+                textinfo="text", textposition="outside", automargin=True,
+                textfont={"color": "#f8fbff", "size": 14}, showlegend=False,
             ))
             fig.update_layout(
-                height=390, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                font={"color": "#eaf2ff"}, margin={"l": 10, "r": 10, "t": 8, "b": 8},
+                height=430, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                font={"color": "#eaf2ff"}, margin={"l": 45, "r": 45, "t": 24, "b": 24},
                 showlegend=False,
                 annotations=[{"x": 0.5, "y": 0.5,
                               "text": f"<span style='font-size:29px;color:#ffffff'><b>{html.escape(center)}</b></span><br><span style='font-size:12px;color:#b7c7e6'>votos no recorte</span>",

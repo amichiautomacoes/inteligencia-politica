@@ -6,8 +6,8 @@ Dashboard Streamlit para análise territorial, demográfica, financeira e parlam
 
 A aplicação possui três páginas navegáveis:
 
-- **Raio X do voto** — distribuição territorial dos votos, concentração, perfil demográfico, gastos e atuação parlamentar.
-- **DNA Eleitor** — perfil estratégico da base eleitoral, ICP, distribuição demográfica e potencial.
+- **Raio X Eleitoral** — mapas de votação estadual e municipal, concentração territorial, atuação parlamentar e custo do voto.
+- **DNA Eleitoral** — perfil estratégico da base eleitoral, ICP, distribuição demográfica e potencial.
 - **Expansão 2030** — oportunidades territoriais para 2030, com mapa municipal por classes.
 
 As páginas são as únicas entradas do Streamlit e ficam em `pages/`:
@@ -36,6 +36,8 @@ pages/
 ```
 
 Os módulos de `src/eleitoral` são importados pelas páginas. As malhas GeoParquet são lidas com pandas, convertidas para GeoJSON e entregues a `plotly.express.choropleth`.
+
+No Raio X, o total de votos aparece no cabeçalho. O mapa estadual tem o card **Território líder** acima dele e quatro indicadores laterais. O mapa municipal ocupa 70% da linha, com filtros de mesorregião e município no próprio card e quatro indicadores laterais de bairros. Ele usa a malha oficial de bairros quando disponível; caso contrário, a legenda identifica a malha alternativa. **Força da política local** aparece como seção com card vazio, reservada para análise futura. A seção de concentração reúne as roscas Top 1/5/15/20. O mapa parlamentar traz a explicação das classes na própria legenda. Na seção de custos, treemap e gráfico territorial ocupam cards lado a lado.
 
 ## Dados do Hugging Face
 
@@ -103,13 +105,15 @@ No painel de deploy, use:
 
 ## Mapas
 
-Os mapas usam `plotly.express.choropleth`. O fluxo é:
+Os mapas eleitorais e o mapa parlamentar usam coropléticos Plotly. O fluxo das malhas é:
 
 ```text
 GeoParquet → pandas → geometria WKB → GeoJSON → Plotly
 ```
 
 As geometrias são convertidas para `EPSG:4326`, e os carregamentos são armazenados em cache pelo Streamlit. Se uma malha não puder ser lida, a interface informa o prefixo configurado e o erro original.
+
+No mapa parlamentar, as cores representam **classes**, com título e explicação na legenda, e não uma escala de valores monetários. No mapa detalhado do Raio X, a fonte geométrica pode ser bairros oficiais, áreas ponderadas ou setores censitários, conforme a disponibilidade e a correspondência com os votos.
 
 Os scripts auxiliares em `scripts/` usam GeoPandas e têm a dependência separada em `scripts/requirements.txt`.
 

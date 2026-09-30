@@ -70,13 +70,24 @@ def _add_boundary(fig, coordinates: tuple[list, list], *, width: float) -> None:
 
 
 def territorial_map(votes: pd.DataFrame | None, kind: str):
-    geojson, tse, municipalities, regions = load_geo_reference()
+    geojson, tse, municipalities, _ = load_geo_reference()
     if not geojson or votes is None or votes.empty:
         return None
     if kind == "votos_mesorregiao":
         totals = votes.groupby(votes["nm_mesorregiao"].map(_normalized_name))["qt_votos"].sum()
-        frame = regions[["codigo_ibge", "mesorregiao_nome"]].copy()
-        frame["votos"] = frame["mesorregiao_nome"].map(_normalized_name).map(totals).fillna(0)
+        mesoregion_geojson = geojson.get("mesoregions", {})
+        features = mesoregion_geojson.get("features", [])
+        if not features:
+            return None
+        frame = pd.DataFrame({"nome": [feature["properties"]["id"] for feature in features]})
+        frame["votos"] = frame["nome"].map(_normalized_name).map(totals).fillna(0)
+        frame["votos"] = pd.to_numeric(frame["votos"], errors="coerce").fillna(0)
+        frame["votos_cor"] = np.log1p(frame["votos"])
+        fig = continuous_choropleth(
+            frame, mesoregion_geojson, location="nome", color="votos_cor",
+            colors=["#e8f1ff", "#bfd9ff", "#60a5fa", "#2563eb", "#0b1f4d"],
+            hover_name="nome", custom_data=["votos"], colorbar_title="Votos",
+        )
     else:
         frame = votes.copy()
         if "nivel_territorial" in frame.columns:
@@ -92,24 +103,23 @@ def territorial_map(votes: pd.DataFrame | None, kind: str):
             frame["codigo_tse"] = pd.to_numeric(frame[code_col], errors="coerce")
             frame = frame.merge(tse[["codigo_tse", "codigo_ibge"]], on="codigo_tse", how="left")
         frame = frame.groupby("codigo_ibge", as_index=False)["qt_votos"].sum().rename(columns={"qt_votos": "votos"})
-    frame["codigo_ibge"] = pd.to_numeric(frame["codigo_ibge"], errors="coerce").astype("Int64")
-    frame = frame.dropna(subset=["codigo_ibge"])
-    frame = frame.groupby("codigo_ibge", as_index=False)["votos"].sum()
-    all_cities = municipalities[["codigo_ibge", "nome"]].drop_duplicates("codigo_ibge")
-    frame = all_cities.merge(frame, on="codigo_ibge", how="left")
-    frame["votos"] = pd.to_numeric(frame["votos"], errors="coerce").fillna(0)
-    frame["codigo_ibge_str"] = frame["codigo_ibge"].astype(str).str.zfill(7)
-    frame["votos_cor"] = np.log1p(frame["votos"])
-    fig = continuous_choropleth(
-        frame, geojson, location="codigo_ibge_str", color="votos_cor",
-        colors=["#e8f1ff", "#bfd9ff", "#60a5fa", "#2563eb", "#0b1f4d"],
-        hover_name="nome", custom_data=["votos"], colorbar_title="Votos",
-    )
+        frame["codigo_ibge"] = pd.to_numeric(frame["codigo_ibge"], errors="coerce").astype("Int64")
+        frame = frame.dropna(subset=["codigo_ibge"])
+        frame = frame.groupby("codigo_ibge", as_index=False)["votos"].sum()
+        all_cities = municipalities[["codigo_ibge", "nome"]].drop_duplicates("codigo_ibge")
+        frame = all_cities.merge(frame, on="codigo_ibge", how="left")
+        frame["votos"] = pd.to_numeric(frame["votos"], errors="coerce").fillna(0)
+        frame["codigo_ibge_str"] = frame["codigo_ibge"].astype(str).str.zfill(7)
+        frame["votos_cor"] = np.log1p(frame["votos"])
+        fig = continuous_choropleth(
+            frame, geojson, location="codigo_ibge_str", color="votos_cor",
+            colors=["#e8f1ff", "#bfd9ff", "#60a5fa", "#2563eb", "#0b1f4d"],
+            hover_name="nome", custom_data=["votos"], colorbar_title="Votos",
+        )
     fig.update_traces(hovertemplate="<b>%{hovertext}</b><br>Votos: %{customdata[0]:,.0f}<extra></extra>")
     boundaries = geojson.get("regional_lines", {})
     if kind == "votos_mesorregiao":
-        fig.update_traces(marker_line_color="rgba(255,255,255,0.48)", marker_line_width=0.35)
-        _add_boundary(fig, boundaries.get("mesoregions", ([], [])), width=2.2)
+        fig.update_traces(marker_line_color="rgba(255,255,255,0.96)", marker_line_width=1.5)
         centers = geojson.get("mesoregion_centers", [])
         total_votes = float(pd.to_numeric(votes["qt_votos"], errors="coerce").fillna(0).sum())
         labels = []

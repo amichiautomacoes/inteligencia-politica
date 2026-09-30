@@ -118,9 +118,15 @@ def load_geo_reference() -> tuple[dict | None, pd.DataFrame | None, pd.DataFrame
         coordinates.append((int(row.codigo_ibge), row.name_muni, point.y, point.x))
     region_geometries = list(mesoregions.geometry.dropna())
     mesoregion_centers = []
+    mesoregion_features = []
     for row in mesoregions.itertuples(index=False):
         if row.geometry is None or row.geometry.is_empty:
             continue
+        mesoregion_features.append({
+            "type": "Feature",
+            "properties": {"id": str(row.name_meso)},
+            "geometry": mapping(row.geometry.simplify(MUNICIPAL_GEOMETRY_TOLERANCE, preserve_topology=True)),
+        })
         point = row.geometry.representative_point()
         mesoregion_centers.append({
             "name": str(row.name_meso), "lon": float(point.x), "lat": float(point.y),
@@ -128,6 +134,7 @@ def load_geo_reference() -> tuple[dict | None, pd.DataFrame | None, pd.DataFrame
     geojson_mg = {
         "type": "FeatureCollection",
         "features": features,
+        "mesoregions": {"type": "FeatureCollection", "features": mesoregion_features},
         "regional_lines": {
             "mesoregions": _boundary_coordinates([geometry.boundary for geometry in region_geometries]),
             "state": _boundary_coordinates([unary_union(region_geometries).boundary]),

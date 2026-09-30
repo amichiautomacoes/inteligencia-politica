@@ -1,7 +1,5 @@
 # Briefing visual — Visualização Eleitoral
 
-> Atualização da navegação: a cápsula do hero e a barra lateral incluem **Expansão 2030** como terceira página. Ela usa o mesmo cabeçalho, com o título **Expansão de votos para 2030**. A seção **Expansão & Oportunidades para 2030** e seu mapa foram movidos do DNA para essa página.
-
 Este documento registra **a interface implementada hoje** nas três páginas do aplicativo. Ele descreve a aparência, a ordem de leitura, os controles, as respostas às interações e os estados sem dados. O [README](README.md) concentra a arquitetura e as fontes; aqui o foco é o que o usuário vê e entende. Textos que mencionam bairros na página Expansão 2030 descrevem rótulos atualmente presentes na interface: o mapa dessa página é municipal.
 
 ## 1. Visão geral da experiência
@@ -20,12 +18,12 @@ O percurso é vertical. Uma capa apresenta o candidato; faixas de seção delimi
 | Cabeçalho interno | Card azul mais leve, com título e subtítulo em duas linhas de hierarquia | Introduzir uma visualização dentro da seção |
 | Cards de conteúdo | Azul profundo translúcido, borda azul clara fina, sombra e leve blur | Agrupar informação sem esconder o fundo |
 | Gráficos Plotly | Fundo transparente, textos claros e grades discretas | Integrar gráfico e card |
-| Mapas PyDeck | Polígonos preenchidos sobre mapa Carto escuro sem rótulos, com bordas claras | Manter o território como foco visual |
+| Mapas | Coropléticos Plotly no Raio X; mapa PyDeck na Expansão 2030 | Mostrar votos por intensidade e oportunidades por classe |
 | Mensagens de ausência | Aviso ou informação textual dentro do espaço da visualização | Explicar falta de dados sem simular um resultado |
 
 A base cromática é `#eaf2ff` para texto, `#f8fbff` para títulos e números, `#b7c7e6` para descrição e legendas. Os cards usam gradientes próximos de `rgba(11,31,77,.76)` e `rgba(7,24,54,.68)`, com bordas azuis próximas de `rgba(59,130,246,.24)`. Azul claro (`#60a5fa`), azul médio (`#2563eb`) e azul profundo (`#0b1f4d`) expressam intensidade ou seleção; verde, amarelo, laranja e cinza têm significado específico nos mapas categóricos.
 
-Os preenchimentos dos mapas são opacos. O fundo Carto sem rótulos não acrescenta nomes de ruas por baixo dos polígonos. O tooltip tem fundo azul quase preto e texto claro. Os 853 municípios de Minas Gerais compõem os mapas estaduais; os polígonos municipais são simplificados com tolerância pequena para preservar a leitura dos limites. O mapa detalhado usa bairros oficiais quando disponíveis e informa quando precisa recorrer a áreas ponderadas ou setores censitários.
+Os preenchimentos dos mapas são opacos. No mapa PyDeck, o fundo Carto sem rótulos não acrescenta nomes de ruas por baixo dos polígonos. Os tooltips usam fundo azul quase preto e texto claro. Os 853 municípios de Minas Gerais compõem os mapas estaduais; os polígonos municipais são simplificados com tolerância pequena para preservar a leitura dos limites. O mapa detalhado usa bairros oficiais quando disponíveis e informa quando precisa recorrer a áreas ponderadas ou setores censitários.
 
 ### 1.2 Hierarquia de texto e formatação
 
@@ -41,10 +39,11 @@ No canto superior direito há uma cápsula de três opções: **Raio X Eleitoral
 | --- | --- | --- |
 | Raio X | `RAIO X da votação 2022` (ano conforme o deputado) | `Análises descritivas geográficas e do perfil do eleitor na última eleição.` |
 | DNA | `DNA do Eleitor` | `Quem é, onde está e como se comporta o eleitor determinante da candidatura.` |
+| Expansão 2030 | `Expansão de votos para 2030` | `Oportunidades territoriais para ampliar a votação em 2030.` |
 
 ## 2. Página 1 — Raio X Eleitoral
 
-A página segue a ordem: **Mapa Territorial da Votação → Votação por Bairros dentro dos municípios → Concentração territorial dos votos → Mapa da atuação parlamentar → Eficiência por Custo do Voto**. A primeira parte oferece localização e volume; a segunda aproxima o município; as três seguintes interpretam dependência territorial, emendas e gastos.
+A página segue a ordem: **Mapa Territorial da Votação → Votação por Bairros dentro dos municípios → Força da política local → Concentração territorial dos votos → Mapa da atuação parlamentar → Eficiência por Custo do Voto**. A primeira parte oferece localização e volume; a segunda aproxima o município; a seção de política local reserva espaço para análise futura; as três seguintes interpretam dependência territorial, emendas e gastos.
 
 ### 2.1 Mapa Territorial da Votação
 
@@ -52,9 +51,9 @@ A página segue a ordem: **Mapa Territorial da Votação → Votação por Bairr
 
 A faixa **Mapa Territorial da Votação** apresenta o subtítulo `Leitura territorial do desempenho eleitoral no recorte ativo.`. Logo abaixo, antes do mapa e dos cards laterais, o card horizontal de **Território líder** destaca a mesorregião mais votada e seu volume. O total de votos do candidato fica no hero, abaixo do cargo. Os números são brancos, os rótulos menores, e as descrições usam azul acinzentado.
 
-O seletor **Mesorregião / Município** fica sozinho no canto superior direito, dentro do card do mapa. Ele altera o agrupamento do mapa estadual; não é o filtro da seção demográfica abaixo.
+O seletor **Mesorregião / Município** fica sozinho no canto superior direito, dentro do card do mapa. Ele altera o agrupamento do mapa estadual; não é o par de filtros do mapa municipal abaixo.
 
-O card do mapa ocupa **70% da largura** disponível e tem cerca de 560 px de altura. Os 30% restantes contêm quatro cards empilhados: **Município principal (Top 1)** (nome, participação no total e votos da cidade líder, com alerta acima de 30%), **Dependência do reduto principal** (parcela dos votos no município líder, com alerta acima de 30%), **Penetração territorial** (municípios com votos sobre os municípios do estado) e **Densidade média por município** (votos divididos apenas pelos municípios com voto). Cada município de Minas Gerais é um polígono Plotly; o hover informa nome e votos. No modo municipal, a intensidade progride do azul muito claro ao azul profundo, com transformação logarítmica dos votos. No modo mesorregional, cada município herda o total da sua mesorregião; assim a leitura regional acontece sobre a mesma malha municipal. Áreas sem votos continuam desenhadas na cor mínima. As linhas entre municípios são claras e finas.
+O card do mapa ocupa **70% da largura** disponível e tem cerca de 560 px de altura. Os 30% restantes contêm quatro cards empilhados: **Município principal (Top 1)** (nome, participação no total e votos da cidade líder, com alerta acima de 30%), **Dependência do reduto principal** (parcela dos votos no município líder, com alerta acima de 30%), **Penetração territorial** (municípios com votos sobre os municípios do estado) e **Densidade média por município** (votos divididos apenas pelos municípios com voto). No modo municipal, cada município de Minas Gerais é um polígono Plotly; o hover informa nome e votos. A intensidade progride do azul muito claro ao azul profundo, com transformação logarítmica dos votos. No modo mesorregional, cada mesorregião é um único polígono da malha oficial, colorido pelo total de seus votos; o hover informa nome e votos da mesorregião. Áreas sem votos continuam desenhadas na cor mínima. As linhas visíveis correspondem à malha selecionada.
 
 O gráfico de barras aparece em uma janela de detalhamento após o clique no mapa. No modo mesorregional, mostra todos os municípios da mesorregião selecionada. No modo municipal, mostra todos os bairros com registros de votos do município selecionado. A altura cresce conforme a quantidade de linhas, permitindo rolar a janela até o último território sem comprimir as barras. O comprimento expressa votos, a cor também varia em azul e o texto junto à barra traz votos e participação no recorte. O hover repete território, votos e percentual.
 
@@ -64,21 +63,25 @@ Se a malha ou os votos não puderem ser carregados, o mapa cede lugar a uma mens
 
 **Pergunta visual:** dentro do município selecionado, como se distribuem os votos entre os bairros ou as unidades da malha disponível?
 
-A seção começa com o cabeçalho interno `Votação por Bairros dentro dos municípios`. O mapa ocupa **70% da largura** e a coluna à direita contém **quatro cards vazios empilhados**, reservados para indicadores futuros. O card do mapa mostra o título `Votação por bairros` à esquerda e os filtros **Mesorregião** e **Município**, lado a lado, no canto superior direito. A entrada inicial é a mesorregião com mais votos do candidato e, dentro dela, o município mais votado.
+A seção começa com o cabeçalho interno `Votação por Bairros dentro dos municípios`. O mapa ocupa **70% da largura** e a coluna à direita contém quatro cards empilhados: **Bairro principal (Top 1)**, **Dependência do bairro principal**, **Penetração por bairros** e **Densidade média por bairro**. O primeiro destaca o bairro líder, seus votos e sua participação entre os votos com bairro identificado; o segundo repete essa participação como indicador de concentração. A densidade divide os votos com bairro identificado pelos bairros que receberam votos. A penetração compara os bairros com voto presentes na malha oficial com todos os bairros oficiais do município; se o mapa usa malha alternativa, mostra indisponibilidade em vez de um percentual. O card do mapa mostra os filtros **Mesorregião** e **Município**, lado a lado, no canto superior direito, sem título interno. A entrada inicial é a mesorregião com mais votos do candidato e, dentro dela, o município mais votado.
 
-O mapa tem cerca de 560 px de altura e escala azul local ao município. Quando há malha oficial de bairros do IBGE, os polígonos representam bairros e recebem os votos eleitorais associados pelo nome. Quando ela não está disponível, o mapa usa áreas ponderadas com correspondência ou setores censitários. A legenda abaixo informa a malha utilizada e, nos casos de correspondência por código, a quantidade de votos sem correspondência. O hover mostra o nome da unidade e os votos associados. Se não houver município selecionado ou geometria disponível, aparece uma mensagem específica. O gráfico demográfico e os pequenos cards de votos no cabeçalho do mapa foram removidos.
+O mapa tem cerca de 560 px de altura e escala azul local ao município. Quando há malha oficial de bairros do IBGE, os polígonos representam bairros e recebem os votos eleitorais associados pelo nome. Quando ela não está disponível, o mapa usa áreas ponderadas com correspondência ou setores censitários. A legenda abaixo informa a malha utilizada e, nos casos de correspondência por código, a quantidade de votos sem correspondência. O hover mostra o nome da unidade e os votos associados. Se não houver município selecionado ou geometria disponível, aparece uma mensagem específica.
 
-### 2.3 Concentração territorial dos votos
+### 2.3 Força da política local
+
+A faixa principal usa o título `Força da política local` e o subtítulo `Veja se vereadores e prefeitos das cidades foram decisivos na sua votação`. Logo abaixo há um card vazio de largura total, reservado para conteúdo futuro. A seção ainda não apresenta métricas nem conclusões.
+
+### 2.4 Concentração territorial dos votos
 
 **Pergunta visual:** a candidatura depende de poucos redutos ou distribui votos por muitos municípios?
 
-Uma faixa principal apresenta o título e a frase `Quanto da votação total está concentrada nos municípios onde o candidato mais recebeu votos.`. O conteúdo está em um único card. Na parte superior há **quatro cards**: Top 1, Top 5, Top 15 e Top 20. Cada um mostra votos acumulados e uma rosca Plotly com o percentual acumulado em relação a 100% dos votos. O Top 1 mostra o nome do município líder; os demais mostram a quantidade de municípios. As roscas usam tons de azul da mesma família e não exibem instrução de clique abaixo.
+Uma faixa principal apresenta o título e a frase `Quanto da votação total está concentrada nos municípios onde o candidato mais recebeu votos.`. O conteúdo está em um único card. Na parte superior há **quatro cards**: Top 1, Top 5, Top 15 e Top 20. Cada um mostra votos acumulados e uma rosca Plotly com o percentual acumulado em relação a 100% dos votos. O Top 1 mostra o nome do município líder; os demais mostram a quantidade de municípios. As roscas usam tons de azul da mesma família; o texto de instrução de clique não aparece abaixo delas.
 
 Um clique na rosca abre uma janela com a composição incremental até aquele Top: Top 1, municípios 2 a 5, 6 a 15 e 16 a 20, conforme o card selecionado. Cada etapa mostra sua contribuição percentual e votos absolutos, seguida do total acumulado. Abaixo, uma frase automática nomeia o líder e destaca o peso dos 15 municípios principais. Os nomes completos estão em expansores `Ver municípios do Top 5`, `Top 15` e `Top 20`, com posição numérica.
 
 Ao final, uma curva Plotly mostra a participação acumulada em função da posição do município. A linha azul, a área translúcida, os marcadores e as referências percentuais permitem ver a velocidade da concentração. A curva limita a exibição aos **Top 50** quando a base é maior; uma legenda informa esse corte. Com menos municípios, usa todos. Sem linhas municipais válidas, o card exibe aviso e não fabrica uma curva.
 
-### 2.4 Mapa da atuação parlamentar de acordo com os votos
+### 2.5 Mapa da atuação parlamentar de acordo com os votos
 
 **Pergunta visual:** onde os votos recebidos encontram as emendas destinadas pelo parlamentar?
 
@@ -90,13 +93,13 @@ O mapa depende de votos e emendas do candidato. Se a combinação não estiver d
 
 Ao clicar em um município no mapa parlamentar, uma janela mostra os votos, a categoria, o total indicado de emendas e uma tabela por finalidade e tipo de indicação. A tabela agrega os valores indicados das emendas registradas para o município; pagamentos podem ser diferentes. O card do mapa não acrescenta preenchimento lateral interno.
 
-### 2.5 Eficiência por Custo do Voto
+### 2.6 Eficiência por Custo do Voto
 
 **Pergunta visual:** que tipos de despesa dominam os gastos e qual o custo estimado por voto nos territórios?
 
 A seção abre com faixa principal e a frase `Participação de cada tipo de despesa nos gastos totais da campanha.`. Antes dos gráficos há **três KPIs**: custo por voto, gasto total e despesa líder. Sem seleção, retratam a campanha inteira. Ao clicar em uma despesa no treemap, os rótulos e valores passam a refletir o tipo escolhido.
 
-Os gráficos ficam em **dois cards empilhados, cada um na largura total da seção**. O primeiro, `Gastos por tipo de despesa`, é um **treemap Plotly** de cerca de 600 px de altura. A área de cada retângulo corresponde ao valor gasto no tipo; o texto apresenta tipo e participação no gasto. A borda fina separa os retângulos. O hover detalha total em reais, participação e custo por voto. O clique seleciona uma despesa e atualiza o gráfico territorial abaixo.
+Os gráficos ficam em **dois cards lado a lado**, com o treemap à esquerda e o custo territorial à direita. Em telas estreitas, as colunas do Streamlit podem se empilhar. O primeiro, `Gastos por tipo de despesa`, é um **treemap Plotly** de cerca de 600 px de altura. A área de cada retângulo corresponde ao valor gasto no tipo; o texto apresenta tipo e participação no gasto. A borda fina separa os retângulos. O hover detalha total em reais, participação e custo por voto. O clique seleciona uma despesa e atualiza o gráfico territorial ao lado.
 
 O segundo card, `Custo por voto territorial · Gasto total`, muda o sufixo para a despesa selecionada. O botão **Mostrar gasto total** restaura o estado inicial. Um rádio horizontal alterna **Municípios / Mesorregiões**. O gráfico tem cerca de 560 px de altura e mostra até 15 municípios ou todas as mesorregiões, com custo de referência em reais por voto. O novo parquet repete o total da campanha de cada tipo de despesa em todos os municípios; o gráfico conta esse total uma vez e o divide pelos votos do território. O hover mostra o total usado e os votos. O resultado não representa despesa local observada. Na ausência do novo parquet, a interface usa o rateio territorial anterior e informa essa condição.
 
@@ -130,7 +133,7 @@ A faixa principal traz `Distribuição demográfica estimada dos votos, com reco
 
 A composição usa **gráfico à esquerda e filtros à direita** (proporção aproximada 2,3:1). À direita há uma chamada `Refine a distribuição`, um seletor **MUNICÍPIO** com opção `Todos os municípios` e um seletor **PERFIL DEMOGRÁFICO** com Gênero, Faixa etária, Escolaridade e Estado civil. O município altera o universo de votos; a dimensão altera as fatias.
 
-À esquerda, uma badge indica a categoria dominante da dimensão selecionada. A **rosca Plotly** tem centro vazado amplo, total de votos em tipografia forte no miolo e subtítulo menor em azul acinzentado. Não há percentuais sobre as fatias. O hover mostra categoria e participação. À direita, abaixo dos seletores, a legenda mostra cor, categoria e percentual, sem votos estimados. Para gênero, feminino usa azul, masculino usa laranja e não informado usa cinza. O gráfico mostra **uma dimensão por vez**. A nota abaixo afirma que os parquets não permitem cruzar diretamente idade, gênero e escolaridade de indivíduos. Dados ausentes geram mensagem no lugar da rosca.
+À esquerda, uma badge indica a categoria dominante da dimensão selecionada. A **rosca Plotly** tem centro vazado amplo, total de votos em tipografia forte no miolo e subtítulo menor em azul acinzentado. Os percentuais ficam fora da rosca, ligados às respectivas fatias por linhas. O hover mostra categoria e participação. À direita, abaixo dos seletores, a legenda mostra cor, categoria e percentual, sem votos estimados. Para gênero, feminino usa azul, masculino usa laranja e não informado usa cinza. O gráfico mostra **uma dimensão por vez**. A nota abaixo afirma que os parquets não permitem cruzar diretamente idade, gênero e escolaridade de indivíduos. Dados ausentes geram mensagem no lugar da rosca.
 
 ### 3.3 Matriz de Potencial Demográfico
 
@@ -176,7 +179,7 @@ Falta de parquet, malha ou dimensão não deve parecer valor zero. A implementa�
 
 No hero, a cápsula de navegação, a foto e os textos se reorganizam em larguras menores por regras CSS próprias. Os KPIs da página 1 passam de linha para uma coluna em telas até cerca de **900 px**. A faixa Top 1/5/15/20 passa para duas colunas; a lista de municípios reduz colunas novamente abaixo de **600 px**. O card do eleitor ideal reduz sua grade de quatro para duas e depois uma coluna. No card dos ICPs, o resumo e as barras demográficas empilham abaixo de **600 px**; o cabeçalho de cada perfil pode quebrar em telas estreitas. A legenda de expansão passa de quatro para duas colunas abaixo de **900 px** e para uma abaixo de **560 px**.
 
-Os pares de gráficos da página 1 e o par rosca/filtros são montados com `st.columns`; a experiência móvel também depende do empilhamento padrão do Streamlit. Nomes longos de município, persona e despesa podem quebrar linha. Tooltips complementam os rótulos que não cabem nos cards.
+Os pares de mapa e cards laterais da página 1, os gráficos de custos lado a lado e o par rosca/filtros do DNA são montados com `st.columns`; a experiência móvel também depende do empilhamento padrão do Streamlit. Nomes longos de município, persona e despesa podem quebrar linha. Tooltips complementam os rótulos que não cabem nos cards.
 
 ## 6. Critérios de fidelidade para futuras alterações
 

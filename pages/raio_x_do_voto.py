@@ -354,6 +354,9 @@ def _apply_visual_model() -> None:
             display: grid;
             gap: 1rem;
         }}
+        .raiox-local-politics-placeholder {{
+            min-height: 12rem;
+        }}
         .raiox-map-side-card {{
             min-height: 9.25rem;
             padding: 0.9rem 1rem;
@@ -1074,11 +1077,14 @@ def _selected_territory(event: object, kind: str) -> str:
     location = point.get("location") if isinstance(point, dict) else getattr(point, "location", None)
     if not location:
         return ""
-    _, _, municipalities, regions = load_geo_reference()
-    source = regions if kind == "votos_mesorregiao" else municipalities
-    name_col = "mesorregiao_nome" if kind == "votos_mesorregiao" else "nome"
-    match = source[pd.to_numeric(source["codigo_ibge"], errors="coerce").eq(pd.to_numeric(location, errors="coerce"))]
-    return str(match.iloc[0][name_col]) if not match.empty else ""
+    if kind == "votos_mesorregiao":
+        return str(location)
+    _, _, municipalities, _ = load_geo_reference()
+    match = municipalities[
+        pd.to_numeric(municipalities["codigo_ibge"], errors="coerce")
+        .eq(pd.to_numeric(location, errors="coerce"))
+    ]
+    return str(match.iloc[0]["nome"]) if not match.empty else ""
 
 
 @st.dialog("Detalhamento territorial", width="large")
@@ -1113,19 +1119,22 @@ def _normalized_text(value: object) -> str:
     ).split())
 
 
+def _map_side_card(title: str, value: str, caption: str, badge: str = "", tone: str = "") -> str:
+    badge_html = (
+        f'<div class="raiox-map-side-badge {tone}">{html.escape(badge)}</div>'
+        if badge else ""
+    )
+    return (
+        '<div class="raiox-map-side-card">'
+        f'<div class="raiox-map-side-label">{html.escape(title)}</div>'
+        f'<div class="raiox-map-side-value">{html.escape(value)}</div>'
+        f'<div class="raiox-map-side-caption">{html.escape(caption)}</div>'
+        f'{badge_html}</div>'
+    )
+
+
 def _render_map_side_cards(df: pd.DataFrame | None) -> None:
-    def card(title: str, value: str, caption: str, badge: str = "", tone: str = "") -> str:
-        badge_html = (
-            f'<div class="raiox-map-side-badge {tone}">{html.escape(badge)}</div>'
-            if badge else ""
-        )
-        return (
-            '<div class="raiox-map-side-card">'
-            f'<div class="raiox-map-side-label">{html.escape(title)}</div>'
-            f'<div class="raiox-map-side-value">{html.escape(value)}</div>'
-            f'<div class="raiox-map-side-caption">{html.escape(caption)}</div>'
-            f'{badge_html}</div>'
-        )
+    card = _map_side_card
 
     cards = []
     municipal = pd.DataFrame()
@@ -1186,6 +1195,67 @@ def _render_map_side_cards(df: pd.DataFrame | None) -> None:
             f"{_format_number(round(total / with_votes))} votos / município" if with_votes else "—",
             f"Considerando apenas os {_format_number(with_votes)} municípios com voto",
         ))
+    st.markdown('<div class="raiox-map-side-cards">' + "".join(cards) + '</div>', unsafe_allow_html=True)
+
+
+def _render_neighborhood_side_cards(
+    votes: pd.DataFrame | None, municipio: str, fig: go.Figure | None, map_note: str,
+) -> None:
+    card = _map_side_card
+    unavailable = "Selecione um município com dados de bairros"
+    if municipio == "Todos" or votes is None or votes.empty or not {"nm_bairro", "qt_votos"}.issubset(votes.columns):
+        cards = [
+            card("Bairro principal (Top 1)", "—", unavailable),
+            card("Dependência do bairro principal", "—", unavailable),
+            card("Penetração por bairros", "—", unavailable),
+            card("Densidade média por bairro", "—", unavailable),
+        ]
+    else:
+        rows = votes[["nm_bairro", "qt_votos"]].copy()
+        rows["nm_bairro"] = rows["nm_bairro"].fillna("").astype(str).str.strip()
+        rows["qt_votos"] = pd.to_numeric(rows["qt_votos"], errors="coerce").fillna(0)
+        rows = rows[rows["nm_bairro"].ne("")]
+        by_name = rows.groupby(rows["nm_bairro"].map(_normalized_text))["qt_votos"].sum()
+        by_name = by_name[by_name.index.ne("")]
+        total = float(by_name.sum())
+        with_votes = int(by_name.gt(0).sum())
+        leader_key = str(by_name.idxmax()) if total > 0 else ""
+        leader_rows = rows[rows["nm_bairro"].map(_normalized_text).eq(leader_key)]
+        leader_name = str(leader_rows.iloc[0]["nm_bairro"]).title() if not leader_rows.empty else "—"
+        leader_votes = float(by_name.max()) if total > 0 else 0.0
+        leader_share = leader_votes / total if total > 0 else 0.0
+        official = fig is not None and map_note.startswith("Malha: bairros oficiais do IBGE.")
+        total_bairros = len(fig.data[0].geojson["features"]) if official else 0
+        # Contar apenas bairros com voto que existem na malha oficial.
+        mapped_with_votes = int(sum(float(value[0]) > 0 for value in fig.data[0].customdata)) if official else 0
+        reach = mapped_with_votes / total_bairros if total_bairros else 0.0
+        cards = [
+            card(
+                "Bairro principal (Top 1)",
+                f"{leader_name} ({_format_percent(leader_share)})" if total > 0 else "—",
+                f"{_format_number(leader_votes)} votos no bairro líder" if total > 0 else "Sem votos por bairro",
+                "Alta concentração" if leader_share > 0.30 else "Bairro líder",
+                "warn" if leader_share > 0.30 else "good",
+            ),
+            card(
+                "Dependência do bairro principal", _format_percent(leader_share) if total > 0 else "—",
+                "Dos votos com bairro identificado" if total > 0 else "Sem votos por bairro",
+                "Alerta de concentração" if leader_share > 0.30 else "Concentração moderada",
+                "warn" if leader_share > 0.30 else "good",
+            ),
+            card(
+                "Penetração por bairros",
+                f"{_format_number(mapped_with_votes)} / {_format_number(total_bairros)}" if total_bairros else "—",
+                f"{_format_percent(reach)} dos bairros oficiais do município" if total_bairros else "Total de bairros oficiais indisponível nesta malha",
+                ("Presença em mais da metade dos bairros" if reach >= 0.5 else "Presença em menos da metade dos bairros") if total_bairros else "",
+                ("good" if reach >= 0.5 else "warn") if total_bairros else "",
+            ),
+            card(
+                "Densidade média por bairro",
+                f"{_format_number(round(total / with_votes))} votos / bairro" if with_votes else "—",
+                f"Considerando apenas os {_format_number(with_votes)} bairros com voto" if with_votes else "Sem votos por bairro",
+            ),
+        ]
     st.markdown('<div class="raiox-map-side-cards">' + "".join(cards) + '</div>', unsafe_allow_html=True)
 
 def _municipal_concentration_frame(df: pd.DataFrame | None) -> pd.DataFrame:
@@ -2189,65 +2259,68 @@ def _render_cost_efficiency_section(
         selected_expense = None
         st.session_state.pop(EXPENSE_SELECTION_KEY, None)
     _render_cost_efficiency_kpis(chart_df, selected_expense)
-    with st.container(border=True):
-        st.markdown(
-            "<div class='raiox-chart-card-title'>Gastos por tipo de despesa</div>",
-            unsafe_allow_html=True,
-        )
-        treemap_event = st.plotly_chart(
-            _expense_cost_by_type_chart(chart_df),
-            width="stretch",
-            key=f"{EXPENSE_TREEMAP_KEY}_{st.session_state.get(EXPENSE_TREEMAP_REVISION_KEY, 0)}",
-            on_select="rerun",
-            selection_mode="points",
-        )
-        clicked_expense = _selected_expense_from_treemap(treemap_event, chart_df)
-        if clicked_expense and clicked_expense != selected_expense:
-            st.session_state[EXPENSE_SELECTION_KEY] = clicked_expense
-            st.rerun()
-    with st.container(border=True):
-        title = selected_expense or "Gasto total"
-        st.markdown(
-            f"<div class='raiox-chart-card-title'>Custo por voto territorial · {html.escape(title)}</div>",
-            unsafe_allow_html=True,
-        )
-        if selected_expense and st.button("Mostrar gasto total", key="pagina1_reset_tipo_despesa"):
-            st.session_state.pop(EXPENSE_SELECTION_KEY, None)
-            st.session_state[EXPENSE_TREEMAP_REVISION_KEY] = (
-                st.session_state.get(EXPENSE_TREEMAP_REVISION_KEY, 0) + 1
+    treemap_col, territorial_col = st.columns(2, gap="large")
+    with treemap_col:
+        with st.container(border=True):
+            st.markdown(
+                "<div class='raiox-chart-card-title'>Gastos por tipo de despesa</div>",
+                unsafe_allow_html=True,
             )
-            st.rerun()
-        territory = st.radio(
-            "Agrupar por", ["Municípios", "Mesorregiões"],
-            horizontal=True, key="pagina1_custo_territorio",
-        )
-        share = 1.0
-        if selected_expense:
-            share = float(chart_df.loc[
-                chart_df["tipo_despesa"].eq(selected_expense), "pct_gasto"
-            ].iloc[0])
-        has_type_data = gastos_por_tipo_df is not None and not gastos_por_tipo_df.empty
-        territorial_cost = (
-            _territorial_expense_cost_by_type_frame(gastos_por_tipo_df, selected_expense, territory)
-            if has_type_data else _territorial_expense_cost_frame(gastos_df, share, territory)
-        )
-        st.plotly_chart(
-            _territorial_expense_cost_chart(territorial_cost, territory, has_type_data),
-            width="stretch",
-        )
-        if has_type_data:
-            st.caption(
-                "Custo de referência: valor total da campanha para o tipo selecionado "
-                "(ou todos os tipos) dividido pelos votos do território. "
-                "O parquet repete o total da campanha em cada município; "
-                "não registra gasto realizado em cada local."
+            treemap_event = st.plotly_chart(
+                _expense_cost_by_type_chart(chart_df),
+                width="stretch",
+                key=f"{EXPENSE_TREEMAP_KEY}_{st.session_state.get(EXPENSE_TREEMAP_REVISION_KEY, 0)}",
+                on_select="rerun",
+                selection_mode="points",
             )
-        else:
-            st.caption(
-                "Gasto atribuído proporcionalmente aos votos em cada território. "
-                "O parquet não identifica o tipo de despesa por local; por isso "
-                "o custo por voto é igual entre territórios neste rateio."
+            clicked_expense = _selected_expense_from_treemap(treemap_event, chart_df)
+            if clicked_expense and clicked_expense != selected_expense:
+                st.session_state[EXPENSE_SELECTION_KEY] = clicked_expense
+                st.rerun()
+    with territorial_col:
+        with st.container(border=True):
+            title = selected_expense or "Gasto total"
+            st.markdown(
+                f"<div class='raiox-chart-card-title'>Custo por voto territorial · {html.escape(title)}</div>",
+                unsafe_allow_html=True,
             )
+            if selected_expense and st.button("Mostrar gasto total", key="pagina1_reset_tipo_despesa"):
+                st.session_state.pop(EXPENSE_SELECTION_KEY, None)
+                st.session_state[EXPENSE_TREEMAP_REVISION_KEY] = (
+                    st.session_state.get(EXPENSE_TREEMAP_REVISION_KEY, 0) + 1
+                )
+                st.rerun()
+            territory = st.radio(
+                "Agrupar por", ["Municípios", "Mesorregiões"],
+                horizontal=True, key="pagina1_custo_territorio",
+            )
+            share = 1.0
+            if selected_expense:
+                share = float(chart_df.loc[
+                    chart_df["tipo_despesa"].eq(selected_expense), "pct_gasto"
+                ].iloc[0])
+            has_type_data = gastos_por_tipo_df is not None and not gastos_por_tipo_df.empty
+            territorial_cost = (
+                _territorial_expense_cost_by_type_frame(gastos_por_tipo_df, selected_expense, territory)
+                if has_type_data else _territorial_expense_cost_frame(gastos_df, share, territory)
+            )
+            st.plotly_chart(
+                _territorial_expense_cost_chart(territorial_cost, territory, has_type_data),
+                width="stretch",
+            )
+            if has_type_data:
+                st.caption(
+                    "Custo de referência: valor total da campanha para o tipo selecionado "
+                    "(ou todos os tipos) dividido pelos votos do território. "
+                    "O parquet repete o total da campanha em cada município; "
+                    "não registra gasto realizado em cada local."
+                )
+            else:
+                st.caption(
+                    "Gasto atribuído proporcionalmente aos votos em cada território. "
+                    "O parquet não identifica o tipo de despesa por local; por isso "
+                    "o custo por voto é igual entre territórios neste rateio."
+                )
 
 
 def _parliamentary_action_frame(
@@ -2660,12 +2733,7 @@ _section_header(
 detail_map_col, detail_cards_col = st.columns([0.70, 0.30], gap="large")
 with detail_map_col:
     with st.container(border=True):
-        title_col, filter_col = st.columns([0.35, 0.65], gap="small")
-        with title_col:
-            st.markdown(
-                "<div class='raiox-chart-card-title'>Votação por bairros</div>",
-                unsafe_allow_html=True,
-            )
+        _, filter_col = st.columns([0.35, 0.65], gap="small")
         with filter_col:
             neighborhood_df, mesorregiao, municipio = _mesorregiao_filter(
                 votos_bairro_df, votos_municipio_df
@@ -2691,12 +2759,14 @@ with detail_map_col:
         if map_note and neighborhood_fig is not None:
             st.caption(map_note)
 with detail_cards_col:
-    st.markdown(
-        '<div class="raiox-map-side-cards">'
-        + '<div class="raiox-map-side-card"></div>' * 4
-        + '</div>',
-        unsafe_allow_html=True,
-    )
+    _render_neighborhood_side_cards(neighborhood_df, municipio, neighborhood_fig, map_note)
+
+_major_section_header(
+    "Força da política local",
+    "Veja se vereadores e prefeitos das cidades foram decisivos na sua votação",
+)
+with st.container(border=True):
+    st.markdown('<div class="raiox-local-politics-placeholder"></div>', unsafe_allow_html=True)
 
 _render_accumulated_concentration_section(votos_municipio_df)
 emendas_legislativa_df = _read_selected_parquet("emendas_legislativa")

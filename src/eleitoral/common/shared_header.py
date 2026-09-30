@@ -10,7 +10,7 @@ import streamlit as st
 from hf_sync import data_files, hf_filesystem, load_env, selected_deputado_files
 
 
-ASSET_DIR = Path(__file__).resolve().parents[1] / "assets"
+ASSET_DIR = Path(__file__).resolve().parents[3] / "assets"
 BACKGROUND_PATH = ASSET_DIR / "background.png"
 
 
