@@ -21,18 +21,9 @@ def ramp(value: float, stops: list[str]) -> list[int]:
     return [round(left[index] + fraction * (right[index] - left[index])) for index in range(3)] + [255]
 
 
-# Keep the basemap empty.  The dashboard renders the IBGE polygons itself;
-# using a named Carto style adds a second geographic layer behind them and
-# changes the appearance and framing of the electoral maps.
-MAP_STYLE = {
-    "version": 8,
-    "sources": {},
-    "layers": [{
-        "id": "background",
-        "type": "background",
-        "paint": {"background-color": "#07182e"},
-    }],
-}
+# PyDeck 0.9.x rejects dict styles unless the provider is Mapbox.  Keep the
+# provider-neutral default so deployments do not require a Mapbox token.
+MAP_STYLE = None
 
 
 def deck_geojson(
