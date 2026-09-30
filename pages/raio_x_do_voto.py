@@ -1122,7 +1122,7 @@ def _render_map_side_cards(df: pd.DataFrame | None) -> None:
         ])
     else:
         by_city = municipal.groupby(municipal["nm_municipio"].map(_normalized_text))["qt_votos"].sum()
-        by_city = by_city[by_city.index.ne("")]
+        by_city = by_city[by_city.index != ""]
         total = float(by_city.sum())
         with_votes = int(by_city.gt(0).sum())
         leader_share = float(by_city.max() / total) if total > 0 and not by_city.empty else 0.0
