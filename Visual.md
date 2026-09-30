@@ -1,517 +1,189 @@
-# Direcao Visual do Projeto
+# Briefing visual — Visualização Eleitoral
 
-Este documento descreve o projeto pelo vies visual, narrativo e de experiencia. Ele serve como briefing para evoluir a apresentacao das visualizacoes eleitorais, sem substituir o README tecnico.
+Este documento registra **a interface implementada hoje** nas duas páginas do aplicativo. Ele descreve a aparência, a ordem de leitura, os controles, as respostas às interações e os estados sem dados. O [README](README.md) concentra a arquitetura e as fontes; aqui o foco é o que o usuário vê e entende. Textos que mencionam bairros no DNA descrevem rótulos atualmente presentes na interface: os mapas dessa página são municipais.
 
-## Objetivo Visual
+## 1. Visão geral da experiência
 
-O app deve parecer um painel politico-territorial premium: escuro, analitico, geografico e confiavel. A experiencia tem duas frentes principais:
+O produto é um painel de inteligência eleitoral para deputados, com duas rotas. **Raio X Eleitoral** mostra a votação de 2022, sua distribuição territorial, perfil demográfico estimado, concentração, atuação parlamentar e custo do voto. **DNA Eleitoral** sintetiza o eleitor predominante, os perfis estratégicos, a distribuição demográfica e as oportunidades territoriais. As páginas compartilham candidato selecionado, fundo, hero, tipografia e família de cards.
 
-- **Raio X Eleitoral**: leitura descritiva do desempenho do candidato.
-- **DNA Eleitoral**: leitura estrategica do eleitor determinante, segmentos e oportunidades.
+O percurso é vertical. Uma capa apresenta o candidato; faixas de seção delimitam cada pergunta analítica; os cards abaixo contêm números, mapas ou gráficos. O app usa a barra lateral nativa do Streamlit para escolher o deputado e navegar entre páginas. Um controle segmentado dentro da capa também alterna as duas rotas e indica qual está ativa.
 
-Na pagina **Raio X Eleitoral**, a narrativa precisa conduzir o usuario por:
+### 1.1 Sistema visual compartilhado
 
-- quem e o candidato;
-- onde estao os votos;
-- quanto a votacao esta concentrada;
-- quem compoe o perfil demografico dos territorios;
-- quanto custou conquistar votos em cada area;
-- onde houve retorno parlamentar por meio de emendas.
-
-Na pagina **DNA Eleitoral**, a narrativa deve conduzir o usuario por:
-
-- quem e o eleitor-chave da candidatura;
-- quais atributos definem a base eleitoral;
-- onde ha frentes de conversao, consolidacao e expansao;
-- onde o eleitor do candidato esta sobre ou sub-representado;
-- quais bairros, areas ponderadas e clusters indicam oportunidade para 2030.
-
-O resultado visual desejado e uma central de inteligencia eleitoral, nao uma pagina decorativa. O design deve ajudar a interpretar o territorio.
-
-## Linguagem Visual Atual
-
-### Paleta
-
-A linguagem usa tom sobre tom em azul:
-
-- fundo geral: azul muito escuro, quase noite;
-- cards: azul petroleo profundo, translucido;
-- bordas: azul claro sutil e luminosa;
-- textos principais: branco frio;
-- textos secundarios: azul acinzentado claro;
-- graficos eleitorais: escala branco-azul;
-- destaques pontuais: azul claro, ciano, verde e amarelo em visualizacoes especificas.
-
-Cores de referencia:
-
-- `#eaf2ff`: texto geral claro;
-- `#f8fbff`: titulos, numeros e labels fortes;
-- `#b7c7e6`: legendas e textos secundarios;
-- `#60A5FA`, `#2563EB`, `#0B1F4D`: escala de intensidade territorial;
-- `rgba(59, 130, 246, 0.20/0.24)`: bordas sutis dos cards;
-- `rgba(11, 31, 77, 0.76)` e `rgba(7, 24, 54, 0.68)`: base dos cards.
-
-### Cards
-
-Todos os blocos visuais devem seguir o modelo monocromatico azul dos KPIs territoriais:
-
-- fundo em azul profundo, nunca preto puro;
-- borda fina azul-clara;
-- leve sombra e blur;
-- cantos arredondados moderados;
-- conteudo com alta legibilidade;
-- graficos transparentes integrados ao card.
-
-Esse modelo vale para:
-
-- KPIs;
-- mapa principal;
-- ranking lateral;
-- mapa de bairros;
-- demografia;
-- curva acumulada;
-- matriz de custo;
-- mapa de emendas.
-- secoes e cards da pagina DNA Eleitoral.
-
-### Tipografia
-
-A hierarquia atual e forte:
-
-- hero com titulo grande e peso alto;
-- titulos de secao grandes e claros;
-- labels de KPI pequenos, em caixa alta;
-- valores numericos grandes;
-- legendas menores, azuladas e discretas.
-
-Evitar textos longos dentro de cards pequenos. Municipios, mesorregioes e categorias demograficas podem ter nomes extensos.
-
-## Estrutura da Experiencia
-
-### 1. Hero do candidato
-
-Funcao visual:
-
-Apresentar imediatamente o candidato analisado e criar contexto editorial.
-
-Composicao:
-
-- bloco horizontal amplo;
-- imagem de fundo escurecida;
-- titulo conforme pagina ativa;
-- subtitulo curto;
-- foto do candidato;
-- nome, cargo e partido em destaque.
-- controle segmentado para alternar entre **Raio X Eleitoral** e **DNA Eleitoral**.
-
-Direcao:
-
-O hero deve parecer uma capa de analise politica. Foto e dados do candidato precisam ser reconhecidos sem competir com os graficos abaixo.
-
-Comportamento por pagina:
-
-- **Raio X Eleitoral**
-  - titulo: **RAIO X da votacao 2022**;
-  - subtitulo: **Analises descritivas geograficas e do perfil do eleitor na ultima eleicao.**
-
-- **DNA Eleitoral**
-  - titulo: **DNA do Eleitor**;
-  - subtitulo: **Quem e, onde esta e como se comporta o eleitor determinante da candidatura.**
-
-O controle segmentado deve parecer parte do hero, nao um elemento solto. Ele deve ocupar o espaco vazio superior direito do cabecalho e indicar claramente a pagina ativa.
-
-### 2. Mapa Territorial da Votacao
-
-Funcao visual:
-
-Mostrar a distribuicao geografica dos votos em Minas Gerais.
-
-Elementos:
-
-- KPIs de resumo;
-- filtro Mesorregiao/Municipio;
-- mapa coropletico de Minas Gerais;
-- ranking lateral de concentracao territorial.
-
-Mapa:
-
-- base municipal de MG;
-- cor por quantidade de votos;
-- escala logaritmica;
-- municipios com mais votos ficam em azul mais intenso;
-- municipios com poucos votos ficam claros;
-- no modo mesorregiao, aparecem fronteiras regionais mais fortes e labels percentuais.
-
-Ranking:
-
-- barras horizontais Top 10;
-- complementa o mapa com uma leitura ordinal;
-- deve mostrar rapidamente os territorios mais relevantes.
-
-Direcao:
-
-Essa e a primeira grande visualizacao analitica. Mapa e ranking devem parecer um conjunto unico: um mostra geografia, o outro mostra hierarquia.
-
-A malha atual vem dos parquets municipais de MG. Ela e simplificada antes da renderizacao para manter o contorno reconhecivel e permitir a leitura dos 853 municipios no navegador. Contornos de mesorregiao e do estado usam o parquet de mesorregioes. Se a fonte estiver indisponivel, exibir uma mensagem clara no lugar de um mapa com dados simulados.
-
-### 3. Votacao por Bairro e Perfil Demografico
-
-Funcao visual:
-
-Permitir mergulho territorial e leitura do perfil estimado dos eleitores.
-
-Mapa de bairros ou areas ponderadas:
-
-- contorno do municipio selecionado e bairros OSM nos 61 municipios cobertos pela malha; nos demais, poligonos de areas ponderadas do IBGE;
-- a fonte ativa aparece abaixo do mapa, junto da quantidade de votos que nao puderam ser associados a seus poligonos;
-- indicadores compactos no canto superior direito para votos do municipio e do bairro ou area selecionada;
-- filtros encadeados de mesorregiao e municipio, iniciando na mesorregiao de maior votacao total do candidato e no municipio mais votado dentro dela;
-- escala azul suave dos votos associados, sem barra de cores ou numeros sobre os poligonos; o total de votos aparece no hover;
-- selecao interativa;
-- recorte ativo persistente.
-
-Demografia:
-
-- barras horizontais;
-- filtros por genero, idade, escolaridade e estado civil;
-- leitura percentual;
-- responde ao recorte selecionado no mapa territorial;
-- inicia no total do municipio filtrado; a selecao de um bairro OSM usa o bairro eleitoral de mesmo nome, e a selecao de uma area ponderada usa os bairros eleitorais vinculados a seu codigo.
-
-Direcao:
-
-Essa secao deve comunicar exploracao. O usuario escolhe um territorio e imediatamente entende como o perfil demografico muda.
-
-Ponto visual importante:
-
-O recorte ativo precisa ser visivel. A legenda "Recorte territorial ativo" deve evoluir para um badge ou chip mais evidente se o design for refinado.
-
-### 4. Concentracao Territorial
-
-Funcao visual:
-
-Explicar se a votacao depende de poucos redutos ou se e mais espalhada.
-
-Elementos:
-
-- faixa unica com quatro indicadores: Top 1, Top 5, Top 15 e Top 20;
-- percentual acumulado como numero principal, seguido por votos e quantidade de municipios;
-- municipio lider identificado no Top 1;
-- barras proporcionais a votacao total, com trecho claro para o incremento em relacao ao Top anterior e valor desse incremento em pontos percentuais;
-- uma frase interpretativa abaixo da faixa;
-- listas expansiveis de municipios dos Top 5, Top 15 e Top 20;
-- curva acumulada limitada aos Top 50 quando houver mais de 50 municipios.
-
-A faixa usa um unico fundo azul profundo e divisorias sutis. Os nomes completos dos municipios ficam nas listas expansiveis, preservando a leitura rapida dos indicadores.
-
-Curva:
-
-- linha azul clara;
-- area preenchida translucida;
-- marcadores de referencia;
-- linhas guias em 25%, 50%, 75% e 90%.
-
-Direcao:
-
-Essa secao e mais interpretativa do que exploratoria. Ela deve ajudar o usuario a ler concentracao como um comportamento politico.
-
-### 5. Mapa da Atuacao Parlamentar de Acordo com os Votos
-
-Funcao visual:
-
-Mostrar se ha relacao territorial entre votos recebidos e emendas destinadas pelo parlamentar.
-
-Tipo:
-
-Coropletico municipal por categoria de coerencia politica territorial.
-
-Codificacao visual:
-
-- azul: reduto atendido;
-- verde: investimento territorial;
-- amarelo: reduto desassistido;
-- laranja: baixa expressao;
-- cinza escuro: municipio com votos e sem emendas destinadas;
-- branco: municipio sem votos nem emendas;
-- hover: municipio, votos, emendas, retorno por voto e motivo da classificacao.
-
-Direcao:
-
-Esse mapa deve comunicar retorno politico territorial. A pergunta visual e: onde o parlamentar teve votos e onde destinou recursos depois?
-
-Cuidados visuais:
-
-- a legenda precisa explicar as seis categorias sem confundir cor com volume financeiro;
-- o valor das emendas permanece no hover e nos indicadores, nao na intensidade da cor;
-- municipios com muitos votos e poucas emendas precisam continuar distinguiveis dos redutos atendidos;
-- o mapa usa uma unica camada municipal para evitar repeticao da malha e manter a renderizacao leve.
-
-### 6. Eficiencia por Custo do Voto
-
-Funcao visual:
-
-Mostrar quanto cada tipo de despesa custou por voto no resultado geral da campanha.
-
-Tipo:
-
-Treemap de tipos de despesa, ao lado de um grafico de custo por voto territorial.
-
-Codificacao visual:
-
-- area de cada quadrante: percentual do valor gasto no tipo de despesa sobre o gasto total;
-- texto: tipo de despesa e percentual do gasto;
-- hover: valor gasto e custo por voto do tipo de despesa.
-
-Direcao:
-
-A visualizacao deve indicar rapidamente quais tipos de despesa mais pesaram no custo de cada voto, sem sugerir vinculo territorial quando a base nao traz esse relacionamento.
-
-Cuidados visuais:
-
-- manter os nomes longos de tipos de despesa legiveis;
-- manter os tres KPIs acima do grafico e atualiza-los conforme o tipo de despesa selecionado; o primeiro se chama **Custo por voto (total geral)** sem selecao;
-- o card da direita mostra gasto total por padrao e custo por voto do tipo selecionado no treemap;
-- alternar entre municipios e mesorregioes; indicar que o gasto por tipo e rateado proporcionalmente aos votos;
-- diferenciar valor total gasto e custo por voto no hover.
-
-## Pagina 2: DNA Eleitoral
-
-Funcao visual:
-
-Transformar a leitura descritiva da pagina 1 em leitura estrategica do eleitor. A pagina deve responder quem sustenta a candidatura hoje, onde esse eleitor esta, como ele se comporta e quais territorios podem orientar acao ate 2030.
-
-Direcao geral:
-
-- manter o mesmo sistema visual premium da pagina 1;
-- usar os mesmos blocos de titulo/subtitulo para secoes;
-- reservar cards para visualizacoes densas e comparativas;
-- evitar linguagem decorativa ou excessivamente publicitaria;
-- priorizar leitura de segmentos, potenciais e oportunidades territoriais.
-
-### 1. Identidade da Base Eleitoral
-
-Funcao visual:
-
-Definir quem e o eleitor-chave e quais atributos mais caracterizam a base do candidato.
-
-Subtitulo:
-
-**Quem e o eleitor-chave e quais atributos definem o perfil do seu eleitor.**
-
-A secao organiza a leitura em dois cards de subsecao: identidade geral e perfis estrategicos. Sunburst, Heatmap e a composição demográfica por pontos não fazem mais parte da composição atual.
-
-#### 1.1 Eleitor ideal do candidato
-
-Pergunta: **Quem caracteriza a base eleitoral do candidato?**
-
-- Titulo fixo: **Eleitor ideal do candidato**.
-- Subtitulo: **Síntese do perfil demográfico predominante na base eleitoral do candidato.**
-- Titulo maior que a persona, com a descricao menor e discreta; persona como sintese central abaixo do cabecalho.
-- Emoji de pessoa preservado; resumo com emoji de fala quando acrescenta informacao.
-- Ocultar o resumo quando ele apenas repete a persona.
-- Nao exibir a confianca do modelo como indicador do card, pois ela pode ser confundida com confianca estatistica.
-- Quatro atributos: genero, faixa etaria, escolaridade e estado civil.
-- Manter os emojis coloridos dos atributos; eles identificam dimensoes, nao magnitude.
-- Colunas compactas sem caixas individuais marcadas, separadas por divisorias sutis; dimensao pequena, categoria em destaque e percentual em azul claro.
-
-O card nao exibe a antiga legenda explicativa dos percentuais. Em telas amplas, os quatro atributos ficam alinhados; em telas menores, passam para duas colunas e depois uma.
-
-#### 1.2 BASE ELEITORAL DO CANDIDATO
-
-Pergunta: **Quais perfis sustentam a candidatura e qual o peso de cada um?**
-
-Titulo solicitado: **BASE ELEITORAL DO CANDIDATO**.
-
-Subtitulo: **Quais perfis sustentam a candidatura e qual o peso de cada um na votação?**
-
-Composicao:
-
-- card externo azul profundo, borda discreta e cantos arredondados;
-- resumo superior para Base eleitoral, Eleitor consolidado e Eleitor emergente;
-- participacao de cada classificacao na votacao do candidato;
-- uma linha expansivel por ICP, agrupada por classificacao;
-- classificacao, identificador, persona, participacao e votos absolutos visiveis na linha fechada;
-- ao abrir, quatro barras independentes com categoria demografica e percentual;
-- bloco **Leitura estrategica** dentro do painel aberto.
-
-Dois ICPs com a mesma classificacao devem continuar em cards separados. Classificacao ausente exibe traco e mensagem de ausencia, sem simular um perfil.
-
-Os perfis formam uma lista em uma coluna. Abaixo de 600 px, o resumo de classificacoes e os atributos internos empilham.
-
-#### Padrao editorial da secao 1
-
-- Separar titulo, frase de contexto, conteudo e legenda de interpretacao.
-- Usar inicial maiuscula em categorias e classificacoes; preservar siglas como ICP.
-- Manter o titulo em caixa alta da segunda subsecao conforme solicitado.
-- Preservar emojis existentes com funcao de identificacao.
-- Identificar o denominador: **da votacao do candidato** para participacao eleitoral; **no perfil** para percentuais demograficos.
-- Nao apresentar a confianca do modelo como confianca estatistica.
-- Usar virgula decimal e simbolo de percentual. Valores abaixo de 1% continuam abaixo de 1%.
-- Nao repetir a persona no resumo nem preencher recomendacoes ausentes com texto inventado.
-- As barras de genero, idade, escolaridade e estado civil nao devem ser empilhadas em uma soma de 100%.
-- Mostrar categorias dominantes; nao sugerir que os dados contem a distribuicao completa da populacao.
-
-### 2. Distribuicao do Perfil do Eleitorado
-
-Funcao visual:
-
-Mostrar a participacao estimada das categorias demograficas nos votos do recorte selecionado.
-
-Subtitulo:
-
-**Distribuicao demografica estimada dos votos, com recorte por municipio e perfil.**
-
-Direcao:
-
-A visualizacao segue a ideia do painel de distribuicao do arquivo de referencia: grafico de rosca a esquerda, total de votos no centro, legenda e filtros a direita. Os filtros selecionam municipio e uma dimensao entre genero, faixa etaria, escolaridade e estado civil. A rosca responde a uma dimensao por vez. Os parquets atuais nao trazem contagens conjuntas dessas dimensoes; por isso nao se apresentam cruzamentos de idade, escolaridade e genero como observacoes diretas.
-
-### 3. Matriz de Potencial Demografico
-
-Funcao visual:
-
-Comparar o perfil do eleitor do candidato com a populacao local para identificar sobre-representacao, sub-representacao e oportunidades.
-
-Subtitulo:
-
-**Comparativo entre o perfil do eleitor do candidato e a populacao local. Identificacao de sobre-representacao e frentes de expansao.**
-
-Direcao:
-
-Essa secao deve ser comparativa. A visualizacao precisa deixar claro quando um grupo aparece acima do esperado na base do candidato e quando ha espaco de crescimento frente ao peso demografico local.
-
-Composicao atual:
-
-- mapa coropletico municipal proprio de Minas Gerais, com a linguagem visual dos mapas da pagina 1;
-- seletor no canto superior direito com **ELEITOR IDEAL** e as classificacoes existentes em `cluster_strategy_label`;
-- cruzamento conjunto de genero, faixa etaria e escolaridade, sem estado civil;
-- referencia populacional dos parquets `IBGE/censo/genero_apond.parquet`, `idade_apond.parquet` e `escolaridade_apond.parquet`;
-- genero e idade agregados pelas contagens populacionais das areas ponderadas; escolaridade usa nivel de instrucao para 25 anos ou mais, com percentuais ponderados pela populacao total da area, obtida nos parquets de genero ou idade (`qt_votos_demografico` fica como fallback);
-- aderencia por dimensao: `100 - diferenca absoluta em pontos percentuais` entre a categoria e percentual do ICP e o percentual municipal do Censo;
-- aderencia demografica e compatibilidade final: media da semelhanca nas tres dimensoes, com escala de cor logaritmica;
-- municipios sem votos do candidato ou sem os tres cruzamentos completos ficam no valor minimo da escala;
-- escala continua verde: maior compatibilidade em verde escuro, menor compatibilidade em verde claro;
-- todos os municipios da malha continuam preenchidos. Sem votos ou sem os tres cruzamentos completos, o municipio recebe o valor minimo (verde mais claro), com detalhes no hover.
-
-A cor representa a semelhanca demografica entre o ICP e a populacao municipal, condicionada a haver votos do candidato naquele municipio. O volume de votos aparece no hover e nao altera a cor.
-
-### 4. Expansao & Oportunidades para 2030
-
-Funcao visual:
-
-Mapear bairros, areas ponderadas e clusters taticos com potencial de crescimento eleitoral.
-
-Subtitulo:
-
-**Mapeamento em nivel de bairro e area ponderada. Localizacao dos clusters taticos e visualizacao de manchas de potencial de crescimento.**
-
-Direcao:
-
-Essa e a secao mais prospectiva. O mapa volta a ser protagonista, mas com foco em oportunidade futura. As manchas de potencial devem comunicar prioridade territorial sem confundir potencial demografico com voto ja conquistado.
-
-Implementacao atual: mapa municipal com classes **VERDE** (potencial demografico alto e perfil aderente), **AZUL** (base de votos a proteger), **AMARELO** (oportunidade com menor aderencia) e **CINZA** (baixa similaridade, sem oportunidade relevante ou sem dados completos). Os cortes sao relativos ao ICP selecionado e o potencial nao representa previsao de votos.
-
-## Estados Interativos
-
-### Recorte territorial ativo
-
-O mapa de bairros ou areas ponderadas alimenta um contexto persistente local a secao demografica. A legenda deve deixar claro o alcance desse recorte e identificar uma area ponderada pelo codigo quando ela estiver selecionada.
-
-Hoje ele afeta:
-
-- grafico demografico;
-- legenda do recorte ativo.
-
-Direcao futura:
-
-- transformar a legenda em badge;
-- permitir que o mapa tambem alimente o mesmo recorte;
-- destacar visualmente o territorio selecionado nos mapas.
-
-### Filtros
-
-Filtros que mudam a interpretacao principal deveriam ter tratamento visual mais forte que um select comum.
-
-Possiveis evolucoes:
-
-- segmented control para alternar entre Raio X Eleitoral e DNA Eleitoral no hero;
-- segmented control para Mesorregiao/Municipio;
-- chips ou tabs para perfil demografico;
-- controles compactos para nivel territorial da matriz de custo.
-
-## Responsividade
-
-Pontos que exigem atencao:
-
-- mapa e ranking podem ficar apertados em telas medias;
-- nomes longos podem quebrar cards;
-- mapa de bairros e demografia devem empilhar no mobile;
-- matriz scatter precisa manter eixos legiveis;
-- mapa parlamentar precisa preservar espaco para a legenda das categorias.
-- controle segmentado do hero deve quebrar bem no mobile sem competir com titulo e foto.
-- secoes da pagina DNA Eleitoral devem manter cards empilhados com altura suficiente para visualizacoes futuras.
-
-## Estados Sem Dados
-
-O app possui estados vazios para dados ausentes. Visualmente, eles devem parecer informativos, nao dados reais.
-
-Direcao:
-
-- evitar graficos ficticios muito parecidos com informacao valida;
-- explicar qual arquivo ou fonte esta ausente;
-- usar empty states discretos dentro do mesmo modelo de card.
-
-## Principios de Design
-
-1. O mapa e o protagonista.
-
-A leitura geografica deve continuar sendo o centro da experiencia.
-
-2. Cards devem formar um sistema unico.
-
-Todos os blocos devem usar a mesma familia visual: azul profundo, borda clara, sombra sutil e graficos integrados.
-
-3. Cor precisa ter significado.
-
-Azul comunica intensidade territorial. Verde, amarelo e cinza devem aparecer apenas quando carregarem significado analitico, como nos quadrantes de custo.
-
-4. A interface deve parecer analitica.
-
-Evitar enfeites sem funcao. A sofisticacao deve vir de hierarquia, clareza e consistencia.
-
-5. Selecao deve ser persistente e visivel.
-
-Quando o usuario seleciona um territorio, o sistema deve deixar claro que os graficos passaram a responder a esse recorte.
-
-6. Diferenciar zero, baixo e alto.
-
-Municipios sem votos, com poucos votos e com muitos votos precisam ser visualmente distintos.
-
-7. Legendas devem ser claras.
-
-Mapas de categorias, especialmente o de atuacao parlamentar, precisam de legendas que expliquem cada cor sem sugerir uma escala financeira.
-
-## Resumo das Visualizacoes
-
-| Visualizacao | Forma atual | Pergunta que responde |
+| Elemento | Aparência atual | Função |
 | --- | --- | --- |
-| Hero do candidato | Foto + dados em capa escura | Quem esta sendo analisado? |
-| KPIs territoriais | Cards numericos | Qual o volume e o principal reduto? |
-| Mapa de MG | Coropletico branco-azul | Onde estao os votos? |
-| Ranking territorial | Barras horizontais Top 10 | Quais territorios concentram mais votos? |
-| Mapa de bairros ou areas ponderadas | Bairros OSM nos municipios cobertos; areas ponderadas do IBGE nos demais, coloridos por votos associados | Como os votos se distribuem pelos recortes disponiveis do municipio? |
-| Barras demograficas | Barras horizontais percentuais | Qual o perfil estimado do eleitor no recorte? |
-| Concentracao territorial | Faixa Top 1/5/15/20 com barras acumuladas e listas expansiveis | Quanto os principais municipios pesam na votacao? |
-| Curva acumulada | Linha/area com marcadores | Quanta votacao se concentra nos top municipios? |
-| Mapa de atuacao parlamentar | Coropletico municipal com seis categorias territoriais | Onde votos e emendas se cruzam? |
-| Eficiencia por custo do voto | Treemap por tipo de despesa e custo por voto territorial rateado | Quais despesas representam a maior parcela do gasto e qual seu custo por voto estimado? |
-| Eleitor ideal do candidato | Card com titulo hierarquizado, persona e quatro atributos demograficos | Quem caracteriza a base eleitoral? |
-| BASE ELEITORAL DO CANDIDATO | Resumo por classificacao e perfis expansivos com barras demograficas | Quais perfis sustentam a candidatura e qual o peso de cada um? |
-| Distribuicao do Perfil do Eleitorado | Rosca demografica com filtros de municipio e dimensao | Como se distribuem as categorias demograficas no recorte? |
-| Matriz de Potencial Demografico | Mapa municipal verde de compatibilidade demografica e presenca de votos | Quais municipios combinam perfil populacional compativel e votos do candidato? |
-| Expansao & Oportunidades 2030 | Mapa municipal com quatro classes taticas de protecao e expansao | Onde proteger base, buscar eleitor aderente ou evitar investimento? |
+| Fundo da página | Imagem `assets/background.png`, cobrindo a área de conteúdo, centralizada e fixa | Criar profundidade sem disputar atenção com os dados |
+| Hero | Retângulo amplo com imagem escurecida, gradiente azul quase preto, borda clara fina e sombra profunda; cantos retos | Abrir a narrativa e identificar o candidato |
+| Faixa principal de seção | Card de cantos arredondados, gradiente azul, brilho radial discreto e barra vertical branca/azul à esquerda | Separar os grandes capítulos da análise |
+| Cabeçalho interno | Card azul mais leve, com título e subtítulo em duas linhas de hierarquia | Introduzir uma visualização dentro da seção |
+| Cards de conteúdo | Azul profundo translúcido, borda azul clara fina, sombra e leve blur | Agrupar informação sem esconder o fundo |
+| Gráficos Plotly | Fundo transparente, textos claros e grades discretas | Integrar gráfico e card |
+| Mapas PyDeck | Polígonos preenchidos sobre mapa Carto escuro sem rótulos, com bordas claras | Manter o território como foco visual |
+| Mensagens de ausência | Aviso ou informação textual dentro do espaço da visualização | Explicar falta de dados sem simular um resultado |
 
-## Briefing Curto
+A base cromática é `#eaf2ff` para texto, `#f8fbff` para títulos e números, `#b7c7e6` para descrição e legendas. Os cards usam gradientes próximos de `rgba(11,31,77,.76)` e `rgba(7,24,54,.68)`, com bordas azuis próximas de `rgba(59,130,246,.24)`. Azul claro (`#60a5fa`), azul médio (`#2563eb`) e azul profundo (`#0b1f4d`) expressam intensidade ou seleção; verde, amarelo, laranja e cinza têm significado específico nos mapas categóricos.
 
-Construir uma experiencia de inteligencia eleitoral escura, sofisticada e objetiva. O usuario deve percorrer uma narrativa completa: identidade do candidato, distribuicao dos votos, concentracao territorial, perfil demografico, eficiencia financeira, retorno parlamentar e leitura estrategica do eleitor determinante.
+Os preenchimentos dos mapas são opacos. O fundo Carto sem rótulos não acrescenta nomes de ruas por baixo dos polígonos. O tooltip tem fundo azul quase preto e texto claro. Os 853 municípios de Minas Gerais compõem os mapas estaduais; os polígonos municipais são simplificados com tolerância pequena para preservar a leitura dos limites. O mapa detalhado usa somente setores censitários, com contorno branco mais forte. Não há uma malha de bairros desenhada sobre ele.
 
-O visual deve ser denso o suficiente para analise, mas limpo o bastante para leitura rapida. Cada grafico precisa responder uma pergunta politica clara.
+### 1.2 Hierarquia de texto e formatação
+
+O hero usa título grande e pesado, subtítulo menor e nome/cargo em maiúsculas. Os títulos principais de seção são largos, brancos e densos; subtítulos ficam em azul claro. Labels de KPI são pequenos; o valor tem protagonismo. Cards e legendas não devem exigir que a cor sozinha explique um resultado: os textos e tooltips dão o nome da categoria, a unidade e o recorte. Números de votos usam separador de milhar; percentuais e valores monetários aparecem com unidade explícita. Onde os dados são estimados ou rateados, a interface informa isso junto à visualização.
+
+### 1.3 Capa comum às duas páginas
+
+O hero contém, nesta ordem, o título da página, um subtítulo curto e uma linha com foto à esquerda e dados do deputado à direita. A foto é vertical, com cantos levemente arredondados, borda clara e sombra; quando não há imagem remota, o espaço permanece como um bloco neutro. Os dados aparecem como `NOME:` e `CARGO:` em caixa alta. O ano integra o título do Raio X. **O hero atual não mostra partido.**
+
+No canto superior direito há uma cápsula de duas opções, **Raio X Eleitoral** e **DNA Eleitoral**. A opção ativa recebe fundo azul mais claro e texto branco. A cápsula faz parte do hero e usa links para as rotas da aplicação; o deputado selecionado na barra lateral é preservado na sessão.
+
+| Página | Título do hero | Subtítulo |
+| --- | --- | --- |
+| Raio X | `RAIO X da votação 2022` (ano conforme o deputado) | `Análises descritivas geográficas e do perfil do eleitor na última eleição.` |
+| DNA | `DNA do Eleitor` | `Quem é, onde está e como se comporta o eleitor determinante da candidatura.` |
+
+## 2. Página 1 — Raio X Eleitoral
+
+A página segue a ordem: **Mapa Territorial da Votação → Votação por Setor Censitário e Perfil Demográfico → Concentração territorial dos votos → Mapa da atuação parlamentar → Eficiência por Custo do Voto**. A primeira parte oferece localização e volume; a segunda aproxima o município; as três seguintes interpretam dependência territorial, emendas e gastos.
+
+### 2.1 Mapa Territorial da Votação
+
+**Pergunta visual:** onde estão os votos e quais localidades lideram?
+
+Uma faixa principal introduz a seção com o subtítulo `Leitura territorial do desempenho eleitoral no recorte ativo.`. Logo abaixo aparecem **três KPIs lado a lado**: total de votos, município mais votado e municípios com votos. O segundo card usa o número de votos como valor principal e o nome do município como legenda. Há ainda um card horizontal de **Território líder**, que destaca a mesorregião mais votada e seu volume. Os números são brancos, os rótulos menores, e as descrições usam azul acinzentado.
+
+Na sequência, um cabeçalho interno diz `Sua votação no território de Minas Gerais`, com explicação da leitura territorial. À direita fica o seletor **Mesorregião / Município**. Ele altera conjuntamente o agrupamento do mapa estadual e o ranking ao lado; não é o filtro da seção demográfica abaixo.
+
+O corpo ocupa duas colunas, aproximadamente **60% mapa / 40% ranking**. Ambos ficam em cards com borda. O mapa tem cerca de 560 px de altura. Cada município de Minas Gerais é um polígono PyDeck; o hover informa nome e votos. No modo municipal, a intensidade progride do azul muito claro ao azul profundo, com transformação logarítmica dos votos. No modo mesorregional, cada município herda o total da sua mesorregião; assim a leitura regional acontece sobre a mesma malha municipal. Áreas sem votos continuam desenhadas na cor mínima. As linhas entre municípios são claras e finas.
+
+O card à direita se chama `Concentração territorial`. O gráfico Plotly apresenta o **Top 10** em barras horizontais: municípios ou mesorregiões conforme o seletor. O comprimento expressa votos, a cor também varia em azul e o texto junto à barra traz votos e participação. O hover repete território, votos e percentual. Ele complementa o mapa com uma ordem explícita, útil quando áreas pequenas concentram muitos votos.
+
+Se a malha ou os votos não puderem ser carregados, o mapa cede lugar a uma mensagem de indisponibilidade; o ranking possui estado `Sem dados`. A interface não preenche municípios com valores fictícios.
+
+### 2.2 Votação por Setor Censitário e Perfil Demográfico
+
+**Pergunta visual:** dentro de um município, em quais setores estão os votos e como é o perfil estimado do recorte?
+
+Esta seção começa com um cabeçalho interno, não com uma nova faixa principal. O título atual é `Votação por Setor Censitário e Perfil Demográfico`. Dois filtros Streamlit aparecem em sequência: **Mesorregião** e **Município**. A entrada inicial é a mesorregião com mais votos do candidato e, dentro dela, o município mais votado. Trocar qualquer um dos dois limpa uma seleção anterior de setor, evitando que um recorte de outra cidade permaneça ativo.
+
+O corpo tem **dois cards de largura igual**. O card esquerdo se chama `Votação por setor censitário`. No cabeçalho, à direita, há indicadores compactos: votos no município e, quando um setor está selecionado, votos do setor identificado pelo nome de bairro disponível. O mapa ocupa cerca de 500 px de altura.
+
+O desenho do mapa é exclusivamente a malha de **setores censitários do IBGE** do município selecionado. Todos os setores com geometria ficam visíveis, inclusive os que têm zero voto associado. A intensidade do azul é calculada em relação ao setor mais votado **da própria cidade**, não a um máximo estadual. O preenchimento vai de azul claro a azul profundo; as divisas são brancas, com espessura mínima de 2 px. O fundo não deve ser confundido com um setor sem votos: o setor continua preenchido. O hover exibe os nomes de bairros informados pelo IBGE e/ou pelos registros eleitorais ligados ao setor, além dos votos associados. Se nenhuma fonte informa o bairro, aparece `Bairro não informado`. O código do setor permanece como identificador interno da seleção, sem ocupar o título do hover.
+
+Um clique no polígono seleciona **um setor**. A legenda abaixo do mapa explica a fonte e que a escala azul é local ao município; acrescenta quantos votos não têm setor correspondente, quando houver. Se não houver município selecionado ou malha disponível, o espaço do mapa mostra uma mensagem específica.
+
+O card direito é `Distribuição por perfil demográfico`. Um seletor compacto acima do gráfico alterna **Gênero, Idade, Escolaridade e Estado civil**. As barras horizontais mostram as categorias da dimensão e seus percentuais. O Plotly usa fundo transparente, rótulos claros, eixo percentual e grade suave. Inicialmente o gráfico considera o município filtrado. Com setor selecionado, considera os registros demográficos dos bairros eleitorais ligados àquele setor; não recompõe microdados individuais. Abaixo aparece `Recorte territorial ativo: ...` com o nome disponível e o botão **Limpar recorte territorial**. O recorte desta seção não filtra os demais mapas ou KPIs da página.
+
+### 2.3 Concentração territorial dos votos
+
+**Pergunta visual:** a candidatura depende de poucos redutos ou distribui votos por muitos municípios?
+
+Uma faixa principal apresenta o título e a frase `Quanto da votação total está concentrada nos municípios onde o candidato mais recebeu votos.`. O conteúdo está em um único card. Na parte superior há **quatro blocos contíguos**: Top 1, Top 5, Top 15 e Top 20. Cada bloco mostra participação acumulada em destaque, votos acumulados e quantidade de municípios. O Top 1 identifica o município líder. Nos demais, uma pequena linha quantifica o ganho em pontos percentuais frente ao grupo anterior.
+
+Uma barra fina por bloco representa a participação no total; o trecho novo é diferenciado do acumulado anterior. Abaixo, uma frase automática nomeia o líder e destaca o peso dos 15 municípios principais. Os nomes completos estão em expansores `Ver municípios do Top 5`, `Top 15` e `Top 20`, com posição numérica. Isso mantém a faixa de indicadores compacta.
+
+Ao final, uma curva Plotly mostra a participação acumulada em função da posição do município. A linha azul, a área translúcida, os marcadores e as referências percentuais permitem ver a velocidade da concentração. A curva limita a exibição aos **Top 50** quando a base é maior; uma legenda informa esse corte. Com menos municípios, usa todos. Sem linhas municipais válidas, o card exibe aviso e não fabrica uma curva.
+
+### 2.4 Mapa da atuação parlamentar de acordo com os votos
+
+**Pergunta visual:** onde os votos recebidos encontram as emendas destinadas pelo parlamentar?
+
+A faixa principal traz o título completo e explica o índice de retorno parlamentar. Um cabeçalho interno, `Coerência política territorial`, descreve a leitura das cores. Em seguida há **três KPIs**: **Taxa de Reciprocidade** (parcela das emendas destinada aos três maiores redutos), **Maior Beneficiado (R$)** (município, valor e votos) e **Média R$/Voto** (valor estadual por voto). Os cards seguem a mesma família visual dos KPIs territoriais.
+
+O mapa PyDeck ocupa um card de largura total e aproximadamente **610 px** de altura. Cada município recebe uma categoria, em uma única camada GeoJSON. A legenda textual do cabeçalho estabelece a semântica: **azul** para reduto atendido, **verde** para investimento, **amarelo** para reduto desassistido, **laranja** para baixa expressão, **cinza** para votos sem emendas e **branco** para ausência de ambos. A cor é **classe**, não escala monetária. O hover traz município, categoria, votos, emendas e motivo da classificação. O valor financeiro não modifica a intensidade do preenchimento.
+
+O mapa depende de votos e emendas do candidato. Se a combinação não estiver disponível, o card mostra `Mapa parlamentar indisponível.`. Os KPIs também têm rótulos de ausência ou zero quando faltam dados.
+
+### 2.5 Eficiência por Custo do Voto
+
+**Pergunta visual:** que tipos de despesa dominam os gastos e qual o custo estimado por voto nos territórios?
+
+A seção abre com faixa principal e a frase `Participação de cada tipo de despesa nos gastos totais da campanha.`. Antes dos gráficos há **três KPIs**: custo por voto, gasto total e despesa líder. Sem seleção, retratam a campanha inteira. Ao clicar em uma despesa no treemap, os rótulos e valores passam a refletir o tipo escolhido.
+
+Os gráficos ficam em **duas colunas de mesma largura**, cada uma num card. À esquerda, `Gastos por tipo de despesa` é um **treemap Plotly** de cerca de 500 px. A área de cada retângulo corresponde ao valor gasto no tipo; o texto apresenta tipo e participação no gasto. A borda fina separa os retângulos. O hover detalha total em reais, participação e custo por voto. O clique seleciona uma despesa e atualiza a outra coluna.
+
+À direita, `Custo por voto territorial · Gasto total` muda o sufixo para a despesa selecionada. O botão **Mostrar gasto total** restaura o estado inicial. Um rádio horizontal alterna **Municípios / Mesorregiões**. O gráfico de barras horizontais mostra o custo estimado em reais por voto, com até 15 municípios ou todas as mesorregiões disponíveis; o hover inclui gasto atribuído e votos. Uma legenda explica o limite analítico: o parquet rateia o gasto proporcionalmente aos votos e não identifica tipo de despesa por local. Portanto, o custo por voto territorial mostrado para um tipo é uma **estimativa de rateio**, não despesa local observada.
+
+## 3. Página 2 — DNA Eleitoral
+
+Depois do hero comum, a página apresenta **quatro faixas principais** nesta ordem: Identidade da Base Eleitoral, Distribuição do Perfil do Eleitorado, Matriz de Potencial Demográfico e Expansão & Oportunidades para 2030. Os dois primeiros blocos caracterizam pessoas e segmentos; os dois mapas seguintes comparam território e perfil. Sunburst, heatmap e composição demográfica por pontos não pertencem à interface atual.
+
+### 3.1 Identidade da Base Eleitoral
+
+**Pergunta visual:** quem é o eleitor predominante e quais perfis compõem a base do candidato?
+
+A faixa principal usa o subtítulo `Quem é o eleitor-chave e quais atributos definem o perfil do seu eleitor.`. Ela é seguida por dois cards empilhados, cada um ocupando a largura do conteúdo.
+
+#### 3.1.1 Eleitor ideal do candidato
+
+O primeiro card tem borda azul clara, fundo profundo e espaçamento amplo. O título `Eleitor ideal do candidato` aparece antes da descrição `Síntese do perfil demográfico predominante na base eleitoral do candidato.`. A persona, precedida do emoji de pessoa, é o ponto central e recebe tamanho e peso maiores. Quando o resumo agrega informação, ele aparece abaixo com emoji de fala; se apenas repete a persona, é ocultado. **A confiança do modelo não aparece no card.**
+
+Na base do card, **quatro colunas compactas** apresentam Gênero, Faixa etária, Escolaridade e Estado civil. Cada coluna contém um emoji colorido de identificação, a categoria dominante e seu percentual em azul claro. Divisórias sutis substituem caixas individuais. Os percentuais das quatro dimensões são independentes; não formam fatias de uma soma de 100%. Se o percentual não é válido ou não existe, o card não inventa o número.
+
+#### 3.1.2 BASE ELEITORAL DO CANDIDATO
+
+O segundo card é um painel próprio, com título em caixa alta e pergunta `Quais perfis sustentam a candidatura e qual o peso de cada um na votação?`. Um resumo superior em **três colunas** apresenta **Base eleitoral**, **Eleitor consolidado** e **Eleitor emergente**, cada qual com percentual da votação do candidato. Uma classificação vazia apresenta travessão e mensagem de ausência.
+
+A lista abaixo contém **uma linha expansível por ICP**, ordenada dentro da classificação pelo peso eleitoral. A linha fechada já mostra classificação, identificador ICP, persona, percentual da votação e votos absolutos; uma seta sugere abertura. A linha aberta recebe borda mais clara e revela quatro blocos demográficos em grade de duas colunas. Cada bloco mostra dimensão, categoria dominante, percentual e uma barra azul individual. Uma nota esclarece que os percentuais descrevem categorias dominantes **dentro do perfil**. O bloco final `Leitura estratégica` traz a justificativa textual disponível. Dois ICPs com o mesmo rótulo estratégico continuam separados. Ausência de perfis gera mensagem, não um ICP fictício.
+
+### 3.2 Distribuição do Perfil do Eleitorado
+
+**Pergunta visual:** como se repartem as categorias de uma dimensão demográfica nos votos do recorte?
+
+A faixa principal traz `Distribuição demográfica estimada dos votos, com recorte por município e perfil.`. O conteúdo está em um card de borda fina. Dentro dele, o título menor `Distribuição do eleitorado` e uma legenda explicam que as parcelas são estimadas.
+
+A composição usa **gráfico à esquerda e filtros à direita** (proporção aproximada 2,3:1). À direita há uma chamada `Refine a distribuição`, um seletor **MUNICÍPIO** com opção `Todos os municípios` e um seletor **PERFIL DEMOGRÁFICO** com Gênero, Faixa etária, Escolaridade e Estado civil. O município altera o universo de votos; a dimensão altera as fatias.
+
+À esquerda, uma **rosca Plotly** tem centro vazado amplo, total de votos no recorte no miolo, percentuais junto às fatias e legenda horizontal abaixo. As cores das categorias percorrem azul, ciano, violeta, verde, amarelo, laranja e cinza. O hover informa categoria, participação e, quando o total está disponível, número aproximado de votos estimados. O gráfico mostra **uma dimensão por vez**. A nota abaixo afirma que os parquets não permitem cruzar diretamente idade, gênero e escolaridade de indivíduos. Dados ausentes geram mensagem no lugar da rosca.
+
+### 3.3 Matriz de Potencial Demográfico
+
+**Pergunta visual:** quais municípios têm população demograficamente próxima do eleitor ideal ou de uma classificação de ICP?
+
+A faixa principal usa o subtítulo `Comparativo entre o perfil do eleitor do candidato e a população local. Identificação de sobre-representação e frentes de expansão.`. Um seletor alinhado à direita oferece **ELEITOR IDEAL** e as classificações estratégicas disponíveis. Acima do mapa aparece uma legenda textual do perfil escolhido, com as categorias e percentuais de gênero, idade e escolaridade comparados.
+
+O protagonista é um mapa municipal de Minas Gerais em **escala contínua verde**, com aproximadamente **620 px** de altura. Verde claro representa compatibilidade mínima; verde escuro indica maior proximidade entre o ICP e o Censo. A medida reúne as três dimensões em média e usa transformação logarítmica para distribuir as cores. Municípios sem votos do candidato ou sem os três cruzamentos completos ficam na cor mínima, mas permanecem desenhados. O hover mostra município, compatibilidade de 0 a 100, aderência e votos. O volume de votos aparece como informação, não como intensidade de cor.
+
+Uma legenda abaixo do mapa explica a fórmula e o tratamento de municípios sem dados. A interface não apresenta estado civil nesse comparativo e não transforma a cor em previsão de votos. Se o perfil ou a malha não está disponível, surge aviso no lugar do mapa.
+
+### 3.4 Expansão & Oportunidades para 2030
+
+**Pergunta visual:** onde proteger a base existente e onde há oportunidade demográfica relativa ao ICP escolhido?
+
+A faixa principal mantém o texto atual `Mapeamento em nível de bairro e área ponderada. Localização dos clusters táticos e visualização de manchas de potencial de crescimento.`. **A implementação exibida logo abaixo é municipal**: não há mapa de bairros nem de áreas ponderadas nesta seção. Um seletor à direita alterna **ELEITOR IDEAL** e classificações estratégicas.
+
+Antes do mapa há uma **legenda de quatro cards**. Cada um combina amostra de cor, nome da classe e uma explicação curta: **verde** para oportunidade alta com perfil aderente, **azul** para base com muitos votos que pede proteção, **amarelo** para oportunidade com menor aderência e **cinza** para baixa similaridade ou informação insuficiente. A legenda torna o mapa categórico; cores não representam uma sequência contínua.
+
+O mapa municipal PyDeck ocupa toda a largura e cerca de **640 px** de altura. Cada município recebe uma das quatro classes. O hover informa nome, classe, votos, oportunidade e similaridade. A nota inferior explicita que os limites de votos, similaridade e potencial são relativos ao perfil selecionado e que potencial demográfico **não é previsão de votos**. Se não houver dados completos de Censo/potencial ou a malha municipal falhar, a seção mostra uma informação textual no lugar do mapa.
+
+## 4. Interação, estados e continuidade visual
+
+### 4.1 Escopo dos controles
+
+| Controle | Onde atua | Persistência observável |
+| --- | --- | --- |
+| Deputado na barra lateral | Duas páginas | Mesmo candidato ao trocar de rota |
+| Cápsula Raio X / DNA | Navegação | Opção ativa destacada no hero |
+| Mesorregião / Município do primeiro mapa | Mapa estadual e Top 10 | Restrito à visualização territorial |
+| Mesorregião e Município da seção demográfica | Mapa de setores e barras demográficas | Troca de filtro limpa o setor anterior |
+| Clique em setor | Card de votos do setor, barras demográficas e legenda do recorte | Dura até limpar ou trocar filtros/candidato |
+| Tipo de despesa no treemap | KPIs de custo e gráfico territorial | Botão restaura gasto total |
+| Município e dimensão da rosca DNA | Rosca e total do recorte | Restrito à seção de distribuição |
+| Perfil dos mapas DNA | Mapa de potencial ou mapa de expansão correspondente | Cada seção mantém seu próprio seletor |
+
+### 4.2 Estado sem dados
+
+Falta de parquet, malha ou dimensão não deve parecer valor zero. A implementação usa `st.info`, `st.warning`, captions ou cards com texto para explicar o que está ausente. Zero legítimo continua como valor ou cor mínima quando existe malha e a métrica pode ser calculada. Os mapas mantêm municípios ou setores sem votos visíveis onde a fonte geométrica está disponível. As notas analíticas permanecem próximas ao gráfico a que se referem.
+
+### 4.3 Responsividade implementada
+
+No hero, a cápsula de navegação, a foto e os textos se reorganizam em larguras menores por regras CSS próprias. Os KPIs da página 1 passam de linha para uma coluna em telas até cerca de **900 px**. A faixa Top 1/5/15/20 passa para duas colunas; a lista de municípios reduz colunas novamente abaixo de **600 px**. O card do eleitor ideal reduz sua grade de quatro para duas e depois uma coluna. No card dos ICPs, o resumo e as barras demográficas empilham abaixo de **600 px**; o cabeçalho de cada perfil pode quebrar em telas estreitas. A legenda de expansão passa de quatro para duas colunas abaixo de **900 px** e para uma abaixo de **560 px**.
+
+Os pares de gráficos da página 1 e o par rosca/filtros são montados com `st.columns`; a experiência móvel também depende do empilhamento padrão do Streamlit. Nomes longos de município, persona e despesa podem quebrar linha. Tooltips complementam os rótulos que não cabem nos cards.
+
+## 5. Critérios de fidelidade para futuras alterações
+
+1. Preservar a diferença entre **intensidade** (azul ou verde contínuo) e **classe** (cores da atuação parlamentar e expansão).
+2. Manter os polígonos do mapa detalhado como **setores censitários** e dimensionar seu azul dentro do município selecionado.
+3. Usar nomes de bairros como informação textual vinculada ao setor; não apresentá-los como uma segunda malha desenhada.
+4. Mostrar voto observado, estimativa demográfica, gasto rateado e potencial em seus papéis corretos, com unidades e notas visíveis.
+5. Fazer seleção e estado vazio permanecerem compreensíveis sem depender só de cor.
+6. Atualizar este briefing quando mudar texto, card, escala, interação, ordem de seção ou granularidade de mapa.
