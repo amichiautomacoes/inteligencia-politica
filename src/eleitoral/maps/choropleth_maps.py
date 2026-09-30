@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import html
 import unicodedata
 
 import numpy as np
@@ -181,12 +182,55 @@ def _code(value: object) -> str:
     return str(value).strip().removesuffix(".0")
 
 
+def _fallback_vote_groups(votes: pd.DataFrame, code_column: str) -> pd.DataFrame:
+    """Aggregate candidate votes and neighborhood names by IBGE polygon code."""
+    if code_column not in votes:
+        return pd.DataFrame(columns=["votos", "bairros", "bairros_hover"])
+    rows = votes.copy()
+    rows["_geo_code"] = rows[code_column].map(_code)
+    rows = rows[rows["_geo_code"].ne("")]
+    if rows.empty:
+        return pd.DataFrame(columns=["votos", "bairros", "bairros_hover"])
+
+    def names(values: pd.Series) -> list[str]:
+        unique = {str(value).strip() for value in values.dropna() if str(value).strip()}
+        return sorted(unique, key=_normalized_name)
+
+    grouped = rows.groupby("_geo_code").agg(
+        votos=("qt_votos", "sum"),
+        names=("nm_bairro", names),
+    )
+    grouped["bairros"] = grouped["names"].map(lambda values: ", ".join(values) or "Não informado")
+    bairro_votes = (
+        rows.assign(_bairro=rows["nm_bairro"].fillna("Não informado").astype(str).str.strip())
+        .groupby(["_geo_code", "_bairro"], as_index=False)["qt_votos"]
+        .sum()
+    )
+    bairro_votes["_hover_line"] = bairro_votes.apply(
+        lambda row: f"{html.escape(row['_bairro'])}: {row['qt_votos']:,.0f}".replace(",", "."), axis=1
+    )
+    grouped["bairros_hover"] = bairro_votes.groupby("_geo_code")["_hover_line"].agg("<br>".join)
+    return grouped.drop(columns="names")
+
+
+def _bind_fallback_votes(geometry: pd.DataFrame, votes: pd.DataFrame, *, shape_code: str, vote_code: str) -> tuple[pd.DataFrame, float]:
+    geometry = geometry.copy()
+    geometry["_geo_code"] = geometry[shape_code].map(_code)
+    grouped = _fallback_vote_groups(votes, vote_code)
+    geometry["votos"] = geometry["_geo_code"].map(grouped["votos"]).fillna(0.0)
+    geometry["bairros"] = geometry["_geo_code"].map(grouped["bairros"]).fillna("Sem bairro eleitoral associado")
+    geometry["bairros_hover"] = geometry["_geo_code"].map(grouped["bairros_hover"]).fillna("Sem bairro eleitoral associado")
+    matched_votes = float(grouped.loc[grouped.index.isin(geometry["_geo_code"]), "votos"].sum())
+    return geometry, matched_votes
+
+
 def detailed_map(votes: pd.DataFrame, municipality_code: int):
     votes = votes.copy()
     votes["qt_votos"] = pd.to_numeric(votes.get("qt_votos"), errors="coerce").fillna(0)
     bairros = load_geo_layer("bairro")
     bairros = bairros[pd.to_numeric(bairros["code_muni"], errors="coerce").eq(municipality_code)]
     if not bairros.empty:
+        source_kind = "bairro"
         geometry, source, id_col = bairros.drop_duplicates("code_neighborhood"), "bairros oficiais do IBGE", "code_neighborhood"
         names = votes.groupby(votes["nm_bairro"].map(_normalized_name))["qt_votos"].sum() if "nm_bairro" in votes else pd.Series(dtype=float)
         vote_labels = (
@@ -201,24 +245,31 @@ def detailed_map(votes: pd.DataFrame, municipality_code: int):
     else:
         areas = load_geo_layer("area_ponderada")
         areas = areas[pd.to_numeric(areas["code_muni"], errors="coerce").eq(municipality_code)]
-        if len(areas) > 5:
+        area_codes = set(areas["code_weighting"].map(_code)) if not areas.empty else set()
+        vote_area_codes = set(votes["cd_area_ponderada"].map(_code)) if "cd_area_ponderada" in votes else set()
+        if len(areas) > 5 and area_codes.intersection(vote_area_codes):
+            source_kind = "area_ponderada"
             geometry, source, id_col = areas.drop_duplicates("code_weighting"), "áreas ponderadas do IBGE", "code_weighting"
-            geometry = geometry.copy()
-            geometry["votos"] = 0.0
-            geometry["nome"] = geometry["name_weighting"].astype(str)
-            geometry["context_key"] = ""
-            geometry["context_value"] = ""
+            geometry, matched_votes = _bind_fallback_votes(
+                geometry, votes, shape_code=id_col, vote_code="cd_area_ponderada"
+            )
+            geometry["nome"] = "Área ponderada " + geometry["_geo_code"]
+            geometry["context_key"] = "cd_area_ponderada"
+            geometry["context_value"] = geometry["_geo_code"]
         else:
+            source_kind = "setor"
             geometry, source, id_col = load_municipality_sectors(municipality_code).drop_duplicates("code_tract"), "setores censitários do IBGE", "code_tract"
-            geometry = geometry.copy()
-            sector_votes = votes.groupby(votes["cd_setor_censitario"].map(_code))["qt_votos"].sum() if "cd_setor_censitario" in votes else pd.Series(dtype=float)
-            geometry["votos"] = geometry["code_tract"].map(_code).map(sector_votes).fillna(0)
-            geometry["nome"] = "Setor " + geometry["code_tract"].map(_code)
+            geometry, matched_votes = _bind_fallback_votes(
+                geometry, votes, shape_code=id_col, vote_code="cd_setor_censitario"
+            )
+            geometry["nome"] = "Setor " + geometry["_geo_code"]
             geometry["context_key"] = "cd_setor_censitario"
-            geometry["context_value"] = geometry["code_tract"].map(_code)
+            geometry["context_value"] = geometry["_geo_code"]
     if geometry.empty:
         return None, "Malha territorial indisponível para este município."
     geometry = geometry[geometry["geometry"].notna()].copy()
+    if geometry.empty:
+        return None, "Malha territorial indisponível para este município."
     geometry["id"] = "territorio-" + geometry[id_col].map(_code)
     features = [{
         "type": "Feature", "properties": {"id": row.id},
@@ -227,14 +278,33 @@ def detailed_map(votes: pd.DataFrame, municipality_code: int):
     geojson = {"type": "FeatureCollection", "features": features}
     geometry["votos_cor"] = np.log1p(geometry["votos"])
     max_color = max(1.0, float(geometry["votos_cor"].max()))
+    custom_data = ["votos", "context_key", "context_value", "nome"]
+    if source_kind != "bairro":
+        custom_data += ["bairros", "bairros_hover"]
     fig = continuous_choropleth(
         geometry, geojson, location="id", color="votos_cor",
         colors=["#9fbfe5", "#154d9c"], hover_name="nome",
-        custom_data=["votos", "context_key", "context_value", "nome"],
+        custom_data=custom_data,
         colorbar_title="Votos", color_range=(0.0, max_color),
     )
-    fig.update_traces(hovertemplate="<b>%{hovertext}</b><br>Votos associados: %{customdata[0]:,.0f}<extra></extra>")
+    if source_kind == "bairro":
+        fig.update_traces(hovertemplate="<b>%{hovertext}</b><br>Votos associados: %{customdata[0]:,.0f}<extra></extra>")
+    else:
+        fig.update_traces(hovertemplate=(
+            "<b>%{hovertext}</b><br>Votos associados: %{customdata[0]:,.0f}"
+            "<br>Bairros eleitorais:<br>%{customdata[5]}<extra></extra>"
+        ))
+        maximum = float(geometry["votos"].max())
+        ticks = np.unique(np.rint(np.linspace(0, maximum, 5)).astype(int))
+        fig.update_coloraxes(colorbar={
+            "title": "Votos", "tickvals": np.log1p(ticks).tolist(),
+            "ticktext": [f"{value:,.0f}".replace(",", ".") for value in ticks],
+        })
     note = f"Malha: {source}. Votos e legenda: bairros eleitorais de stage01b_bairros."
+    if source_kind != "bairro":
+        unmatched = max(0, round(float(votes["qt_votos"].sum()) - matched_votes))
+        if unmatched:
+            note += f" {unmatched:,} votos sem correspondência com esta malha.".replace(",", ".")
     return fig, note
 
 
@@ -246,4 +316,7 @@ def selected_context(event: object) -> dict[str, str]:
     data = points[0].get("customdata", [])
     if len(data) < 4 or not data[1] or not data[2]:
         return {}
-    return {str(data[1]): str(data[2]), "nome_bairro": str(data[3])}
+    context = {str(data[1]): str(data[2]), "nome_bairro": str(data[3])}
+    if len(data) > 4 and data[4] and data[4] != "Sem bairro eleitoral associado":
+        context["bairros"] = str(data[4])
+    return context

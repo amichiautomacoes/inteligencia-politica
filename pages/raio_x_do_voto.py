@@ -1471,7 +1471,7 @@ def _neighborhood_vote_cards(
         f'<div class="raiox-neighborhood-kpi-value">{_format_number(city_votes)}</div>'
         f'</div>'
     ]
-    if context.get("cd_setor_censitario") or context.get("nm_bairro"):
+    if context.get("cd_area_ponderada") or context.get("cd_setor_censitario") or context.get("nm_bairro"):
         selected_rows = _apply_territorial_context(neighborhood_votes, context, "Todas", municipio)
         neighborhood_total = pd.to_numeric(selected_rows["qt_votos"], errors="coerce").fillna(0).sum()
         selected_label = context.get("nome_bairro") or "território selecionado"
@@ -1492,11 +1492,20 @@ def _apply_territorial_context(
         result = result[result["nm_mesorregiao"].astype(str).str.strip() == mesorregiao]
     if municipio != "Todos" and "nm_municipio" in result.columns:
         result = result[result["nm_municipio"].astype(str).str.strip() == municipio]
-    for column in ("cd_municipio", "cd_bairro", "nm_municipio", "nm_bairro", "cd_setor_censitario"):
+    for column in ("cd_municipio", "cd_bairro", "nm_municipio", "nm_bairro", "cd_area_ponderada", "cd_setor_censitario"):
         value = context.get(column)
         if column in result.columns and value:
-            result = result[result[column].astype(str).str.strip() == value]
+            if column.startswith("cd_"):
+                result = result[result[column].map(_territorial_code).eq(_territorial_code(value))]
+            else:
+                result = result[result[column].astype(str).str.strip().eq(value)]
     return result
+
+
+def _territorial_code(value: object) -> str:
+    if pd.isna(value):
+        return ""
+    return str(value).strip().removesuffix(".0")
 
 
 def _section_context(key: str) -> dict[str, str]:
@@ -1530,7 +1539,7 @@ def _clear_section_context(key: str) -> None:
 def _context_label(context: dict[str, str]) -> str:
     return (
         (context.get("nome_bairro") or "território selecionado")
-        if context.get("cd_setor_censitario") or context.get("nm_bairro")
+        if context.get("cd_area_ponderada") or context.get("cd_setor_censitario") or context.get("nm_bairro")
         else context.get("nm_municipio") or "recorte selecionado"
     )
 
@@ -1549,11 +1558,12 @@ def _demographic_bar(kind: str, context: dict[str, str], mesorregiao: str, munic
         bar_df = pd.DataFrame({"categoria": ["Parquet pendente"], "percentual": [0.0]})
     else:
         df = _apply_territorial_context(df, context, mesorregiao, municipio)
-        if context.get("cd_setor_censitario") and "cd_bairro" in df.columns:
+        if (context.get("cd_area_ponderada") or context.get("cd_setor_censitario")) and "cd_bairro" in df.columns:
             area_votes = _read_selected_parquet("votos_bairro")
-            if area_votes is not None and {"cd_setor_censitario", "cd_bairro"}.issubset(area_votes.columns):
+            if area_votes is not None and "cd_bairro" in area_votes.columns:
                 area_rows = _apply_territorial_context(area_votes, context, mesorregiao, municipio)
-                df = df[df["cd_bairro"].astype(str).isin(area_rows["cd_bairro"].astype(str))]
+                area_codes = {code for code in area_rows["cd_bairro"].map(_territorial_code) if code}
+                df = df[df["cd_bairro"].map(_territorial_code).isin(area_codes)]
             else:
                 df = df.iloc[0:0]
         value_cols = [col for col in df.columns if col.startswith(prefix)]
@@ -2357,6 +2367,8 @@ with col_left:
         if map_note:
             st.caption(map_note)
         demographic_context = _section_context(DEMOGRAPHIC_CONTEXT_KEY)
+        if demographic_context.get("bairros"):
+            st.caption(f"Bairros eleitorais associados: {demographic_context['bairros']}")
 with col_right:
     with st.container(border=True):
         st.markdown(
