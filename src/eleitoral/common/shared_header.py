@@ -127,6 +127,16 @@ def apply_shared_visual_model() -> None:
             text-transform: uppercase;
             text-shadow: 0 0 16px rgba(147, 197, 253, 0.28);
         }}
+        .raiox-candidate-votes {{
+            display: inline-block;
+            padding: 0.75rem 1rem;
+            border: 1px solid var(--raiox-outline-border);
+            border-radius: 10px;
+            background: var(--raiox-card-bg-soft);
+            color: #f8fbff;
+            font-size: 1.45rem;
+            font-weight: 850;
+        }}
         .raiox-page-switch {{
             position: absolute;
             z-index: 2;
@@ -480,16 +490,16 @@ def _page_switch(active_page: str) -> str:
     """)
 
 
-def render_page_header(active_page: str) -> None:
+def render_page_header(active_page: str, total_votes: str | None = None) -> None:
     deputado = selected_deputado_label()
     page_titles = {
-        "raio_x": f"RAIO X da votaÃ§Ã£o {deputado['ano']}",
+        "raio_x": f"RAIO X da votação {deputado['ano']}",
         "dna": "DNA do Eleitor",
         "expansao_2030": "Expansão de votos para 2030",
     }
     page_subtitles = {
-        "raio_x": "AnÃ¡lises descritivas geogrÃ¡ficas e do perfil do eleitor na Ãºltima eleiÃ§Ã£o.",
-        "dna": "Quem Ã©, onde estÃ¡ e como se comporta o eleitor determinante da candidatura.",
+        "raio_x": "Análises descritivas geográficas e do perfil do eleitor na última eleição.",
+        "dna": "Quem é, onde está e como se comporta o eleitor determinante da candidatura.",
         "expansao_2030": "Oportunidades territoriais para ampliar a votação em 2030.",
     }
     title = page_titles.get(active_page, page_titles["raio_x"])
@@ -499,6 +509,10 @@ def render_page_header(active_page: str) -> None:
         f'<img class="raiox-candidate-photo" src="{photo_url}" alt="Foto do candidato">'
         if photo_url
         else '<div class="raiox-candidate-photo"></div>'
+    )
+    votes_html = (
+        f'<div class="raiox-candidate-votes">TOTAL DE VOTOS: {html.escape(total_votes)}</div>'
+        if total_votes is not None else ""
     )
     st.html(
         dedent(f"""
@@ -511,6 +525,7 @@ def render_page_header(active_page: str) -> None:
                 <div class="raiox-candidate-info">
                     <div class="raiox-candidate-line">NOME: {html.escape(deputado["nome"])}</div>
                     <div class="raiox-candidate-line">CARGO: {html.escape(deputado["cargo"])}</div>
+                    {votes_html}
                 </div>
             </div>
         </section>
@@ -529,12 +544,12 @@ def major_section_header(title: str, subtitle: str) -> None:
     )
 
 
-def visualization_placeholder(label: str = "Ãrea reservada para visualizaÃ§Ã£o") -> None:
+def visualization_placeholder(label: str = "Área reservada para visualização") -> None:
     st.html(
         dedent(f"""
         <div class="dna-placeholder-card">
             <div class="dna-placeholder-label">{html.escape(label)}</div>
-            <div class="dna-placeholder-text">As visualizaÃ§Ãµes desta seÃ§Ã£o serÃ£o inseridas aqui.</div>
+            <div class="dna-placeholder-text">As visualizações desta seção serão inseridas aqui.</div>
         </div>
         """)
     )

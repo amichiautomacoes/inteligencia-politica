@@ -25,7 +25,7 @@ pages/
 .
 ├── app.py                         # Entrada, configuração e navegação
 ├── hf_sync.py                     # Leitura do Hugging Face e seleção dos parquets
-├── pages/                         # Somente as duas páginas Streamlit
+├── pages/                         # As três páginas Streamlit
 ├── src/eleitoral/
 │   ├── common/                    # Cabeçalho, estilo e textos editoriais
 │   ├── maps/                      # GeoParquet, GeoJSON e Plotly
