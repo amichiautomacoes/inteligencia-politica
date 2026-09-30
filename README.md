@@ -26,14 +26,14 @@ pages/
 ├── pages/                         # Somente as duas páginas Streamlit
 ├── src/eleitoral/
 │   ├── common/                    # Cabeçalho, estilo e textos editoriais
-│   ├── maps/                      # GeoPandas, GeoJSON e PyDeck
+│   ├── maps/                      # GeoParquet, GeoJSON e Plotly
 │   └── dna/                       # Componentes e cálculos do DNA Eleitor
 ├── assets/                        # Imagens usadas pela interface
 ├── Dockerfile                     # Imagem de produção
 └── requirements.txt
 ```
 
-Os módulos de `src/eleitoral` são importados pelas páginas. As malhas lidas com GeoPandas são convertidas para dicionários GeoJSON antes de serem entregues ao `pydeck.GeoJsonLayer`.
+Os módulos de `src/eleitoral` são importados pelas páginas. As malhas GeoParquet são lidas com pandas, convertidas para GeoJSON e entregues a `plotly.express.choropleth`.
 
 ## Dados do Hugging Face
 
@@ -101,13 +101,15 @@ No painel de deploy, use:
 
 ## Mapas
 
-Os mapas usam PyDeck/Deck.gl com `GeoJsonLayer`. O fluxo é:
+Os mapas usam `plotly.express.choropleth`. O fluxo é:
 
 ```text
-GeoParquet → GeoPandas → Shapely mapping → GeoJSON dict → PyDeck
+GeoParquet → pandas → geometria WKB → GeoJSON → Plotly
 ```
 
 As geometrias são convertidas para `EPSG:4326`, e os carregamentos são armazenados em cache pelo Streamlit. Se uma malha não puder ser lida, a interface informa o prefixo configurado e o erro original.
+
+Os scripts auxiliares em `scripts/` usam GeoPandas e têm a dependência separada em `scripts/requirements.txt`.
 
 ## Organização e manutenção
 

@@ -15,7 +15,7 @@ from eleitoral.common.dna_copy import sentence_label
 from eleitoral.dna.dna_distribution import render_electorate_distribution
 from eleitoral.dna.dna_expansion import render_vote_expansion
 from eleitoral.maps.dna_geo_reference import load_geo_reference
-from eleitoral.maps.deck_maps import deck_geojson, municipality_features, ramp
+from eleitoral.maps.choropleth_maps import continuous_choropleth
 from eleitoral.common.shared_header import (
     apply_shared_visual_model,
     major_section_header,
@@ -456,19 +456,16 @@ def _potential_map(
             frame.loc[frame["compatibilidade"].gt(0), "compatibilidade_log"] = 0.85
     frame["municipio"] = frame["nome"].fillna("Município")
 
-    values = {}
-    for row in frame.itertuples(index=False):
-        score = float(row.compatibilidade) if pd.notna(row.compatibilidade) else 0.0
-        values[str(row.codigo_ibge_str)] = {
-            "nome": str(row.municipio), "compatibilidade": f"{score:.1f}",
-            "aderencia": f"{row.aderencia_demografica:.1f}" if pd.notna(row.aderencia_demografica) else "sem dados",
-            "votos": int(row.votos_candidato),
-            "fill_color": ramp(float(row.compatibilidade_log), ["#e8f5e9", "#c8e6c9", "#81c784", "#43a047", "#14532d"]),
-        }
-    fig = deck_geojson(
-        municipality_features(geojson_mg, values), layer_id="potencial-demografico",
-        tooltip="<b>{nome}</b><br/>Compatibilidade: {compatibilidade}/100<br/>Aderência: {aderencia}/100<br/>Votos: {votos}",
+    fig = continuous_choropleth(
+        frame, geojson_mg, location="codigo_ibge_str", color="compatibilidade_log",
+        colors=["#e8f5e9", "#c8e6c9", "#81c784", "#43a047", "#14532d"],
+        hover_name="municipio", custom_data=["compatibilidade", "aderencia_demografica", "votos_candidato"],
+        colorbar_title="Compatibilidade", color_range=(0, 1),
     )
+    fig.update_traces(hovertemplate=(
+        "<b>%{hovertext}</b><br>Compatibilidade: %{customdata[0]:.1f}/100"
+        "<br>Aderência: %{customdata[1]:.1f}/100<br>Votos: %{customdata[2]:,.0f}<extra></extra>"
+    ))
     note = "A compatibilidade é a média das aderências de gênero, idade e escolaridade. Municípios sem votos ou sem os três cruzamentos completos ficam no valor mínimo; a escala de cor é logarítmica."
     return fig, note
 
@@ -508,7 +505,7 @@ def _render_demographic_potential() -> None:
             for dimension, label in (("genero", "Gênero"), ("idade", "Idade"), ("escolaridade", "Escolaridade"))
         )
     )
-    st.pydeck_chart(fig, width="stretch", height=620, key="dna_demographic_potential_map")
+    st.plotly_chart(fig, width="stretch", height=620, key="dna_demographic_potential_map")
     st.caption(note)
 
 

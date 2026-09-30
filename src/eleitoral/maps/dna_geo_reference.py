@@ -1,10 +1,13 @@
 ﻿import unicodedata
 
-import geopandas as gpd
+import json
 import pandas as pd
+import pyarrow.parquet as pq
 import streamlit as st
+from pyproj import CRS, Transformer
+from shapely import wkb
 from shapely.geometry import mapping
-from shapely.ops import unary_union
+from shapely.ops import transform, unary_union
 
 from hf_sync import hf_filesystem, load_env
 
@@ -34,19 +37,40 @@ def load_sector_neighborhood_lookup() -> pd.DataFrame:
         return pd.read_parquet(source)
 
 
+def _read_geo_parquet(path: str, *, filters: list[tuple] | None = None) -> pd.DataFrame:
+    """Read GeoParquet with pandas and decode its WKB geometry for Plotly."""
+    env = load_env()
+    with hf_filesystem(env.get("HF_TOKEN")).open(path, "rb") as source:
+        metadata = pq.read_metadata(source).metadata or {}
+        geo_metadata = json.loads(metadata.get(b"geo", b"{}"))
+        geometry_column = geo_metadata.get("primary_column", "geometry")
+        crs_value = geo_metadata.get("columns", {}).get(geometry_column, {}).get("crs")
+        if not crs_value:
+            raise ValueError(f"A malha {path} não informa o sistema de coordenadas.")
+        source.seek(0)
+        layer = pd.read_parquet(source, filters=filters)
+    source_crs = CRS.from_user_input(crs_value)
+    target_crs = CRS.from_epsg(4326)
+    transformer = None if source_crs == target_crs else Transformer.from_crs(source_crs, target_crs, always_xy=True)
+    layer[geometry_column] = layer[geometry_column].map(
+        lambda value: (
+            transform(transformer.transform, wkb.loads(value)) if transformer is not None else wkb.loads(value)
+        ) if pd.notna(value) else None
+    )
+    return layer
+
+
 @st.cache_data(show_spinner=False)
-def load_municipality_sectors(municipality_code: int) -> gpd.GeoDataFrame:
+def load_municipality_sectors(municipality_code: int) -> pd.DataFrame:
     """Read one municipality from the compact, row-grouped sector map."""
     env = load_env()
     path = geography_path(env, "MG_setores_mapa_CD2022.parquet")
-    with hf_filesystem(env.get("HF_TOKEN")).open(path, "rb") as source:
-        layer = gpd.read_parquet(source, filters=[("code_muni", "==", int(municipality_code))])
-    return layer.to_crs("EPSG:4326")
+    return _read_geo_parquet(path, filters=[("code_muni", "==", int(municipality_code))])
 
 
 @st.cache_data(show_spinner=False)
-def load_geo_layer(granularity: str) -> gpd.GeoDataFrame:
-    """Read an official IBGE GeoParquet layer, preserving its CRS and geometry."""
+def load_geo_layer(granularity: str) -> pd.DataFrame:
+    """Read an official IBGE GeoParquet with pandas in EPSG:4326."""
     if granularity not in GEOGRAPHY_FILES:
         raise ValueError(f"Granularidade geogrÃ¡fica desconhecida: {granularity}")
     env = load_env()
@@ -54,11 +78,7 @@ def load_geo_layer(granularity: str) -> gpd.GeoDataFrame:
     if not bucket_url:
         raise RuntimeError("HF_BUCKET_URL nÃ£o foi configurado.")
     path = geography_path(env, GEOGRAPHY_FILES[granularity])
-    with hf_filesystem(env.get("HF_TOKEN")).open(path, "rb") as source:
-        layer = gpd.read_parquet(source)
-    if layer.crs is None:
-        raise ValueError(f"A malha {path} nÃ£o informa o sistema de coordenadas.")
-    return layer.to_crs("EPSG:4326")
+    return _read_geo_parquet(path)
 
 
 @st.cache_data(show_spinner=False)

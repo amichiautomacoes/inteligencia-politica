@@ -9,7 +9,7 @@ import streamlit as st
 
 from hf_sync import file_by_kind, load_env, load_parquet
 from eleitoral.maps.dna_geo_reference import load_geo_reference
-from eleitoral.maps.deck_maps import deck_geojson, municipality_features, rgb
+from eleitoral.maps.choropleth_maps import categorical_choropleth
 from eleitoral.common.shared_header import selected_files
 
 
@@ -324,19 +324,15 @@ def _expansion_map(city_data: pd.DataFrame) -> object | None:
         "AMARELO": "Oportunidade com menor aderência",
         "CINZA": "Baixa similaridade ou sem dados completos",
     })
-    values = {}
-    for row in frame.itertuples(index=False):
-        values[str(row.codigo_ibge)] = {
-            "nome": str(row.municipio), "classe": str(row.classe_label),
-            "votos": int(row.votos_base),
-            "oportunidade": f"{row.oportunidade_demografica:,.0f}",
-            "similaridade": f"{row.similaridade:.1f}" if pd.notna(row.similaridade) else "sem dados",
-            "fill_color": rgb(CLASS_COLORS.get(row.classe_expansao, CLASS_COLORS["CINZA"])),
-        }
-    fig = deck_geojson(
-        municipality_features(geojson, values), layer_id="expansao-municipal",
-        tooltip="<b>{nome}</b><br/>{classe}<br/>Votos: {votos}<br/>Oportunidade: {oportunidade}<br/>Similaridade: {similaridade}",
+    fig = categorical_choropleth(
+        frame, geojson, location="codigo_ibge", category="classe_expansao",
+        categories=list(CLASS_COLORS), colors=list(CLASS_COLORS.values()),
+        hover_name="municipio", custom_data=["classe_label", "votos_base", "oportunidade_demografica", "similaridade"],
     )
+    fig.update_traces(hovertemplate=(
+        "<b>%{hovertext}</b><br>%{customdata[0]}<br>Votos: %{customdata[1]:,.0f}"
+        "<br>Oportunidade: %{customdata[2]:,.0f}<br>Similaridade: %{customdata[3]:.1f}<extra></extra>"
+    ))
     return fig
 
 
@@ -370,7 +366,7 @@ def render_vote_expansion() -> None:
     if fig is None:
         st.info("A malha municipal de Minas Gerais não está disponível.")
         return
-    st.pydeck_chart(fig, width="stretch", height=640, key="dna_vote_expansion_map")
+    st.plotly_chart(fig, width="stretch", height=640, key="dna_vote_expansion_map")
     st.caption(
         "O potencial combina a população acima da participação do ICP (`diferenca_pontos_percentuais` negativa) nas dimensões de gênero, idade e escolaridade. "
         "As faixas são relativas ao ICP selecionado: azul destaca o quartil superior de votos atuais; verde exige potencial demográfico no quartil superior e similaridade acima da mediana; "

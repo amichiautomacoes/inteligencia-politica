@@ -12,9 +12,8 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from hf_sync import data_files, file_by_kind, hf_filesystem, load_env, load_parquet, selected_deputado_files
-from eleitoral.maps.dna_geo_reference import load_geo_layer, load_geo_reference
-from eleitoral.maps.municipal_deck import parliamentary_deck, territorial_deck
-from eleitoral.maps.neighborhood_deck import detailed_map, selected_context
+from eleitoral.maps.dna_geo_reference import load_geo_reference
+from eleitoral.maps.choropleth_maps import detailed_map, parliamentary_map, selected_context, territorial_map
 from eleitoral.common.shared_header import render_page_header
 
 try:
@@ -1472,10 +1471,10 @@ def _neighborhood_vote_cards(
         f'<div class="raiox-neighborhood-kpi-value">{_format_number(city_votes)}</div>'
         f'</div>'
     ]
-    if context.get("cd_setor_censitario"):
+    if context.get("cd_setor_censitario") or context.get("nm_bairro"):
         selected_rows = _apply_territorial_context(neighborhood_votes, context, "Todas", municipio)
         neighborhood_total = pd.to_numeric(selected_rows["qt_votos"], errors="coerce").fillna(0).sum()
-        selected_label = context.get("nome_bairro") or "setor selecionado"
+        selected_label = context.get("nome_bairro") or "território selecionado"
         cards.append(
             f'<div class="raiox-neighborhood-kpi">'
             f'<div class="raiox-neighborhood-kpi-label">Votos em {html.escape(selected_label)}</div>'
@@ -1530,8 +1529,9 @@ def _clear_section_context(key: str) -> None:
 
 def _context_label(context: dict[str, str]) -> str:
     return (
-        (context.get("nome_bairro") or "setor censitário selecionado")
-        if context.get("cd_setor_censitario") else context.get("nm_municipio") or "recorte selecionado"
+        (context.get("nome_bairro") or "território selecionado")
+        if context.get("cd_setor_censitario") or context.get("nm_bairro")
+        else context.get("nm_municipio") or "recorte selecionado"
     )
 
 
@@ -2267,9 +2267,9 @@ def _render_parliamentary_action_section(
     action_df = _parliamentary_action_frame(votos_df, emendas_df)
     _render_parliamentary_action_kpis(action_df)
     with st.container(border=True):
-        deck = parliamentary_deck(action_df)
-        if deck is not None:
-            st.pydeck_chart(deck, width="stretch", height=610, key="pagina1_parliamentary_action_map")
+        fig = parliamentary_map(action_df)
+        if fig is not None:
+            st.plotly_chart(fig, width="stretch", height=610, key="pagina1_parliamentary_action_map")
         else:
             st.info("Mapa parlamentar indisponível.")
 
@@ -2294,9 +2294,9 @@ votos_df = _territorial_map_view(_read_selected_parquet(territorial_kind), terri
 map_col, concentration_col = st.columns([0.60, 0.40], gap="large")
 with map_col:
     with st.container(border=True):
-        deck = territorial_deck(votos_df, territorial_kind)
-        if deck is not None:
-            st.pydeck_chart(deck, width="stretch", height=560, key="pagina1_territorial_map")
+        fig = territorial_map(votos_df, territorial_kind)
+        if fig is not None:
+            st.plotly_chart(fig, width="stretch", height=560, key="pagina1_territorial_map")
         else:
             st.info("Mapa territorial indisponível.")
 with concentration_col:
@@ -2338,18 +2338,18 @@ with col_left:
             if cards_html:
                 st.markdown(cards_html, unsafe_allow_html=True)
         municipality_codes = pd.to_numeric(neighborhood_df.get("cd_ibge_municipio", pd.Series(dtype=str)), errors="coerce").dropna()
-        neighborhood_deck, map_note = (
+        neighborhood_fig, map_note = (
             detailed_map(neighborhood_df, int(municipality_codes.mode().iloc[0]))
             if municipio != "Todos" and not municipality_codes.empty
             else (None, "Selecione um município com votos para ver o mapa.")
         )
-        if neighborhood_deck is not None:
-            map_event = st.pydeck_chart(
-                neighborhood_deck,
+        if neighborhood_fig is not None:
+            map_event = st.plotly_chart(
+                neighborhood_fig,
                 width="stretch", height=500,
                 key=f"pagina1_bairro_mapa_{st.session_state.get('pagina1_bairro_mapa_revisao', 0)}",
                 on_select="rerun",
-                selection_mode="single-object",
+                selection_mode="points",
             )
             selection_context = selected_context(map_event)
             if selection_context and _set_section_context(DEMOGRAPHIC_CONTEXT_KEY, selection_context):
