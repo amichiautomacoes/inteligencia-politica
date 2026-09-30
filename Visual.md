@@ -1,10 +1,12 @@
 # Briefing visual — Visualização Eleitoral
 
-Este documento registra **a interface implementada hoje** nas duas páginas do aplicativo. Ele descreve a aparência, a ordem de leitura, os controles, as respostas às interações e os estados sem dados. O [README](README.md) concentra a arquitetura e as fontes; aqui o foco é o que o usuário vê e entende. Textos que mencionam bairros no DNA descrevem rótulos atualmente presentes na interface: os mapas dessa página são municipais.
+> Atualização da navegação: a cápsula do hero e a barra lateral incluem **Expansão 2030** como terceira página. Ela usa o mesmo cabeçalho, com o título **Expansão de votos para 2030**. A seção **Expansão & Oportunidades para 2030** e seu mapa foram movidos do DNA para essa página.
+
+Este documento registra **a interface implementada hoje** nas três páginas do aplicativo. Ele descreve a aparência, a ordem de leitura, os controles, as respostas às interações e os estados sem dados. O [README](README.md) concentra a arquitetura e as fontes; aqui o foco é o que o usuário vê e entende. Textos que mencionam bairros na página Expansão 2030 descrevem rótulos atualmente presentes na interface: o mapa dessa página é municipal.
 
 ## 1. Visão geral da experiência
 
-O produto é um painel de inteligência eleitoral para deputados, com duas rotas. **Raio X Eleitoral** mostra a votação de 2022, sua distribuição territorial, perfil demográfico estimado, concentração, atuação parlamentar e custo do voto. **DNA Eleitoral** sintetiza o eleitor predominante, os perfis estratégicos, a distribuição demográfica e as oportunidades territoriais. As páginas compartilham candidato selecionado, fundo, hero, tipografia e família de cards.
+O produto é um painel de inteligência eleitoral para deputados, com três rotas. **Raio X Eleitoral** mostra a votação de 2022, sua distribuição territorial, perfil demográfico estimado, concentração, atuação parlamentar e custo do voto. **DNA Eleitoral** sintetiza o eleitor predominante, os perfis estratégicos e a distribuição demográfica. **Expansão 2030** mostra oportunidades territoriais. As páginas compartilham candidato selecionado, fundo, hero, tipografia e família de cards.
 
 O percurso é vertical. Uma capa apresenta o candidato; faixas de seção delimitam cada pergunta analítica; os cards abaixo contêm números, mapas ou gráficos. O app usa a barra lateral nativa do Streamlit para escolher o deputado e navegar entre páginas. Um controle segmentado dentro da capa também alterna as duas rotas e indica qual está ativa.
 
@@ -29,11 +31,11 @@ Os preenchimentos dos mapas são opacos. O fundo Carto sem rótulos não acresce
 
 O hero usa título grande e pesado, subtítulo menor e nome/cargo em maiúsculas. Os títulos principais de seção são largos, brancos e densos; subtítulos ficam em azul claro. Labels de KPI são pequenos; o valor tem protagonismo. Cards e legendas não devem exigir que a cor sozinha explique um resultado: os textos e tooltips dão o nome da categoria, a unidade e o recorte. Números de votos usam separador de milhar; percentuais e valores monetários aparecem com unidade explícita. Onde os dados são estimados ou rateados, a interface informa isso junto à visualização.
 
-### 1.3 Capa comum às duas páginas
+### 1.3 Capa comum às três páginas
 
 O hero contém, nesta ordem, o título da página, um subtítulo curto e uma linha com foto à esquerda e dados do deputado à direita. A foto é vertical, com cantos levemente arredondados, borda clara e sombra; quando não há imagem remota, o espaço permanece como um bloco neutro. Os dados aparecem como `NOME:` e `CARGO:` em caixa alta. O ano integra o título do Raio X. **O hero atual não mostra partido.**
 
-No canto superior direito há uma cápsula de duas opções, **Raio X Eleitoral** e **DNA Eleitoral**. A opção ativa recebe fundo azul mais claro e texto branco. A cápsula faz parte do hero e usa links para as rotas da aplicação; o deputado selecionado na barra lateral é preservado na sessão.
+No canto superior direito há uma cápsula de três opções: **Raio X Eleitoral**, **DNA Eleitoral** e **Expansão 2030**. A opção ativa recebe fundo azul mais claro e texto branco. A cápsula faz parte do hero e usa links para as rotas da aplicação; o deputado selecionado na barra lateral é preservado na sessão.
 
 | Página | Título do hero | Subtítulo |
 | --- | --- | --- |
@@ -104,7 +106,7 @@ Os gráficos ficam em **duas colunas de mesma largura**, cada uma num card. À e
 
 ## 3. Página 2 — DNA Eleitoral
 
-Depois do hero comum, a página apresenta **quatro faixas principais** nesta ordem: Identidade da Base Eleitoral, Distribuição do Perfil do Eleitorado, Matriz de Potencial Demográfico e Expansão & Oportunidades para 2030. Os dois primeiros blocos caracterizam pessoas e segmentos; os dois mapas seguintes comparam território e perfil. Sunburst, heatmap e composição demográfica por pontos não pertencem à interface atual.
+Depois do hero comum, a página apresenta **três faixas principais** nesta ordem: Identidade da Base Eleitoral, Distribuição do Perfil do Eleitorado e Matriz de Potencial Demográfico. Os dois primeiros blocos caracterizam pessoas e segmentos; o mapa seguinte compara território e perfil. Sunburst, heatmap e composição demográfica por pontos não pertencem à interface atual.
 
 ### 3.1 Identidade da Base Eleitoral
 
@@ -144,7 +146,9 @@ O protagonista é um mapa municipal de Minas Gerais em **escala contínua verde*
 
 Uma legenda abaixo do mapa explica a fórmula e o tratamento de municípios sem dados. A interface não apresenta estado civil nesse comparativo e não transforma a cor em previsão de votos. Se o perfil ou a malha não está disponível, surge aviso no lugar do mapa.
 
-### 3.4 Expansão & Oportunidades para 2030
+## 4. Página 3 — Expansão 2030
+
+### 4.1 Expansão & Oportunidades para 2030
 
 **Pergunta visual:** onde proteger a base existente e onde há oportunidade demográfica relativa ao ICP escolhido?
 
@@ -154,9 +158,9 @@ Antes do mapa há uma **legenda de quatro cards**. Cada um combina amostra de co
 
 O mapa municipal PyDeck ocupa toda a largura e cerca de **640 px** de altura. Cada município recebe uma das quatro classes. O hover informa nome, classe, votos, oportunidade e similaridade. A nota inferior explicita que os limites de votos, similaridade e potencial são relativos ao perfil selecionado e que potencial demográfico **não é previsão de votos**. Se não houver dados completos de Censo/potencial ou a malha municipal falhar, a seção mostra uma informação textual no lugar do mapa.
 
-## 4. Interação, estados e continuidade visual
+## 5. Interação, estados e continuidade visual
 
-### 4.1 Escopo dos controles
+### 5.1 Escopo dos controles
 
 | Controle | Onde atua | Persistência observável |
 | --- | --- | --- |
@@ -169,17 +173,17 @@ O mapa municipal PyDeck ocupa toda a largura e cerca de **640 px** de altura. Ca
 | Município e dimensão da rosca DNA | Rosca e total do recorte | Restrito à seção de distribuição |
 | Perfil dos mapas DNA | Mapa de potencial ou mapa de expansão correspondente | Cada seção mantém seu próprio seletor |
 
-### 4.2 Estado sem dados
+### 5.2 Estado sem dados
 
 Falta de parquet, malha ou dimensão não deve parecer valor zero. A implementação usa `st.info`, `st.warning`, captions ou cards com texto para explicar o que está ausente. Zero legítimo continua como valor ou cor mínima quando existe malha e a métrica pode ser calculada. Os mapas mantêm municípios ou setores sem votos visíveis onde a fonte geométrica está disponível. As notas analíticas permanecem próximas ao gráfico a que se referem.
 
-### 4.3 Responsividade implementada
+### 5.3 Responsividade implementada
 
 No hero, a cápsula de navegação, a foto e os textos se reorganizam em larguras menores por regras CSS próprias. Os KPIs da página 1 passam de linha para uma coluna em telas até cerca de **900 px**. A faixa Top 1/5/15/20 passa para duas colunas; a lista de municípios reduz colunas novamente abaixo de **600 px**. O card do eleitor ideal reduz sua grade de quatro para duas e depois uma coluna. No card dos ICPs, o resumo e as barras demográficas empilham abaixo de **600 px**; o cabeçalho de cada perfil pode quebrar em telas estreitas. A legenda de expansão passa de quatro para duas colunas abaixo de **900 px** e para uma abaixo de **560 px**.
 
 Os pares de gráficos da página 1 e o par rosca/filtros são montados com `st.columns`; a experiência móvel também depende do empilhamento padrão do Streamlit. Nomes longos de município, persona e despesa podem quebrar linha. Tooltips complementam os rótulos que não cabem nos cards.
 
-## 5. Critérios de fidelidade para futuras alterações
+## 6. Critérios de fidelidade para futuras alterações
 
 1. Preservar a diferença entre **intensidade** (azul ou verde contínuo) e **classe** (cores da atuação parlamentar e expansão).
 2. Manter os polígonos do mapa detalhado como **setores censitários** e dimensionar seu azul dentro do município selecionado.

@@ -13,7 +13,6 @@ from hf_sync import file_by_kind, load_env, load_parquet
 from eleitoral.dna.cluster_cards import cluster_cards_html
 from eleitoral.common.dna_copy import sentence_label
 from eleitoral.dna.dna_distribution import render_electorate_distribution
-from eleitoral.dna.dna_expansion import render_vote_expansion
 from eleitoral.maps.dna_geo_reference import load_geo_reference
 from eleitoral.maps.choropleth_maps import continuous_choropleth
 from eleitoral.common.shared_header import (
@@ -525,10 +524,6 @@ DNA_SECTIONS = [
         "Matriz de Potencial Demográfico",
         "Comparativo entre o perfil do eleitor do candidato e a população local. Identificação de sobre-representação e frentes de expansão.",
     ),
-    (
-        "Expansão & Oportunidades para 2030",
-        "Mapeamento em nível de bairro e área ponderada. Localização dos clusters táticos e visualização de manchas de potencial de crescimento.",
-    ),
 ]
 
 
@@ -541,8 +536,6 @@ for index, (section_title, section_subtitle) in enumerate(DNA_SECTIONS):
         _render_cluster_profiles(icp_clusters_df)
     elif index == 2:
         _render_demographic_potential()
-    elif index == 3:
-        render_vote_expansion()
     else:
         render_electorate_distribution(_read_selected_parquet)
 

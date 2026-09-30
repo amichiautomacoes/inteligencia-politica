@@ -4,17 +4,19 @@ Dashboard Streamlit para análise territorial, demográfica, financeira e parlam
 
 ## Páginas
 
-A aplicação possui duas páginas navegáveis:
+A aplicação possui três páginas navegáveis:
 
 - **Raio X do voto** — distribuição territorial dos votos, concentração, perfil demográfico, gastos e atuação parlamentar.
-- **DNA Eleitor** — perfil estratégico da base eleitoral, ICP, distribuição demográfica, potencial e expansão.
+- **DNA Eleitor** — perfil estratégico da base eleitoral, ICP, distribuição demográfica e potencial.
+- **Expansão 2030** — oportunidades territoriais para 2030, com mapa municipal por classes.
 
 As páginas são as únicas entradas do Streamlit e ficam em `pages/`:
 
 ```text
 pages/
 ├── raio_x_do_voto.py
-└── dna_eleitor.py
+├── dna_eleitor.py
+└── expansao_2030.py
 ```
 
 ## Estrutura do projeto
@@ -116,4 +118,4 @@ Os scripts auxiliares em `scripts/` usam GeoPandas e têm a dependência separad
 - Não coloque módulos auxiliares dentro de `pages`; isso evita que o Streamlit os trate como páginas.
 - Não versione `.env`, tokens ou credenciais.
 - Remova `__pycache__` antes de empacotar manualmente; o `.dockerignore` já os exclui da imagem.
-- Depois de alterar os módulos, compile o projeto e teste o carregamento das duas rotas antes do deploy.
+- Depois de alterar os módulos, compile o projeto e teste o carregamento das três rotas antes do deploy.

@@ -79,7 +79,7 @@ def apply_shared_visual_model() -> None:
         .raiox-hero-title {{
             position: relative;
             z-index: 1;
-            max-width: calc(100% - 25rem);
+            max-width: calc(100% - 32rem);
             color: #f8fbff;
             font-size: 3.2rem;
             font-weight: 850;
@@ -91,7 +91,7 @@ def apply_shared_visual_model() -> None:
             position: relative;
             z-index: 1;
             margin-top: 1.1rem;
-            max-width: calc(100% - 25rem);
+            max-width: calc(100% - 32rem);
             color: rgba(203, 213, 225, 0.82);
             font-size: 1.04rem;
             font-weight: 600;
@@ -133,7 +133,7 @@ def apply_shared_visual_model() -> None:
             top: 2.05rem;
             right: 2.35rem;
             display: inline-grid;
-            grid-template-columns: repeat(2, minmax(8.9rem, 1fr));
+            grid-template-columns: repeat(3, minmax(8.9rem, 1fr));
             gap: 0.25rem;
             padding: 0.28rem;
             border: 1px solid rgba(147, 197, 253, 0.32);
@@ -346,7 +346,7 @@ def apply_shared_visual_model() -> None:
                 inset: auto;
                 margin-bottom: 1.1rem;
                 width: 100%;
-                grid-template-columns: 1fr 1fr;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
             }}
             .raiox-hero-title,
             .raiox-hero-subtitle {{
@@ -470,10 +470,12 @@ def candidate_photo_data_url() -> str:
 def _page_switch(active_page: str) -> str:
     raio_active = "active" if active_page == "raio_x" else ""
     dna_active = "active" if active_page == "dna" else ""
+    expansao_active = "active" if active_page == "expansao_2030" else ""
     return dedent(f"""
     <nav class="raiox-page-switch" aria-label="Alternar pagina">
         <a class="{raio_active}" href="./raio-x-eleitoral" target="_self">Raio X Eleitoral</a>
         <a class="{dna_active}" href="./dna-eleitoral" target="_self">DNA Eleitoral</a>
+        <a class="{expansao_active}" href="./expansao-2030" target="_self">Expansão 2030</a>
     </nav>
     """)
 
@@ -483,10 +485,12 @@ def render_page_header(active_page: str) -> None:
     page_titles = {
         "raio_x": f"RAIO X da votaÃ§Ã£o {deputado['ano']}",
         "dna": "DNA do Eleitor",
+        "expansao_2030": "Expansão de votos para 2030",
     }
     page_subtitles = {
         "raio_x": "AnÃ¡lises descritivas geogrÃ¡ficas e do perfil do eleitor na Ãºltima eleiÃ§Ã£o.",
         "dna": "Quem Ã©, onde estÃ¡ e como se comporta o eleitor determinante da candidatura.",
+        "expansao_2030": "Oportunidades territoriais para ampliar a votação em 2030.",
     }
     title = page_titles.get(active_page, page_titles["raio_x"])
     subtitle = page_subtitles.get(active_page, page_subtitles["raio_x"])
