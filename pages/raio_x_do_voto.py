@@ -352,11 +352,44 @@ def _apply_visual_model() -> None:
         }}
         .raiox-map-side-card {{
             min-height: 9.25rem;
+            padding: 0.9rem 1rem;
             border: 1px solid var(--raiox-outline-border);
             border-radius: 16px;
             background: var(--raiox-card-bg);
             box-shadow: 0 12px 30px rgba(1, 8, 24, 0.22);
         }}
+        .raiox-map-side-label {{
+            color: #93c5fd;
+            font-size: 0.74rem;
+            font-weight: 800;
+            letter-spacing: 0.07em;
+            text-transform: uppercase;
+        }}
+        .raiox-map-side-value {{
+            color: #f8fbff;
+            font-size: clamp(1.3rem, 2vw, 1.9rem);
+            font-weight: 850;
+            line-height: 1.13;
+            margin-top: 0.55rem;
+        }}
+        .raiox-map-side-caption {{
+            color: #b7c7e6;
+            font-size: 0.8rem;
+            line-height: 1.3;
+            margin-top: 0.42rem;
+        }}
+        .raiox-map-side-badge {{
+            display: inline-block;
+            margin-top: 0.55rem;
+            padding: 0.22rem 0.55rem;
+            border-radius: 999px;
+            font-size: 0.73rem;
+            font-weight: 750;
+            background: rgba(37, 99, 235, 0.23);
+            color: #bfdbfe;
+        }}
+        .raiox-map-side-badge.good {{ background: rgba(22, 163, 74, 0.2); color: #86efac; }}
+        .raiox-map-side-badge.warn {{ background: rgba(245, 158, 11, 0.2); color: #fcd34d; }}
         .mapa-kpi-wide-card {{
             position: relative;
             overflow: hidden;
@@ -940,7 +973,7 @@ def _territorial_concentration_chart(
         )
     )
     fig.update_layout(
-        height=max(480, min(1400, 100 + len(ranking) * 30)),
+        height=max(480, 120 + len(ranking) * 34),
         margin={"l": 200, "r": 28, "t": 58, "b": 22},
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
@@ -1023,6 +1056,82 @@ def _normalized_text(value: object) -> str:
         char for char in unicodedata.normalize("NFKD", str(value or "").strip().upper())
         if not unicodedata.combining(char)
     ).split())
+
+
+def _render_map_side_cards(df: pd.DataFrame | None) -> None:
+    def card(title: str, value: str, caption: str, badge: str = "", tone: str = "") -> str:
+        badge_html = (
+            f'<div class="raiox-map-side-badge {tone}">{html.escape(badge)}</div>'
+            if badge else ""
+        )
+        return (
+            '<div class="raiox-map-side-card">'
+            f'<div class="raiox-map-side-label">{html.escape(title)}</div>'
+            f'<div class="raiox-map-side-value">{html.escape(value)}</div>'
+            f'<div class="raiox-map-side-caption">{html.escape(caption)}</div>'
+            f'{badge_html}</div>'
+        )
+
+    cards = []
+    municipal = pd.DataFrame()
+    if df is not None and not df.empty and {"nm_municipio", "qt_votos"}.issubset(df.columns):
+        municipal = df.copy()
+        if "nivel_territorial" in municipal.columns:
+            city_rows = municipal[municipal["nivel_territorial"].astype(str).str.lower().eq("municipio")]
+            if not city_rows.empty:
+                municipal = city_rows
+        municipal["qt_votos"] = pd.to_numeric(municipal["qt_votos"], errors="coerce").fillna(0)
+        municipal["nm_municipio"] = municipal["nm_municipio"].fillna("").astype(str).str.strip()
+        municipal = municipal[municipal["nm_municipio"].ne("")]
+
+    _, _, municipalities_ref, _ = load_geo_reference()
+    state_cities = (
+        int(municipalities_ref["codigo_ibge"].nunique())
+        if municipalities_ref is not None and not municipalities_ref.empty else 853
+    )
+    if municipal.empty:
+        cards.extend([
+            card("Município principal (Top 1)", "—", "Votos municipais indisponíveis"),
+            card("Dependência do reduto principal", "—", "Votos municipais indisponíveis"),
+            card("Penetração territorial", "—", "Votos municipais indisponíveis"),
+            card("Densidade média por município", "—", "Votos municipais indisponíveis"),
+        ])
+    else:
+        by_city = municipal.groupby(municipal["nm_municipio"].map(_normalized_text))["qt_votos"].sum()
+        by_city = by_city[by_city.index.ne("")]
+        total = float(by_city.sum())
+        with_votes = int(by_city.gt(0).sum())
+        leader_share = float(by_city.max() / total) if total > 0 and not by_city.empty else 0.0
+        leader_key = str(by_city.idxmax()) if not by_city.empty else ""
+        leader_rows = municipal[municipal["nm_municipio"].map(_normalized_text).eq(leader_key)]
+        leader_name = str(leader_rows.iloc[0]["nm_municipio"]).title() if not leader_rows.empty else "—"
+        leader_votes = float(by_city.max()) if not by_city.empty else 0.0
+        cards.append(card(
+            "Município principal (Top 1)",
+            f"{leader_name} ({_format_percent(leader_share)})" if total > 0 else "—",
+            f"{_format_number(leader_votes)} votos na cidade líder" if total > 0 else "Sem votos municipais",
+            "Alta concentração" if leader_share > 0.30 else "Município líder",
+            "warn" if leader_share > 0.30 else "good",
+        ))
+        cards.append(card(
+            "Dependência do reduto principal", _format_percent(leader_share) if total > 0 else "—",
+            "Dos votos no município líder" if total > 0 else "Sem votos municipais",
+            "Alerta de concentração" if leader_share > 0.30 else "Concentração moderada",
+            "warn" if leader_share > 0.30 else "good",
+        ))
+        reach = with_votes / state_cities if state_cities else 0.0
+        cards.append(card(
+            "Penetração territorial", f"{_format_number(with_votes)} / {_format_number(state_cities)}",
+            f"{_format_percent(reach)} dos municípios do estado",
+            "Presença em mais da metade do estado" if reach >= 0.5 else "Presença em menos da metade do estado",
+            "good" if reach >= 0.5 else "warn",
+        ))
+        cards.append(card(
+            "Densidade média por município",
+            f"{_format_number(round(total / with_votes))} votos / município" if with_votes else "—",
+            f"Considerando apenas os {_format_number(with_votes)} municípios com voto",
+        ))
+    st.markdown('<div class="raiox-map-side-cards">' + "".join(cards) + '</div>', unsafe_allow_html=True)
 
 def _municipal_concentration_frame(df: pd.DataFrame | None) -> pd.DataFrame:
     if df is None or df.empty or not {"nm_municipio", "qt_votos"}.issubset(df.columns):
@@ -2386,12 +2495,7 @@ _major_section_header("Mapa Territorial da Votação", "Leitura territorial do d
 map_col, cards_col = st.columns([0.70, 0.30], gap="large")
 with map_col:
     with st.container(border=True):
-        header_col, filter_col = st.columns([0.70, 0.30], gap="small")
-        with header_col:
-            _section_header(
-                "Sua votação no território de Minas Gerais",
-                "Clique em uma área do mapa para ver o detalhamento dos votos.",
-            )
+        _, filter_col = st.columns([0.70, 0.30], gap="small")
         with filter_col:
             territorial_kind = _territorial_kind_select()
         votos_df = _territorial_map_view(_read_selected_parquet(territorial_kind), territorial_kind)
@@ -2407,12 +2511,7 @@ with map_col:
         else:
             st.info("Mapa territorial indisponível.")
 with cards_col:
-    st.markdown(
-        '<div class="raiox-map-side-cards">'
-        + '<div class="raiox-map-side-card"></div>' * 4
-        + '</div>',
-        unsafe_allow_html=True,
-    )
+    _render_map_side_cards(votos_municipio_df)
 _section_header(
     "Votação por Setor Censitário e Perfil Demográfico",
     "Votação por setor censitário do IBGE, com nome do bairro associado e perfil demográfico do recorte selecionado.",
