@@ -133,6 +133,7 @@ def render_electorate_distribution(read_parquet: Callable[[str], pd.DataFrame | 
                 annotations=[{"x": 0.5, "y": 0.5, "text": f"<b>{html.escape(center)}</b><br><span style='font-size:13px'>votos no recorte</span>",
                               "showarrow": False, "font": {"size": 24, "color": "#f8fbff"}}],
             )
-            st.plotly_chart(fig, use_container_width=True, key="dna_distribution_donut", config={"displayModeBar": False})
+            st.plotly_chart(fig, width="stretch", key="dna_distribution_donut", config={"displayModeBar": False})
             st.caption("Os percentuais sÃ£o estimativas de dimensÃµes separadas; as categorias exibidas nÃ£o representam cruzamentos entre perfis.")
+
 

@@ -1247,7 +1247,7 @@ def _render_accumulated_concentration_section(df: pd.DataFrame | None) -> None:
             )
         st.plotly_chart(
             _accumulated_concentration_chart(concentration_df, max_rank=max_rank),
-            use_container_width=True,
+            width="stretch",
         )
 
 
@@ -1907,7 +1907,7 @@ def _render_cost_efficiency_section(
             )
             treemap_event = st.plotly_chart(
                 _expense_cost_by_type_chart(chart_df),
-                use_container_width=True,
+                width="stretch",
                 key=f"{EXPENSE_TREEMAP_KEY}_{st.session_state.get(EXPENSE_TREEMAP_REVISION_KEY, 0)}",
                 on_select="rerun",
                 selection_mode="points",
@@ -1941,7 +1941,7 @@ def _render_cost_efficiency_section(
             territorial_cost = _territorial_expense_cost_frame(gastos_df, share, territory)
             st.plotly_chart(
                 _territorial_expense_cost_chart(territorial_cost, territory),
-                use_container_width=True,
+                width="stretch",
             )
             st.caption(
                 "Gasto atribuído proporcionalmente aos votos em cada território. "
@@ -2307,7 +2307,7 @@ with concentration_col:
         )
         st.plotly_chart(
             _territorial_concentration_chart(votos_df, territorial_kind),
-            use_container_width=True,
+            width="stretch",
         )
 _section_header(
     "Votação por Setor Censitário e Perfil Demográfico",
@@ -2377,7 +2377,7 @@ with col_right:
         demographic_context = _section_context(DEMOGRAPHIC_CONTEXT_KEY)
         st.plotly_chart(
             _demographic_bar(perfil_kind, demographic_context, mesorregiao, municipio),
-            use_container_width=True,
+            width="stretch",
         )
         if demographic_context:
             label = _context_label(demographic_context)
@@ -2395,5 +2395,6 @@ _render_parliamentary_action_section(votos_municipio_df, emendas_legislativa_df)
 despesas_campanha_df = _read_selected_parquet("despesas_campanha")
 gastos_territoriais_df = _read_selected_parquet("gastos_territoriais")
 _render_cost_efficiency_section(votos_municipio_df, despesas_campanha_df, gastos_territoriais_df)
+
 
 
