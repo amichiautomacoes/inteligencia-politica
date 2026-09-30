@@ -1,4 +1,4 @@
-"""Small Deck.gl builders shared by the electoral maps."""
+﻿"""Small Deck.gl builders shared by the electoral maps."""
 
 from __future__ import annotations
 
@@ -66,3 +66,4 @@ def zoom_for_bounds(bounds: tuple[float, float, float, float]) -> float:
     minx, miny, maxx, maxy = bounds
     span = max(maxx - minx, (maxy - miny) * 1.5, 0.005)
     return max(5.0, min(12.5, math.log2(80.0 / span)))
+

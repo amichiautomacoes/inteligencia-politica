@@ -1,12 +1,12 @@
-"""Deck.gl versions of the municipal maps."""
+﻿"""Deck.gl versions of the municipal maps."""
 
 from __future__ import annotations
 
 import numpy as np
 import pandas as pd
 
-from pages.deck_maps import deck_geojson, municipality_features, ramp, rgb
-from pages.dna_geo_reference import load_geo_reference
+from eleitoral.maps.deck_maps import deck_geojson, municipality_features, ramp, rgb
+from eleitoral.maps.dna_geo_reference import load_geo_reference
 
 
 def territorial_deck(votes: pd.DataFrame | None, kind: str):
@@ -48,13 +48,13 @@ def territorial_deck(votes: pd.DataFrame | None, kind: str):
     names = dict(zip(municipalities["codigo_ibge"].astype(str), municipalities["nome"].astype(str)))
     for feature in features:
         feature["properties"].setdefault("votos", 0)
-        feature["properties"]["nome"] = names.get(feature["properties"]["id"], "Município")
+        feature["properties"]["nome"] = names.get(feature["properties"]["id"], "MunicÃ­pio")
     return deck_geojson(features, layer_id="votos-municipios", tooltip="<b>{nome}</b><br/>Votos: {votos}")
 
 
 ACTION_COLORS = {
     "Reduto Atendido": "#2563EB", "Investimento": "#16A34A",
-    "Reduto Desassistido": "#FACC15", "Sem Expressão": "#F97316",
+    "Reduto Desassistido": "#FACC15", "Sem ExpressÃ£o": "#F97316",
     "Votos sem emendas": "#64748B", "Sem votos nem emendas": "#FFFFFF",
 }
 
@@ -82,3 +82,4 @@ def parliamentary_deck(action: pd.DataFrame):
         feature["properties"].setdefault("motivo", "")
     return deck_geojson(features, layer_id="atuacao-parlamentar",
         tooltip="<b>{nome}</b><br/>{categoria}<br/>Votos: {votos}<br/>Emendas: {emendas}<br/>{motivo}")
+

@@ -12,10 +12,10 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from hf_sync import data_files, file_by_kind, hf_filesystem, load_env, load_parquet, selected_deputado_files
-from pages.dna_geo_reference import load_geo_layer, load_geo_reference
-from pages.municipal_deck import parliamentary_deck, territorial_deck
-from pages.neighborhood_deck import detailed_map, selected_context
-from pages.shared_header import render_page_header
+from eleitoral.maps.dna_geo_reference import load_geo_layer, load_geo_reference
+from eleitoral.maps.municipal_deck import parliamentary_deck, territorial_deck
+from eleitoral.maps.neighborhood_deck import detailed_map, selected_context
+from eleitoral.common.shared_header import render_page_header
 
 try:
     import streamlit_shadcn_ui as ui
@@ -2395,4 +2395,5 @@ _render_parliamentary_action_section(votos_municipio_df, emendas_legislativa_df)
 despesas_campanha_df = _read_selected_parquet("despesas_campanha")
 gastos_territoriais_df = _read_selected_parquet("gastos_territoriais")
 _render_cost_efficiency_section(votos_municipio_df, despesas_campanha_df, gastos_territoriais_df)
+
 

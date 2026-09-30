@@ -8,9 +8,9 @@ import pandas as pd
 import streamlit as st
 
 from hf_sync import file_by_kind, load_env, load_parquet
-from pages.dna_geo_reference import load_geo_reference
-from pages.deck_maps import deck_geojson, municipality_features, rgb
-from pages.shared_header import selected_files
+from eleitoral.maps.dna_geo_reference import load_geo_reference
+from eleitoral.maps.deck_maps import deck_geojson, municipality_features, rgb
+from eleitoral.common.shared_header import selected_files
 
 
 CLASS_COLORS = {
@@ -376,3 +376,4 @@ def render_vote_expansion() -> None:
         "As faixas são relativas ao ICP selecionado: azul destaca o quartil superior de votos atuais; verde exige potencial demográfico no quartil superior e similaridade acima da mediana; "
         "amarelo indica oportunidade positiva com similaridade acima do quartil inferior. Potencial demográfico orienta busca territorial e não é previsão de votos."
     )
+

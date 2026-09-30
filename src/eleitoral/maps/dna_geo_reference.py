@@ -1,4 +1,4 @@
-import unicodedata
+﻿import unicodedata
 
 import geopandas as gpd
 import pandas as pd
@@ -18,11 +18,16 @@ GEOGRAPHY_FILES = {
 }
 
 
+def geography_path(env: dict[str, str], filename: str) -> str:
+    prefix = env.get("HF_GEOGRAPHY_PREFIX", "IBGE/MG/dadosterritorio").strip("/")
+    return f"{env['HF_BUCKET_URL'].rstrip('/')}/{prefix}/{filename}"
+
+
 @st.cache_data(show_spinner=False)
 def load_sector_neighborhood_lookup() -> pd.DataFrame:
     """Read the compact sector-to-neighborhood index, without geometries."""
     env = load_env()
-    path = env["HF_BUCKET_URL"].rstrip("/") + "/IBGE/MG/dadosterritorio/setor_bairro_lookup.parquet"
+    path = geography_path(env, "setor_bairro_lookup.parquet")
     with hf_filesystem(env.get("HF_TOKEN")).open(path, "rb") as source:
         return pd.read_parquet(source)
 
@@ -31,7 +36,7 @@ def load_sector_neighborhood_lookup() -> pd.DataFrame:
 def load_municipality_sectors(municipality_code: int) -> gpd.GeoDataFrame:
     """Read one municipality from the compact, row-grouped sector map."""
     env = load_env()
-    path = env["HF_BUCKET_URL"].rstrip("/") + "/IBGE/MG/dadosterritorio/MG_setores_mapa_CD2022.parquet"
+    path = geography_path(env, "MG_setores_mapa_CD2022.parquet")
     with hf_filesystem(env.get("HF_TOKEN")).open(path, "rb") as source:
         layer = gpd.read_parquet(source, filters=[("code_muni", "==", int(municipality_code))])
     return layer.to_crs("EPSG:4326")
@@ -41,16 +46,16 @@ def load_municipality_sectors(municipality_code: int) -> gpd.GeoDataFrame:
 def load_geo_layer(granularity: str) -> gpd.GeoDataFrame:
     """Read an official IBGE GeoParquet layer, preserving its CRS and geometry."""
     if granularity not in GEOGRAPHY_FILES:
-        raise ValueError(f"Granularidade geográfica desconhecida: {granularity}")
+        raise ValueError(f"Granularidade geogrÃ¡fica desconhecida: {granularity}")
     env = load_env()
     bucket_url = env.get("HF_BUCKET_URL", "").rstrip("/")
     if not bucket_url:
-        raise RuntimeError("HF_BUCKET_URL não foi configurado.")
-    path = f"{bucket_url}/IBGE/MG/dadosterritorio/{GEOGRAPHY_FILES[granularity]}"
+        raise RuntimeError("HF_BUCKET_URL nÃ£o foi configurado.")
+    path = geography_path(env, GEOGRAPHY_FILES[granularity])
     with hf_filesystem(env.get("HF_TOKEN")).open(path, "rb") as source:
         layer = gpd.read_parquet(source)
     if layer.crs is None:
-        raise ValueError(f"A malha {path} não informa o sistema de coordenadas.")
+        raise ValueError(f"A malha {path} nÃ£o informa o sistema de coordenadas.")
     return layer.to_crs("EPSG:4326")
 
 
@@ -65,10 +70,14 @@ def load_geo_reference() -> tuple[dict | None, pd.DataFrame | None, pd.DataFrame
     try:
         municipalities = load_geo_layer("municipio")[["code_muni", "name_muni", "geometry"]]
         mesoregions = load_geo_layer("mesorregiao")[["geometry"]]
-        with fs.open(f"{bucket_url}/IBGE/MG/dadosterritorio/municipios_mg_mesorregioes.parquet", "rb") as source:
+        with fs.open(geography_path(env, "municipios_mg_mesorregioes.parquet"), "rb") as source:
             reference = pd.read_parquet(source)
     except Exception as exc:
-        st.warning(f"Não foi possível carregar a malha municipal de MG: {exc}")
+        st.warning(
+            "Não foi possível carregar a malha municipal de MG. "
+            f"Prefixo: {env.get('HF_GEOGRAPHY_PREFIX', 'IBGE/MG/dadosterritorio')}. "
+            f"Detalhe: {exc}"
+        )
         return None, None, None, None
 
     municipalities["codigo_ibge"] = pd.to_numeric(municipalities["code_muni"], errors="coerce").astype("Int64")
@@ -132,3 +141,4 @@ def _boundary_coordinates(boundaries: list) -> tuple[list[float | None], list[fl
             lon.append(None)
             lat.append(None)
     return lon, lat
+

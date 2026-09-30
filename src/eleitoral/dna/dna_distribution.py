@@ -1,4 +1,4 @@
-"""Demographic distribution panel for the DNA Eleitoral page."""
+﻿"""Demographic distribution panel for the DNA Eleitoral page."""
 from __future__ import annotations
 
 import html
@@ -12,8 +12,8 @@ import streamlit as st
 
 
 DIMENSIONS = {
-    "Gênero": ("genero", "pct_genero_"),
-    "Faixa etária": ("idade", "pct_idade_"),
+    "GÃªnero": ("genero", "pct_genero_"),
+    "Faixa etÃ¡ria": ("idade", "pct_idade_"),
     "Escolaridade": ("escolaridade", "pct_escolaridade_"),
     "Estado civil": ("estado_civil", "pct_estado_civil_"),
 }
@@ -85,38 +85,38 @@ def render_electorate_distribution(read_parquet: Callable[[str], pd.DataFrame | 
     votes = read_parquet("votos_municipio")
     municipalities = _municipalities(votes)
     with st.container(border=True):
-        st.markdown("#### Distribuição do eleitorado")
-        st.caption("Participação estimada de cada categoria demográfica na votação do recorte selecionado.")
+        st.markdown("#### DistribuiÃ§Ã£o do eleitorado")
+        st.caption("ParticipaÃ§Ã£o estimada de cada categoria demogrÃ¡fica na votaÃ§Ã£o do recorte selecionado.")
         chart_col, filter_col = st.columns([2.3, 1], gap="large")
         with filter_col:
-            st.caption("Refine a distribuição")
-            municipality_options = ["Todos os municípios"] + [name for _, name in municipalities]
-            selected_name = st.selectbox("MUNICÍPIO", municipality_options, key="dna_distribution_municipality")
-            dimension = st.selectbox("PERFIL DEMOGRÁFICO", list(DIMENSIONS), key="dna_distribution_dimension")
+            st.caption("Refine a distribuiÃ§Ã£o")
+            municipality_options = ["Todos os municÃ­pios"] + [name for _, name in municipalities]
+            selected_name = st.selectbox("MUNICÃPIO", municipality_options, key="dna_distribution_municipality")
+            dimension = st.selectbox("PERFIL DEMOGRÃFICO", list(DIMENSIONS), key="dna_distribution_dimension")
         code = ""
         name = ""
-        if selected_name != "Todos os municípios":
+        if selected_name != "Todos os municÃ­pios":
             code, name = next(((code, name) for code, name in municipalities if name == selected_name), ("", ""))
         kind, prefix = DIMENSIONS[dimension]
         source = read_parquet(kind)
         with chart_col:
             if source is None or source.empty:
-                st.info(f"Dados de {dimension.lower()} indisponíveis para este candidato.")
+                st.info(f"Dados de {dimension.lower()} indisponÃ­veis para este candidato.")
                 return
             scoped = _filter_municipality(source, code, name)
             distribution = _distribution(scoped, prefix)
             if distribution.empty:
-                st.info("Não há distribuição demográfica disponível para este recorte.")
+                st.info("NÃ£o hÃ¡ distribuiÃ§Ã£o demogrÃ¡fica disponÃ­vel para este recorte.")
                 return
             total_votes = _votes_in_scope(votes, code, name)
             palette = ["#60A5FA", "#38BDF8", "#A78BFA", "#34D399", "#FBBF24", "#FB923C", "#94A3B8"]
             labels = distribution["categoria"].tolist()
             values = distribution["percentual"].tolist()
             estimated_votes = [value / 100 * total_votes for value in values] if total_votes is not None else None
-            center = f"{total_votes:,.0f}".replace(",", ".") if total_votes is not None else "—"
+            center = f"{total_votes:,.0f}".replace(",", ".") if total_votes is not None else "â€”"
             hover = (
-                "<b>%{label}</b><br>%{value:.1f}% da distribuição<br>≈ %{customdata:,.0f} votos estimados<extra></extra>"
-                if estimated_votes is not None else "<b>%{label}</b><br>%{value:.1f}% da distribuição<extra></extra>"
+                "<b>%{label}</b><br>%{value:.1f}% da distribuiÃ§Ã£o<br>â‰ˆ %{customdata:,.0f} votos estimados<extra></extra>"
+                if estimated_votes is not None else "<b>%{label}</b><br>%{value:.1f}% da distribuiÃ§Ã£o<extra></extra>"
             )
             fig = go.Figure(go.Pie(
                 labels=labels, values=values, hole=0.62, sort=False,
@@ -134,4 +134,5 @@ def render_electorate_distribution(read_parquet: Callable[[str], pd.DataFrame | 
                               "showarrow": False, "font": {"size": 24, "color": "#f8fbff"}}],
             )
             st.plotly_chart(fig, use_container_width=True, key="dna_distribution_donut", config={"displayModeBar": False})
-            st.caption("Os percentuais são estimativas de dimensões separadas; as categorias exibidas não representam cruzamentos entre perfis.")
+            st.caption("Os percentuais sÃ£o estimativas de dimensÃµes separadas; as categorias exibidas nÃ£o representam cruzamentos entre perfis.")
+

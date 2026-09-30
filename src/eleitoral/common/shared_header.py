@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import base64
 import html
@@ -481,12 +481,12 @@ def _page_switch(active_page: str) -> str:
 def render_page_header(active_page: str) -> None:
     deputado = selected_deputado_label()
     page_titles = {
-        "raio_x": f"RAIO X da votação {deputado['ano']}",
+        "raio_x": f"RAIO X da votaÃ§Ã£o {deputado['ano']}",
         "dna": "DNA do Eleitor",
     }
     page_subtitles = {
-        "raio_x": "Análises descritivas geográficas e do perfil do eleitor na última eleição.",
-        "dna": "Quem é, onde está e como se comporta o eleitor determinante da candidatura.",
+        "raio_x": "AnÃ¡lises descritivas geogrÃ¡ficas e do perfil do eleitor na Ãºltima eleiÃ§Ã£o.",
+        "dna": "Quem Ã©, onde estÃ¡ e como se comporta o eleitor determinante da candidatura.",
     }
     title = page_titles.get(active_page, page_titles["raio_x"])
     subtitle = page_subtitles.get(active_page, page_subtitles["raio_x"])
@@ -525,12 +525,13 @@ def major_section_header(title: str, subtitle: str) -> None:
     )
 
 
-def visualization_placeholder(label: str = "Área reservada para visualização") -> None:
+def visualization_placeholder(label: str = "Ãrea reservada para visualizaÃ§Ã£o") -> None:
     st.html(
         dedent(f"""
         <div class="dna-placeholder-card">
             <div class="dna-placeholder-label">{html.escape(label)}</div>
-            <div class="dna-placeholder-text">As visualizações desta seção serão inseridas aqui.</div>
+            <div class="dna-placeholder-text">As visualizaÃ§Ãµes desta seÃ§Ã£o serÃ£o inseridas aqui.</div>
         </div>
         """)
     )
+

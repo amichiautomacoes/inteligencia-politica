@@ -10,13 +10,13 @@ import pandas as pd
 import streamlit as st
 
 from hf_sync import file_by_kind, load_env, load_parquet
-from pages.cluster_cards import cluster_cards_html
-from pages.dna_copy import sentence_label
-from pages.dna_distribution import render_electorate_distribution
-from pages.dna_expansion import render_vote_expansion
-from pages.dna_geo_reference import load_geo_reference
-from pages.deck_maps import deck_geojson, municipality_features, ramp
-from pages.shared_header import (
+from eleitoral.dna.cluster_cards import cluster_cards_html
+from eleitoral.common.dna_copy import sentence_label
+from eleitoral.dna.dna_distribution import render_electorate_distribution
+from eleitoral.dna.dna_expansion import render_vote_expansion
+from eleitoral.maps.dna_geo_reference import load_geo_reference
+from eleitoral.maps.deck_maps import deck_geojson, municipality_features, ramp
+from eleitoral.common.shared_header import (
     apply_shared_visual_model,
     major_section_header,
     render_page_header,
@@ -548,3 +548,4 @@ for index, (section_title, section_subtitle) in enumerate(DNA_SECTIONS):
         render_vote_expansion()
     else:
         render_electorate_distribution(_read_selected_parquet)
+

@@ -1,8 +1,16 @@
-from __future__ import annotations
+﻿from __future__ import annotations
+
+import sys
+from pathlib import Path
 
 import streamlit as st
 
 from hf_sync import data_files, deputados_index
+
+
+SRC_DIR = Path(__file__).resolve().parent / "src"
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
 
 
 def _cargo_label(value: str) -> str:
@@ -76,3 +84,4 @@ with st.sidebar:
 
 current_page = st.navigation(pages, position="sidebar")
 current_page.run()
+

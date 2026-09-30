@@ -19,6 +19,7 @@ RUN pip install --no-cache-dir --upgrade pip \
 COPY app.py .
 COPY hf_sync.py .
 COPY pages ./pages
+COPY src ./src
 COPY assets ./assets
 COPY .streamlit/config.toml ./.streamlit/config.toml
 

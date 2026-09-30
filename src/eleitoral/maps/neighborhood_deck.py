@@ -2,8 +2,8 @@
 from __future__ import annotations
 import html
 import pandas as pd
-from pages.deck_maps import deck_geojson, ramp, zoom_for_bounds
-from pages.dna_geo_reference import load_geo_layer, load_municipality_sectors
+from eleitoral.maps.deck_maps import deck_geojson, ramp, zoom_for_bounds
+from eleitoral.maps.dna_geo_reference import load_geo_layer, load_municipality_sectors
 
 def detailed_map(votes: pd.DataFrame, municipality_code: int):
     votes = votes.copy()
@@ -37,3 +37,4 @@ def selected_context(event: object) -> dict[str, str]:
     if not selected: return {}
     props = selected[0].get("properties", selected[0])
     return {"nome_bairro": html.unescape(str(props.get("nome", "")))} if props.get("nome") else {}
+

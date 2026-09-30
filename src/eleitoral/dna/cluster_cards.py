@@ -1,11 +1,11 @@
-"""HTML presentation of electoral clusters inside the DNA subsection."""
+﻿"""HTML presentation of electoral clusters inside the DNA subsection."""
 from __future__ import annotations
 
 import html
 
 import pandas as pd
 
-from pages.dna_copy import sentence_label
+from eleitoral.common.dna_copy import sentence_label
 
 
 def cluster_cards_html(profiles: list[dict]) -> str:
@@ -20,8 +20,8 @@ def cluster_cards_html(profiles: list[dict]) -> str:
         share = sum(p["share"] for p in members)
         summary.append(
             f'<div class="dna-base-summary-item"><span>{esc(sentence_label(classification))}</span>'
-            f'<strong>{percent(share) if members else "—"}</strong>'
-            f'<small>{"da votação do candidato" if members else "Sem perfil nesta classificação"}</small></div>'
+            f'<strong>{percent(share) if members else "â€”"}</strong>'
+            f'<small>{"da votaÃ§Ã£o do candidato" if members else "Sem perfil nesta classificaÃ§Ã£o"}</small></div>'
         )
         for profile in sorted(members, key=lambda p: p["share"], reverse=True):
             bars = []
@@ -35,28 +35,28 @@ def cluster_cards_html(profiles: list[dict]) -> str:
                 )
                 bars.append(
                     f'<div class="dna-base-demographic"><div><span>{esc(label)}</span>'
-                    f'<strong>{percent(value) if valid else "Não informado"}</strong></div>'
+                    f'<strong>{percent(value) if valid else "NÃ£o informado"}</strong></div>'
                     f'<p>{esc(sentence_label(category))}</p>{bar}</div>'
                 )
             votes = f'{profile["votes"]:,.0f}'.replace(",", ".")
             cards.append(f'''<details class="dna-base-profile">
                 <summary class="dna-base-profile-summary">
                     <span class="dna-base-profile-heading">
-                        <span class="dna-base-classification">{esc(sentence_label(classification))} · ICP {esc(profile["id"])}</span>
+                        <span class="dna-base-classification">{esc(sentence_label(classification))} Â· ICP {esc(profile["id"])}</span>
                         <span class="dna-base-persona">{esc(sentence_label(profile["persona"]))}</span>
                     </span>
-                    <span class="dna-base-profile-result"><strong>{percent(profile["share"])}</strong><small>da votação do candidato · {votes} votos</small></span>
+                    <span class="dna-base-profile-result"><strong>{percent(profile["share"])}</strong><small>da votaÃ§Ã£o do candidato Â· {votes} votos</small></span>
                     <span class="dna-base-chevron" aria-hidden="true"></span>
                 </summary>
                 <div class="dna-base-profile-content">
                     <div class="dna-base-demographics">{''.join(bars)}</div>
                     <p class="dna-base-note">Percentuais das categorias dominantes dentro deste perfil.</p>
-                    <div class="dna-base-reason"><strong>Leitura estratégica</strong><p>{esc(profile["reason"])}</p></div>
+                    <div class="dna-base-reason"><strong>Leitura estratÃ©gica</strong><p>{esc(profile["reason"])}</p></div>
                 </div>
             </details>''')
     content = (
         f'<div class="dna-base-summary">{"".join(summary)}</div><div class="dna-base-list">{"".join(cards)}</div>'
-        if profiles else '<p class="dna-base-note">Perfis de clusters indisponíveis para este candidato.</p>'
+        if profiles else '<p class="dna-base-note">Perfis de clusters indisponÃ­veis para este candidato.</p>'
     )
     return f'''<style>
     .dna-base-section {{margin:28px 0;padding:30px;border:1px solid rgba(96,165,250,.3);border-radius:20px;background:linear-gradient(135deg,rgba(11,31,77,.76),rgba(7,24,54,.68));color:#eaf2ff;box-shadow:0 12px 30px rgba(0,0,0,.14)}}
@@ -93,4 +93,5 @@ def cluster_cards_html(profiles: list[dict]) -> str:
     .dna-base-reason p {{margin:8px 0 0;color:#b7c7e6}}
     @media(max-width:700px) {{.dna-base-profile-summary {{align-items:flex-start;flex-wrap:wrap;gap:12px}}.dna-base-profile-result {{align-items:flex-start;white-space:normal}}.dna-base-chevron {{margin-left:auto}}}}
     @media(max-width:600px) {{.dna-base-section {{padding:18px}}.dna-base-summary,.dna-base-demographics {{grid-template-columns:1fr}}.dna-base-profile-summary {{padding:16px}}.dna-base-profile-content {{padding:18px 16px}}}}
-    </style><section class="dna-base-section" aria-label="Base eleitoral do candidato"><div class="dna-base-heading"><h3>BASE ELEITORAL DO CANDIDATO</h3><p class="dna-base-intro">Quais perfis sustentam a candidatura e qual o peso de cada um na votação?</p></div>{content}</section>'''
+    </style><section class="dna-base-section" aria-label="Base eleitoral do candidato"><div class="dna-base-heading"><h3>BASE ELEITORAL DO CANDIDATO</h3><p class="dna-base-intro">Quais perfis sustentam a candidatura e qual o peso de cada um na votaÃ§Ã£o?</p></div>{content}</section>'''
+
