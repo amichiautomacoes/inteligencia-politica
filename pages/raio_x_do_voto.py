@@ -1216,7 +1216,7 @@ def _render_neighborhood_side_cards(
         rows["qt_votos"] = pd.to_numeric(rows["qt_votos"], errors="coerce").fillna(0)
         rows = rows[rows["nm_bairro"].ne("")]
         by_name = rows.groupby(rows["nm_bairro"].map(_normalized_text))["qt_votos"].sum()
-        by_name = by_name[by_name.index.ne("")]
+        by_name = by_name[by_name.index != ""]
         total = float(by_name.sum())
         with_votes = int(by_name.gt(0).sum())
         leader_key = str(by_name.idxmax()) if total > 0 else ""
@@ -2759,7 +2759,12 @@ with detail_map_col:
         if map_note and neighborhood_fig is not None:
             st.caption(map_note)
 with detail_cards_col:
-    _render_neighborhood_side_cards(neighborhood_df, municipio, neighborhood_fig, map_note)
+    st.markdown(
+        '<div class="raiox-map-side-cards">'
+        + '<div class="raiox-map-side-card"></div>' * 4
+        + '</div>',
+        unsafe_allow_html=True,
+    )
 
 _major_section_header(
     "Força da política local",

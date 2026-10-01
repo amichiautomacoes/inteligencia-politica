@@ -37,7 +37,7 @@ pages/
 
 Os módulos de `src/eleitoral` são importados pelas páginas. As malhas GeoParquet são lidas com pandas, convertidas para GeoJSON e entregues a `plotly.express.choropleth`.
 
-No Raio X, o total de votos aparece no cabeçalho. O mapa estadual tem o card **Território líder** acima dele e quatro indicadores laterais. O mapa municipal ocupa 70% da linha, com filtros de mesorregião e município no próprio card e quatro indicadores laterais de bairros. Ele usa a malha oficial de bairros quando disponível; caso contrário, a legenda identifica a malha alternativa. **Força da política local** aparece como seção com card vazio, reservada para análise futura. A seção de concentração reúne as roscas Top 1/5/15/20. O mapa parlamentar traz a explicação das classes na própria legenda. Na seção de custos, treemap e gráfico territorial ocupam cards lado a lado.
+No Raio X, o total de votos aparece no cabeçalho. O mapa estadual tem o card **Território líder** acima dele e quatro indicadores laterais. O mapa municipal ocupa 70% da linha, com filtros de mesorregião e município no próprio card e quatro cards laterais vazios. Ele usa a malha oficial de bairros quando disponível; caso contrário, a legenda identifica a malha alternativa. **Força da política local** aparece como seção com card vazio, reservada para análise futura. A seção de concentração reúne as roscas Top 1/5/15/20. O mapa parlamentar traz a explicação das classes na própria legenda. Na seção de custos, treemap e gráfico territorial ocupam cards lado a lado.
 
 ## Dados do Hugging Face
 
