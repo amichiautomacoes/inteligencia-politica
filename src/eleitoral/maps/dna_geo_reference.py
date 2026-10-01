@@ -17,14 +17,27 @@ GEOGRAPHY_FILES = {
     "mesorregiao": "MG_mesorregioes_2022.parquet",
     "area_ponderada": "MG_AreaPonderada_CD2022.parquet",
     "bairro": "MG_bairros_CD2022.parquet",
-    "setor": "MG_setores_CD2022.parquet",
+    "setor": "MG_setores_mapa_CD2022.parquet",
+}
+
+GEOGRAPHY_COLUMNS = {
+    "municipio": ["code_muni", "name_muni", "geometry"],
+    "mesorregiao": ["name_meso", "geometry"],
+    "area_ponderada": ["code_muni", "code_weighting", "geometry"],
+    "bairro": ["code_muni", "code_neighborhood", "name_neighborhood", "geometry"],
+    "setor": ["code_tract", "code_muni", "geometry"],
 }
 
 MUNICIPAL_GEOMETRY_TOLERANCE = 0.002
 
 
 def geography_path(env: dict[str, str], filename: str) -> str:
-    prefix = env.get("HF_GEOGRAPHY_PREFIX", "IBGE/MG/dadosterritorio").strip("/")
+    prefix = env.get("HF_GEOGRAPHY_PREFIX", "IBGE/malha_mapas").strip("/")
+    return f"{env['HF_BUCKET_URL'].rstrip('/')}/{prefix}/{filename}"
+
+
+def geography_reference_path(env: dict[str, str], filename: str) -> str:
+    prefix = env.get("HF_GEOGRAPHY_REFERENCE_PREFIX", "IBGE/MG/dadosterritorio").strip("/")
     return f"{env['HF_BUCKET_URL'].rstrip('/')}/{prefix}/{filename}"
 
 
@@ -32,12 +45,14 @@ def geography_path(env: dict[str, str], filename: str) -> str:
 def load_sector_neighborhood_lookup() -> pd.DataFrame:
     """Read the compact sector-to-neighborhood index, without geometries."""
     env = load_env()
-    path = geography_path(env, "setor_bairro_lookup.parquet")
+    path = geography_reference_path(env, "setor_bairro_lookup.parquet")
     with hf_filesystem(env.get("HF_TOKEN")).open(path, "rb") as source:
         return pd.read_parquet(source)
 
 
-def _read_geo_parquet(path: str, *, filters: list[tuple] | None = None) -> pd.DataFrame:
+def _read_geo_parquet(
+    path: str, *, columns: list[str], filters: list[tuple] | None = None
+) -> pd.DataFrame:
     """Read GeoParquet with pandas and decode its WKB geometry for Plotly."""
     env = load_env()
     with hf_filesystem(env.get("HF_TOKEN")).open(path, "rb") as source:
@@ -48,7 +63,7 @@ def _read_geo_parquet(path: str, *, filters: list[tuple] | None = None) -> pd.Da
         if not crs_value:
             raise ValueError(f"A malha {path} não informa o sistema de coordenadas.")
         source.seek(0)
-        layer = pd.read_parquet(source, filters=filters)
+        layer = pd.read_parquet(source, columns=columns, filters=filters)
     source_crs = CRS.from_user_input(crs_value)
     target_crs = CRS.from_epsg(4326)
     transformer = None if source_crs == target_crs else Transformer.from_crs(source_crs, target_crs, always_xy=True)
@@ -65,7 +80,11 @@ def load_municipality_sectors(municipality_code: int) -> pd.DataFrame:
     """Read one municipality from the compact, row-grouped sector map."""
     env = load_env()
     path = geography_path(env, "MG_setores_mapa_CD2022.parquet")
-    return _read_geo_parquet(path, filters=[("code_muni", "==", int(municipality_code))])
+    return _read_geo_parquet(
+        path,
+        columns=GEOGRAPHY_COLUMNS["setor"],
+        filters=[("code_muni", "==", int(municipality_code))],
+    )
 
 
 @st.cache_data(show_spinner=False)
@@ -78,7 +97,7 @@ def load_geo_layer(granularity: str) -> pd.DataFrame:
     if not bucket_url:
         raise RuntimeError("HF_BUCKET_URL nÃ£o foi configurado.")
     path = geography_path(env, GEOGRAPHY_FILES[granularity])
-    return _read_geo_parquet(path)
+    return _read_geo_parquet(path, columns=GEOGRAPHY_COLUMNS[granularity])
 
 
 @st.cache_data(show_spinner=False)
@@ -92,12 +111,13 @@ def load_geo_reference() -> tuple[dict | None, pd.DataFrame | None, pd.DataFrame
     try:
         municipalities = load_geo_layer("municipio")[["code_muni", "name_muni", "geometry"]]
         mesoregions = load_geo_layer("mesorregiao")[["name_meso", "geometry"]]
-        with fs.open(geography_path(env, "municipios_mg_mesorregioes.parquet"), "rb") as source:
+        with fs.open(geography_reference_path(env, "municipios_mg_mesorregioes.parquet"), "rb") as source:
             reference = pd.read_parquet(source)
     except Exception as exc:
         st.warning(
             "Não foi possível carregar a malha municipal de MG. "
-            f"Prefixo: {env.get('HF_GEOGRAPHY_PREFIX', 'IBGE/MG/dadosterritorio')}. "
+            f"Prefixo das malhas: {env.get('HF_GEOGRAPHY_PREFIX', 'IBGE/malha_mapas')}. "
+            f"Prefixo das referências: {env.get('HF_GEOGRAPHY_REFERENCE_PREFIX', 'IBGE/MG/dadosterritorio')}. "
             f"Detalhe: {exc}"
         )
         return None, None, None, None

@@ -19,6 +19,7 @@ env/
 
 # Local data/cache generated outside the visualization source
 data/
+terriorio/
 downloads/
 tmp/
 temp/
@@ -29,4 +30,3 @@ temp/
 Thumbs.db
 .idea/
 .vscode/
-

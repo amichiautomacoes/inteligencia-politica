@@ -269,16 +269,12 @@ def detailed_map(votes: pd.DataFrame, municipality_code: int):
     if not bairros.empty:
         source_kind = "bairro"
         geometry, source, id_col = bairros.drop_duplicates("code_neighborhood"), "bairros oficiais do IBGE", "code_neighborhood"
-        names = votes.groupby(votes["nm_bairro"].map(_normalized_name))["qt_votos"].sum() if "nm_bairro" in votes else pd.Series(dtype=float)
-        vote_labels = (
-            votes.dropna(subset=["nm_bairro"]).groupby(votes["nm_bairro"].map(_normalized_name))["nm_bairro"].first()
-            if "nm_bairro" in votes else pd.Series(dtype=str)
+        geometry, matched_votes = _bind_fallback_votes(
+            geometry, votes, shape_code=id_col, vote_code="cd_ibge_bairro"
         )
-        geometry = geometry.copy()
-        geometry["votos"] = geometry["name_neighborhood"].map(_normalized_name).map(names).fillna(0)
-        geometry["nome"] = geometry["name_neighborhood"].astype(str)
-        geometry["context_key"] = "nm_bairro"
-        geometry["context_value"] = geometry["name_neighborhood"].map(_normalized_name).map(vote_labels).fillna("")
+        geometry["nome"] = geometry["bairros"].replace("Sem bairro eleitoral associado", "Bairro eleitoral não informado")
+        geometry["context_key"] = "cd_ibge_bairro"
+        geometry["context_value"] = geometry["_geo_code"]
     else:
         areas = load_geo_layer("area_ponderada")
         areas = areas[pd.to_numeric(areas["code_muni"], errors="coerce").eq(municipality_code)]
@@ -313,8 +309,14 @@ def detailed_map(votes: pd.DataFrame, municipality_code: int):
         "geometry": mapping(row.geometry.simplify(0.0001, preserve_topology=True)),
     } for row in geometry.itertuples(index=False)]
     geojson = {"type": "FeatureCollection", "features": features}
-    geometry["votos_cor"] = np.log1p(geometry["votos"])
-    max_color = max(1.0, float(geometry["votos_cor"].max()))
+    total_units = len(geometry)
+    active_units = int(geometry["votos"].gt(0).sum())
+    coverage = active_units / total_units
+    max_votes = float(geometry["votos"].max())
+    geometry["votos_cor"] = (
+        np.log1p(geometry["votos"]) / np.log1p(max_votes) * np.sqrt(coverage)
+        if max_votes > 0 else 0.0
+    )
     custom_data = ["votos", "context_key", "context_value", "nome"]
     if source_kind != "bairro":
         custom_data += ["bairros", "bairros_hover"]
@@ -322,7 +324,7 @@ def detailed_map(votes: pd.DataFrame, municipality_code: int):
         geometry, geojson, location="id", color="votos_cor",
         colors=["#9fbfe5", "#154d9c"], hover_name="nome",
         custom_data=custom_data,
-        colorbar_title="Votos", color_range=(0.0, max_color),
+        colorbar_title="Intensidade ajustada", color_range=(0.0, 1.0),
     )
     if source_kind == "bairro":
         fig.update_traces(hovertemplate="<b>%{hovertext}</b><br>Votos associados: %{customdata[0]:,.0f}<extra></extra>")
@@ -331,17 +333,14 @@ def detailed_map(votes: pd.DataFrame, municipality_code: int):
             "<b>%{hovertext}</b><br>Votos associados: %{customdata[0]:,.0f}"
             "<br>Bairros eleitorais:<br>%{customdata[5]}<extra></extra>"
         ))
-        maximum = float(geometry["votos"].max())
-        ticks = np.unique(np.rint(np.linspace(0, maximum, 5)).astype(int))
-        fig.update_coloraxes(colorbar={
-            "title": "Votos", "tickvals": np.log1p(ticks).tolist(),
-            "ticktext": [f"{value:,.0f}".replace(",", ".") for value in ticks],
-        })
-    note = f"Malha: {source}. Votos e legenda: bairros eleitorais de stage01b_bairros."
-    if source_kind != "bairro":
-        unmatched = max(0, round(float(votes["qt_votos"].sum()) - matched_votes))
-        if unmatched:
-            note += f" {unmatched:,} votos sem correspondência com esta malha.".replace(",", ".")
+    note = f"Malha territorial: {source}. Cruzamento por código; nomes dos bairros e votos vêm de stage01b_bairros. Bairros no mesmo polígono têm os votos somados."
+    note += (
+        f" Cor: votos por polígono em escala logarítmica, ajustada pela cobertura territorial "
+        f"({active_units} de {total_units} unidades com votos)."
+    )
+    unmatched = max(0, round(float(votes["qt_votos"].sum()) - matched_votes))
+    if unmatched:
+        note += f" {unmatched:,} votos sem correspondência com esta malha.".replace(",", ".")
     return fig, note
 
 

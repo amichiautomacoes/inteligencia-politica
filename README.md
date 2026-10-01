@@ -46,11 +46,12 @@ Configure as variáveis no ambiente de execução. O token não deve ser version
 ```env
 HF_BUCKET_URL="hf://buckets/amichianalista/mkt-politico"
 HF_VISUALIZACAO_PREFIX="deputados"
-HF_GEOGRAPHY_PREFIX="IBGE/MG/dadosterritorio"
+HF_GEOGRAPHY_PREFIX="IBGE/malha_mapas"
+HF_GEOGRAPHY_REFERENCE_PREFIX="IBGE/MG/dadosterritorio"
 HF_TOKEN="seu_token"
 ```
 
-`HF_VISUALIZACAO_PREFIX` aponta para os dados eleitorais dos candidatos. `HF_GEOGRAPHY_PREFIX` aponta para os GeoParquets e tabelas de referência territorial.
+`HF_VISUALIZACAO_PREFIX` aponta para os dados eleitorais dos candidatos. `HF_GEOGRAPHY_PREFIX` aponta para as malhas otimizadas dos mapas. `HF_GEOGRAPHY_REFERENCE_PREFIX` aponta para as tabelas de referência territorial, que permanecem na pasta original.
 
 As principais malhas são:
 
@@ -58,10 +59,9 @@ As principais malhas são:
 - `MG_mesorregioes_2022.parquet`
 - `MG_AreaPonderada_CD2022.parquet`
 - `MG_bairros_CD2022.parquet`
-- `MG_setores_CD2022.parquet`
 - `MG_setores_mapa_CD2022.parquet`
-- `municipios_mg_mesorregioes.parquet`
-- `setor_bairro_lookup.parquet`
+
+As tabelas `municipios_mg_mesorregioes.parquet` e `setor_bairro_lookup.parquet` continuam em `HF_GEOGRAPHY_REFERENCE_PREFIX`.
 
 ## Execução local
 
