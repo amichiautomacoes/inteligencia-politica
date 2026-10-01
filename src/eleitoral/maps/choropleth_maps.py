@@ -266,7 +266,9 @@ def detailed_map(votes: pd.DataFrame, municipality_code: int):
     votes["qt_votos"] = pd.to_numeric(votes.get("qt_votos"), errors="coerce").fillna(0)
     bairros = load_geo_layer("bairro")
     bairros = bairros[pd.to_numeric(bairros["code_muni"], errors="coerce").eq(municipality_code)]
-    if not bairros.empty:
+    neighborhood_vote_codes = set(votes["cd_ibge_bairro"].map(_code)) if "cd_ibge_bairro" in votes else set()
+    official_codes = set(bairros["code_neighborhood"].map(_code)) if not bairros.empty else set()
+    if official_codes.intersection(neighborhood_vote_codes):
         source_kind = "bairro"
         geometry, source, id_col = bairros.drop_duplicates("code_neighborhood"), "bairros oficiais do IBGE", "code_neighborhood"
         geometry, matched_votes = _bind_fallback_votes(
@@ -279,15 +281,15 @@ def detailed_map(votes: pd.DataFrame, municipality_code: int):
         areas = load_geo_layer("area_ponderada")
         areas = areas[pd.to_numeric(areas["code_muni"], errors="coerce").eq(municipality_code)]
         area_codes = set(areas["code_weighting"].map(_code)) if not areas.empty else set()
-        vote_area_codes = set(votes["cd_area_ponderada"].map(_code)) if "cd_area_ponderada" in votes else set()
+        vote_area_codes = set(votes["cd_ibge_bairro"].map(_code)) if "cd_ibge_bairro" in votes else set()
         if len(areas) > 5 and area_codes.intersection(vote_area_codes):
             source_kind = "area_ponderada"
             geometry, source, id_col = areas.drop_duplicates("code_weighting"), "áreas ponderadas do IBGE", "code_weighting"
             geometry, matched_votes = _bind_fallback_votes(
-                geometry, votes, shape_code=id_col, vote_code="cd_area_ponderada"
+                geometry, votes, shape_code=id_col, vote_code="cd_ibge_bairro"
             )
             geometry["nome"] = "Área ponderada " + geometry["_geo_code"]
-            geometry["context_key"] = "cd_area_ponderada"
+            geometry["context_key"] = "cd_ibge_bairro"
             geometry["context_value"] = geometry["_geo_code"]
         else:
             source_kind = "setor"
