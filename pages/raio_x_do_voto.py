@@ -15,7 +15,11 @@ import streamlit as st
 from hf_sync import data_files, file_by_kind, hf_filesystem, load_env, load_parquet, selected_deputado_files
 from eleitoral.maps.dna_geo_reference import load_geo_reference
 from eleitoral.maps.choropleth_maps import parliamentary_map, territorial_map
-from eleitoral.maps.territorial_mesh import municipality_mesh_map, municipality_options
+from eleitoral.maps.territorial_mesh import (
+    mesoregion_options,
+    municipality_mesh_map,
+    municipality_options,
+)
 from eleitoral.common.shared_header import render_page_header
 
 try:
@@ -2667,13 +2671,23 @@ detail_map_col, detail_cards_col = st.columns([0.70, 0.30], gap="large")
 with detail_map_col:
     with st.container(border=True):
         try:
-            municipality_choices = municipality_options()
-            selected_code = st.selectbox(
-                "Município",
-                [code for code, _ in municipality_choices],
-                format_func=dict(municipality_choices).get,
-                key="pagina1_municipio_malha",
+            mesoregions = mesoregion_options()
+            selected_mesorregiao = st.selectbox(
+                "Mesorregião",
+                ["Todas", *mesoregions],
+                key="pagina1_malha_mesorregiao",
             )
+            municipality_choices = municipality_options(selected_mesorregiao)
+            if not municipality_choices:
+                selected_code = None
+                st.info("Nenhum município disponível para a mesorregião selecionada.")
+            else:
+                selected_code = st.selectbox(
+                    "Município",
+                    [code for code, _ in municipality_choices],
+                    format_func=dict(municipality_choices).get,
+                    key=f"pagina1_municipio_malha_{selected_mesorregiao}",
+                )
             if selected_code is not None:
                 mesh_fig, _ = municipality_mesh_map(selected_code, votos_bairro_df)
                 if mesh_fig is None:

@@ -7,14 +7,47 @@ import html
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
-from shapely.geometry import mapping
+from shapely.geometry import Point, mapping
 
-from eleitoral.maps.dna_geo_reference import load_geo_layer, load_municipality_sectors
+from eleitoral.maps.dna_geo_reference import (
+    load_geo_layer,
+    load_geo_reference,
+    load_municipality_sectors,
+    load_sector_neighborhood_lookup,
+)
 
 
-def municipality_options() -> list[tuple[int, str]]:
+def mesoregion_options() -> list[str]:
+    """Return the official Minas Gerais mesoregions used by the filters."""
+    _, _, _, regions = load_geo_reference()
+    if regions is None or regions.empty or "mesorregiao_nome" not in regions.columns:
+        return []
+    return sorted(
+        {
+            str(value).strip()
+            for value in regions["mesorregiao_nome"].dropna()
+            if str(value).strip()
+        },
+        key=str.casefold,
+    )
+
+
+def municipality_options(mesorregiao: str | None = None) -> list[tuple[int, str]]:
     municipalities = load_geo_layer("municipio")
     rows = municipalities[["code_muni", "name_muni"]].dropna().drop_duplicates("code_muni")
+    if mesorregiao and mesorregiao != "Todas":
+        _, _, _, regions = load_geo_reference()
+        if regions is not None and not regions.empty and {
+            "codigo_ibge", "mesorregiao_nome"
+        }.issubset(regions.columns):
+            selected_codes = pd.to_numeric(
+                regions.loc[
+                    regions["mesorregiao_nome"].astype(str).str.strip().eq(mesorregiao),
+                    "codigo_ibge",
+                ],
+                errors="coerce",
+            ).dropna().astype(int)
+            rows = rows.loc[pd.to_numeric(rows["code_muni"], errors="coerce").isin(selected_codes)]
     return sorted(
         ((int(row.code_muni), str(row.name_muni)) for row in rows.itertuples(index=False)),
         key=lambda item: item[1].casefold(),
@@ -45,16 +78,76 @@ def _code(value: object) -> str:
     return str(value).strip().removesuffix(".0")
 
 
+def _attach_coordinate_matches(rows: pd.DataFrame, mesh: pd.DataFrame) -> pd.DataFrame:
+    """Associate rows without a territorial code using their polling coordinates.
+
+    ``stage01b_bairros`` contains a few electoral rows aggregated by bairro where
+    the census-sector code is empty or does not belong to the selected mesh.  A
+    strict code-only join silently drops those votes.  Coordinates are the only
+    non-invented fallback available in that situation, so assign each row to the
+    polygon that contains its polling point (or the nearest polygon when a point
+    lies exactly on a boundary).
+    """
+    if rows.empty or not {"nr_latitude", "nr_longitude"}.issubset(rows.columns):
+        return rows
+
+    unmatched = rows[rows["_code"].eq("") | ~rows["_code"].isin(mesh["id"])].copy()
+    if unmatched.empty:
+        return rows
+
+    lat = pd.to_numeric(unmatched["nr_latitude"], errors="coerce")
+    lon = pd.to_numeric(unmatched["nr_longitude"], errors="coerce")
+    valid = lat.between(-23.5, -14.0) & lon.between(-52.5, -39.0)
+    if not valid.any():
+        return rows
+
+    geometries = list(mesh["geometry"])
+    ids = list(mesh["id"])
+    for index in unmatched.index[valid]:
+        point = Point(float(lon.loc[index]), float(lat.loc[index]))
+        containing = [position for position, geometry in enumerate(geometries) if geometry.covers(point)]
+        if containing:
+            rows.loc[index, "_code"] = ids[containing[0]]
+            continue
+        # A polling point can be a few metres outside a simplified polygon.
+        nearest = min(range(len(geometries)), key=lambda position: geometries[position].distance(point))
+        if geometries[nearest].distance(point) <= 0.002:
+            rows.loc[index, "_code"] = ids[nearest]
+    return rows
+
+
 def municipality_mesh_map(
     municipality_code: int, votes: pd.DataFrame | None,
 ) -> tuple[go.Figure | None, int]:
-    kind, mesh, code_column, _ = municipality_mesh(municipality_code)
+    kind, mesh, code_column, label_column = municipality_mesh(municipality_code)
     mesh = mesh.dropna(subset=[code_column, "geometry"]).copy()
     mesh = mesh.loc[mesh["geometry"].map(lambda shape: not shape.is_empty)]
     mesh["id"] = mesh[code_column].map(_code)
     mesh = mesh.loc[mesh["id"].ne("")].drop_duplicates("id")
     if mesh.empty:
         return None, 0
+
+    # Official neighborhood geometry carries its own name. The compact sector
+    # geometry does not, so recover the corresponding IBGE neighborhood names
+    # from the lightweight sector lookup when it is available.
+    mesh["_mesh_name"] = ""
+    if label_column in mesh.columns and label_column != code_column:
+        mesh["_mesh_name"] = mesh[label_column].fillna("").astype(str).str.strip()
+    if kind == "setor":
+        try:
+            lookup = load_sector_neighborhood_lookup()
+            if {"cd_setor_censitario", "nome_bairro_ibge"}.issubset(lookup.columns):
+                lookup = lookup.copy()
+                lookup["_code"] = lookup["cd_setor_censitario"].map(_code)
+                lookup["_name"] = lookup["nome_bairro_ibge"].fillna("").astype(str).str.strip()
+                lookup = lookup.loc[lookup["_code"].ne("") & lookup["_name"].ne("")]
+                names = lookup.groupby("_code")["_name"].apply(
+                    lambda values: " / ".join(dict.fromkeys(values))
+                )
+                mesh["_mesh_name"] = mesh["id"].map(names).fillna(mesh["_mesh_name"])
+        except Exception:
+            # The map remains usable if the optional reference table is absent.
+            pass
 
     vote_code = {
         "bairro": "cd_ibge_bairro",
@@ -68,6 +161,7 @@ def municipality_mesh_map(
     rows["_code"] = rows[vote_code].map(_code)
     rows["_name"] = rows["nm_bairro"].fillna("").astype(str).str.strip()
     rows["qt_votos"] = pd.to_numeric(rows["qt_votos"], errors="coerce").fillna(0)
+    rows = _attach_coordinate_matches(rows, mesh)
     rows = rows.loc[rows["_code"].ne("")]
     by_neighborhood = rows.groupby(["_code", "_name"], as_index=False)["qt_votos"].sum()
     by_neighborhood["_name"] = by_neighborhood["_name"].replace("", "Bairro não informado")
@@ -85,7 +179,16 @@ def municipality_mesh_map(
     matched_rows = rows.loc[rows["_code"].isin(mesh["id"]), "qt_votos"].sum()
     if not np.isclose(mesh["votes"].sum(), matched_rows):
         raise ValueError("A soma dos votos na malha diverge dos registros eleitorais associados.")
-    mesh["details"] = mesh["id"].map(details).fillna("Sem votos associados")
+    mesh["details"] = mesh["id"].map(details).fillna("")
+    mesh["details"] = mesh.apply(
+        lambda row: row["details"]
+        if row["details"]
+        else (
+            f"{html.escape(row['_mesh_name'])}: 0 votos"
+            if row["_mesh_name"] else "Sem votos associados"
+        ),
+        axis=1,
+    )
     mesh["total_label"] = mesh["votes"].map(lambda value: f"{int(value):,}".replace(",", "."))
     active_share = float(mesh["votes"].gt(0).mean())
     max_votes = float(mesh["votes"].max())
