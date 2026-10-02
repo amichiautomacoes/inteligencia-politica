@@ -39,12 +39,12 @@ def _canonical(value: object) -> str:
 
 
 def _area_codes(values: pd.Series) -> pd.Series:
-    return values.fillna("").astype(str).str.replace(r"\D", "", regex=True)
+    return values.astype("string")
 
 
 def _municipality_codes(values: pd.Series) -> pd.Series:
     digits = _area_codes(values).str[:7]
-    return digits.str.zfill(7).where(digits.str.len().ge(7))
+    return digits.where(digits.str.len().eq(7))
 
 
 def _census_area_profiles(
@@ -302,7 +302,7 @@ def _expansion_map(city_data: pd.DataFrame) -> object | None:
     geojson, _, municipalities, _ = load_geo_reference()
     if not geojson or municipalities is None or municipalities.empty:
         return None
-    geo_ids = sorted({str(feature.get("properties", {}).get("id", "")).zfill(7) for feature in geojson.get("features", [])})
+    geo_ids = sorted({str(feature.get("properties", {}).get("id", "")) for feature in geojson.get("features", [])})
     if not geo_ids:
         return None
     frame = pd.DataFrame({"codigo_ibge": geo_ids})

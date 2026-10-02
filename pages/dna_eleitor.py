@@ -250,9 +250,8 @@ def _canonical_text(value: object) -> str:
 
 
 def _municipality_codes(values: pd.Series) -> pd.Series:
-    digits = values.fillna("").astype(str).str.replace(r"\D", "", regex=True)
-    codes = digits.str[:7]
-    return codes.str.zfill(7).where(digits.str.len().ge(7))
+    codes = values.astype("string").str.slice(0, 7)
+    return codes.where(codes.str.len().eq(7))
 
 
 def _census_demographics(
@@ -385,7 +384,7 @@ def _candidate_votes_by_ibge(source_rows: pd.DataFrame) -> pd.DataFrame:
     if source_rows.empty or "votos_candidato" not in source_rows or "cd_municipio" not in source_rows:
         return pd.DataFrame(columns=["codigo_ibge", "votos_candidato"])
     votes = source_rows.copy()
-    votes["cd_municipio"] = pd.to_numeric(votes["cd_municipio"], errors="coerce").astype("Int64")
+    votes["cd_municipio"] = votes["cd_municipio"].astype("string")
     votes["votos_candidato"] = pd.to_numeric(votes["votos_candidato"], errors="coerce").fillna(0)
     votes = votes.groupby("cd_municipio", as_index=False)["votos_candidato"].sum()
     _, df_tse, _, _ = load_geo_reference()
@@ -404,7 +403,7 @@ def _potential_map(
     geojson_mg, _, municipalities, _ = load_geo_reference()
     if not geojson_mg or municipalities is None or municipalities.empty:
         return None, "A referência geográfica de Minas Gerais não está disponível."
-    geo_ids = sorted({str(feature.get("properties", {}).get("id", "")).zfill(7) for feature in geojson_mg.get("features", [])})
+    geo_ids = sorted({str(feature.get("properties", {}).get("id", "")) for feature in geojson_mg.get("features", [])})
     if not geo_ids:
         return None, "A malha municipal de Minas Gerais está vazia."
     frame = pd.DataFrame({"codigo_ibge_str": geo_ids})

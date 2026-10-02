@@ -98,21 +98,21 @@ def territorial_map(votes: pd.DataFrame | None, kind: str):
             if rows.any():
                 frame = frame[rows]
         if "cd_ibge_municipio" in frame.columns:
-            frame["codigo_ibge"] = pd.to_numeric(frame["cd_ibge_municipio"], errors="coerce")
+            frame["codigo_ibge"] = frame["cd_ibge_municipio"].astype("string")
         else:
             code_col = next((col for col in ("cd_municipio", "CD_MUNICIPIO", "codigo_tse") if col in frame), None)
             if code_col is None:
                 return None
-            frame["codigo_tse"] = pd.to_numeric(frame[code_col], errors="coerce")
+            frame["codigo_tse"] = frame[code_col].astype("string")
             frame = frame.merge(tse[["codigo_tse", "codigo_ibge"]], on="codigo_tse", how="left")
         frame = frame.groupby("codigo_ibge", as_index=False)["qt_votos"].sum().rename(columns={"qt_votos": "votos"})
-        frame["codigo_ibge"] = pd.to_numeric(frame["codigo_ibge"], errors="coerce").astype("Int64")
+        frame["codigo_ibge"] = frame["codigo_ibge"].astype("string")
         frame = frame.dropna(subset=["codigo_ibge"])
         frame = frame.groupby("codigo_ibge", as_index=False)["votos"].sum()
         all_cities = municipalities[["codigo_ibge", "nome"]].drop_duplicates("codigo_ibge")
         frame = all_cities.merge(frame, on="codigo_ibge", how="left")
         frame["votos"] = pd.to_numeric(frame["votos"], errors="coerce").fillna(0)
-        frame["codigo_ibge_str"] = frame["codigo_ibge"].astype(str).str.zfill(7)
+        frame["codigo_ibge_str"] = frame["codigo_ibge"].astype("string")
         frame["votos_cor"] = np.log1p(frame["votos"])
         fig = continuous_choropleth(
             frame, geojson, location="codigo_ibge_str", color="votos_cor",
@@ -173,9 +173,9 @@ def parliamentary_map(action: pd.DataFrame):
     if not geojson or action is None or action.empty:
         return None
     frame = municipalities[["codigo_ibge", "nome"]].drop_duplicates("codigo_ibge").rename(columns={"nome": "nome_malha"})
-    frame["codigo_ibge_str"] = frame["codigo_ibge"].astype(str).str.zfill(7)
+    frame["codigo_ibge_str"] = frame["codigo_ibge"].astype("string")
     action = action.copy()
-    action["codigo_ibge_str"] = action["codigo_ibge_str"].astype(str).str.zfill(7)
+    action["codigo_ibge_str"] = action["codigo_ibge_str"].astype("string")
     frame = frame.merge(action, on="codigo_ibge_str", how="left")
     frame["categoria_coerencia"] = frame["categoria_coerencia"].fillna("Sem votos nem emendas")
     frame["municipio_exibicao"] = frame["municipio_exibicao"].fillna(frame["nome_malha"])

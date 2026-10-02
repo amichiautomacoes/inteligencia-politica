@@ -32,7 +32,7 @@ def mesoregion_options() -> list[str]:
     )
 
 
-def municipality_options(mesorregiao: str | None = None) -> list[tuple[int, str]]:
+def municipality_options(mesorregiao: str | None = None) -> list[tuple[str, str]]:
     municipalities = load_geo_layer("municipio")
     rows = municipalities[["code_muni", "name_muni"]].dropna().drop_duplicates("code_muni")
     if mesorregiao and mesorregiao != "Todas":
@@ -40,42 +40,33 @@ def municipality_options(mesorregiao: str | None = None) -> list[tuple[int, str]
         if regions is not None and not regions.empty and {
             "codigo_ibge", "mesorregiao_nome"
         }.issubset(regions.columns):
-            selected_codes = pd.to_numeric(
-                regions.loc[
-                    regions["mesorregiao_nome"].astype(str).str.strip().eq(mesorregiao),
-                    "codigo_ibge",
-                ],
-                errors="coerce",
-            ).dropna().astype(int)
-            rows = rows.loc[pd.to_numeric(rows["code_muni"], errors="coerce").isin(selected_codes)]
+            selected_codes = regions.loc[
+                regions["mesorregiao_nome"].astype(str).str.strip().eq(mesorregiao),
+                "codigo_ibge",
+            ].astype("string")
+            rows = rows.loc[rows["code_muni"].astype("string").isin(selected_codes)]
     return sorted(
-        ((int(row.code_muni), str(row.name_muni)) for row in rows.itertuples(index=False)),
+        ((str(row.code_muni), str(row.name_muni)) for row in rows.itertuples(index=False)),
         key=lambda item: item[1].casefold(),
     )
 
 
-def municipality_mesh(municipality_code: int) -> tuple[str, pd.DataFrame, str, str]:
+def municipality_mesh(municipality_code: str) -> tuple[str, pd.DataFrame, str, str]:
     """Select geometry by availability, without joining electoral data."""
     neighborhoods = load_geo_layer("bairro")
     neighborhoods = neighborhoods.loc[
-        pd.to_numeric(neighborhoods["code_muni"], errors="coerce").eq(municipality_code)
+        neighborhoods["code_muni"].astype("string").eq(str(municipality_code))
     ]
     if not neighborhoods.empty:
         return "bairro", neighborhoods, "code_neighborhood", "name_neighborhood"
 
     areas = load_geo_layer("area_ponderada")
-    areas = areas.loc[pd.to_numeric(areas["code_muni"], errors="coerce").eq(municipality_code)]
+    areas = areas.loc[areas["code_muni"].astype("string").eq(str(municipality_code))]
     if areas["code_weighting"].dropna().nunique() > 8:
         return "area_ponderada", areas, "code_weighting", "code_weighting"
 
     sectors = load_municipality_sectors(municipality_code)
     return "setor", sectors, "code_tract", "code_tract"
-
-
-def _code(value: object) -> str:
-    if pd.isna(value):
-        return ""
-    return str(value).strip().removesuffix(".0")
 
 
 def _attach_coordinate_matches(rows: pd.DataFrame, mesh: pd.DataFrame) -> pd.DataFrame:
@@ -117,13 +108,13 @@ def _attach_coordinate_matches(rows: pd.DataFrame, mesh: pd.DataFrame) -> pd.Dat
 
 
 def municipality_mesh_map(
-    municipality_code: int, votes: pd.DataFrame | None,
+    municipality_code: str, votes: pd.DataFrame | None,
 ) -> tuple[go.Figure | None, int]:
     kind, mesh, code_column, label_column = municipality_mesh(municipality_code)
     mesh = mesh.dropna(subset=[code_column, "geometry"]).copy()
     mesh = mesh.loc[mesh["geometry"].map(lambda shape: not shape.is_empty)]
-    mesh["id"] = mesh[code_column].map(_code)
-    mesh = mesh.loc[mesh["id"].ne("")].drop_duplicates("id")
+    mesh["id"] = mesh[code_column].astype("string")
+    mesh = mesh.loc[mesh["id"].notna() & mesh["id"].ne("")].drop_duplicates("id")
     if mesh.empty:
         return None, 0
 
@@ -138,7 +129,7 @@ def municipality_mesh_map(
             lookup = load_sector_neighborhood_lookup()
             if {"cd_setor_censitario", "nome_bairro_ibge"}.issubset(lookup.columns):
                 lookup = lookup.copy()
-                lookup["_code"] = lookup["cd_setor_censitario"].map(_code)
+                lookup["_code"] = lookup["cd_setor_censitario"].astype("string")
                 lookup["_name"] = lookup["nome_bairro_ibge"].fillna("").astype(str).str.strip()
                 lookup = lookup.loc[lookup["_code"].ne("") & lookup["_name"].ne("")]
                 names = lookup.groupby("_code")["_name"].apply(
@@ -157,12 +148,12 @@ def municipality_mesh_map(
     required = {"cd_ibge_municipio", vote_code, "nm_bairro", "qt_votos"}
     if votes is None or not required.issubset(votes.columns):
         return None, 0
-    rows = votes.loc[votes["cd_ibge_municipio"].map(_code).eq(str(municipality_code))].copy()
-    rows["_code"] = rows[vote_code].map(_code)
+    rows = votes.loc[votes["cd_ibge_municipio"].astype("string").eq(str(municipality_code))].copy()
+    rows["_code"] = rows[vote_code].astype("string")
     rows["_name"] = rows["nm_bairro"].fillna("").astype(str).str.strip()
     rows["qt_votos"] = pd.to_numeric(rows["qt_votos"], errors="coerce").fillna(0)
     rows = _attach_coordinate_matches(rows, mesh)
-    rows = rows.loc[rows["_code"].ne("")]
+    rows = rows.loc[rows["_code"].notna() & rows["_code"].ne("")]
     by_neighborhood = rows.groupby(["_code", "_name"], as_index=False)["qt_votos"].sum()
     by_neighborhood["_name"] = by_neighborhood["_name"].replace("", "Bairro não informado")
     by_neighborhood = by_neighborhood.groupby(["_code", "_name"], as_index=False)["qt_votos"].sum()

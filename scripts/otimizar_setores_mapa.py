@@ -20,14 +20,14 @@ def main() -> None:
     sectors = sectors.drop_duplicates("code_tract")
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     lookup = pd.DataFrame({
-        "cd_setor_censitario": pd.to_numeric(sectors["code_tract"], errors="coerce").astype("Int64").astype(str),
-        "codigo_bairro_ibge": pd.to_numeric(sectors["code_neighborhood"], errors="coerce").astype("Int64").astype(str),
+        "cd_setor_censitario": sectors["code_tract"].astype("string"),
+        "codigo_bairro_ibge": sectors["code_neighborhood"].astype("string"),
         "nome_bairro_ibge": sectors["name_neighborhood"].fillna("").astype(str).str.strip(),
     })
     lookup.to_parquet(OUTPUT.parent / "setor_bairro_lookup.parquet", index=False)
     sectors = sectors.drop(columns=["code_neighborhood", "name_neighborhood"])
-    sectors["code_muni"] = pd.to_numeric(sectors["code_muni"], errors="coerce").astype("Int64")
-    sectors["code_tract"] = pd.to_numeric(sectors["code_tract"], errors="coerce").astype("Int64")
+    sectors["code_muni"] = sectors["code_muni"].astype("string")
+    sectors["code_tract"] = sectors["code_tract"].astype("string")
     sectors = sectors.dropna(subset=["code_muni", "code_tract", "geometry"])
     sectors = sectors.sort_values(["code_muni", "code_tract"]).reset_index(drop=True)
     sectors["geometry"] = sectors.geometry.simplify(0.0001, preserve_topology=True)

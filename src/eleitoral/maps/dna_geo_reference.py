@@ -76,14 +76,14 @@ def _read_geo_parquet(
 
 
 @st.cache_data(show_spinner=False)
-def load_municipality_sectors(municipality_code: int) -> pd.DataFrame:
+def load_municipality_sectors(municipality_code: str) -> pd.DataFrame:
     """Read one municipality from the compact, row-grouped sector map."""
     env = load_env()
     path = geography_path(env, "MG_setores_mapa_CD2022.parquet")
     return _read_geo_parquet(
         path,
         columns=GEOGRAPHY_COLUMNS["setor"],
-        filters=[("code_muni", "==", int(municipality_code))],
+        filters=[("code_muni", "==", str(municipality_code))],
     )
 
 
@@ -122,20 +122,20 @@ def load_geo_reference() -> tuple[dict | None, pd.DataFrame | None, pd.DataFrame
         )
         return None, None, None, None
 
-    municipalities["codigo_ibge"] = pd.to_numeric(municipalities["code_muni"], errors="coerce").astype("Int64")
+    municipalities["codigo_ibge"] = municipalities["code_muni"].astype("string")
     municipalities = municipalities.dropna(subset=["codigo_ibge", "geometry"])
     features = []
     coordinates = []
     for row in municipalities.itertuples(index=False):
         geometry = row.geometry
-        municipality_id = str(int(row.codigo_ibge))
+        municipality_id = str(row.codigo_ibge)
         features.append({
             "type": "Feature",
             "properties": {"id": municipality_id},
             "geometry": mapping(geometry.simplify(MUNICIPAL_GEOMETRY_TOLERANCE, preserve_topology=True)),
         })
         point = geometry.representative_point()
-        coordinates.append((int(row.codigo_ibge), row.name_muni, point.y, point.x))
+        coordinates.append((str(row.codigo_ibge), row.name_muni, point.y, point.x))
     region_geometries = list(mesoregions.geometry.dropna())
     mesoregion_centers = []
     mesoregion_features = []
@@ -163,10 +163,10 @@ def load_geo_reference() -> tuple[dict | None, pd.DataFrame | None, pd.DataFrame
     }
 
     df_municipios = pd.DataFrame(coordinates, columns=["codigo_ibge", "nome", "latitude", "longitude"])
-    df_municipios["codigo_ibge"] = df_municipios["codigo_ibge"].astype("Int64")
+    df_municipios["codigo_ibge"] = df_municipios["codigo_ibge"].astype("string")
 
-    reference["codigo_ibge"] = pd.to_numeric(reference["codigo_ibge"], errors="coerce").astype("Int64")
-    reference["codigo_tse"] = pd.to_numeric(reference["codigo_tse"], errors="coerce").astype("Int64")
+    reference["codigo_ibge"] = reference["codigo_ibge"].astype("string")
+    reference["codigo_tse"] = reference["codigo_tse"].astype("string")
     df_tse = reference[["codigo_tse", "codigo_ibge", "nm_municipio_ibge"]].rename(
         columns={"nm_municipio_ibge": "nome_municipio"}
     ).copy()

@@ -23,7 +23,7 @@ GENDER_COLORS = {"feminino": "#3B82F6", "masculino": "#F97316", "nao informado":
 
 def _code(value: object) -> str:
     raw = str(value).strip()
-    return raw.removesuffix(".0") if raw and raw.lower() != "nan" else ""
+    return raw if raw and raw.lower() != "nan" else ""
 
 
 def _name(value: object) -> str:

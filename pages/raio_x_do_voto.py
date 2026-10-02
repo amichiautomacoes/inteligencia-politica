@@ -1085,10 +1085,7 @@ def _selected_territory(event: object, kind: str) -> str:
     if kind == "votos_mesorregiao":
         return str(location)
     _, _, municipalities, _ = load_geo_reference()
-    match = municipalities[
-        pd.to_numeric(municipalities["codigo_ibge"], errors="coerce")
-        .eq(pd.to_numeric(location, errors="coerce"))
-    ]
+    match = municipalities[municipalities["codigo_ibge"].astype("string").eq(str(location))]
     return str(match.iloc[0]["nome"]) if not match.empty else ""
 
 
@@ -1203,12 +1200,12 @@ def _render_map_side_cards(df: pd.DataFrame | None) -> None:
     st.markdown('<div class="raiox-map-side-cards">' + "".join(cards) + '</div>', unsafe_allow_html=True)
 
 
-def _render_neighborhood_side_cards(df: pd.DataFrame | None, municipality_code: int | None) -> None:
+def _render_neighborhood_side_cards(df: pd.DataFrame | None, municipality_code: str | None) -> None:
     card = _map_side_card
     required = {"cd_ibge_municipio", "nm_bairro", "qt_votos"}
     rows = pd.DataFrame()
     if df is not None and municipality_code is not None and required.issubset(df.columns):
-        codes = df["cd_ibge_municipio"].astype(str).str.strip().str.removesuffix(".0")
+        codes = df["cd_ibge_municipio"].astype("string")
         rows = df.loc[codes.eq(str(municipality_code)), ["nm_bairro", "qt_votos"]].copy()
         rows["nm_bairro"] = rows["nm_bairro"].fillna("").astype(str).str.strip()
         rows["qt_votos"] = pd.to_numeric(rows["qt_votos"], errors="coerce").fillna(0)
@@ -1748,7 +1745,7 @@ def _apply_territorial_context(
 def _territorial_code(value: object) -> str:
     if pd.isna(value):
         return ""
-    return str(value).strip().removesuffix(".0")
+    return str(value)
 
 
 def _section_context(key: str) -> dict[str, str]:
@@ -2308,11 +2305,11 @@ def _parliamentary_action_frame(
     if code_col == "cd_ibge_municipio" or code_col == "codigo_ibge":
         votos_base = votos_df[[code_col, "qt_votos"] + ([city_col] if city_col else []) + extra_vote_cols].copy()
         votos_base = votos_base.rename(columns={code_col: "codigo_ibge", city_col or code_col: "municipio"})
-        votos_base["codigo_ibge"] = pd.to_numeric(votos_base["codigo_ibge"], errors="coerce").astype("Int64")
+        votos_base["codigo_ibge"] = votos_base["codigo_ibge"].astype("string")
     elif code_col:
         votos_base = votos_df[[code_col, "qt_votos"] + ([city_col] if city_col else []) + extra_vote_cols].copy()
         votos_base = votos_base.rename(columns={code_col: "codigo_tse", city_col or code_col: "municipio"})
-        votos_base["codigo_tse"] = pd.to_numeric(votos_base["codigo_tse"], errors="coerce").astype("Int64")
+        votos_base["codigo_tse"] = votos_base["codigo_tse"].astype("string")
         votos_base = votos_base.merge(
             df_tse_ref[["codigo_tse", "codigo_ibge", "nome_municipio"]],
             on="codigo_tse",
@@ -2354,7 +2351,7 @@ def _parliamentary_action_frame(
 
     emendas = emendas_df.copy()
     if "cd_ibge_municipio" in emendas.columns:
-        emendas["codigo_ibge"] = pd.to_numeric(emendas["cd_ibge_municipio"], errors="coerce").astype("Int64")
+        emendas["codigo_ibge"] = emendas["cd_ibge_municipio"].astype("string")
     elif "nm_municipio" in emendas.columns:
         emendas["municipio_norm"] = emendas["nm_municipio"].map(_normalize_municipio_name)
         emendas = emendas.merge(
@@ -2392,7 +2389,7 @@ def _parliamentary_action_frame(
     )
 
     result = df_municipios_ref.copy()
-    result["codigo_ibge"] = pd.to_numeric(result["codigo_ibge"], errors="coerce").astype("Int64")
+    result["codigo_ibge"] = result["codigo_ibge"].astype("string")
     result = result.dropna(subset=["codigo_ibge"]).merge(votos_base, on="codigo_ibge", how="left")
     result = result.merge(emendas_base, on="codigo_ibge", how="left")
     result["qt_votos"] = pd.to_numeric(result["qt_votos"], errors="coerce").fillna(0)
@@ -2416,7 +2413,7 @@ def _parliamentary_action_frame(
             on="codigo_ibge",
             how="left",
         )
-    result["codigo_ibge_str"] = result["codigo_ibge"].astype("Int64").astype(str).str.zfill(7)
+    result["codigo_ibge_str"] = result["codigo_ibge"].astype("string")
     result["municipio_exibicao"] = result["nome"].fillna(result["municipio"]).fillna("Município")
     result["municipio_contexto"] = result["municipio"].fillna(result["municipio_exibicao"]).astype(str)
     result["mesorregiao_exibicao"] = (
@@ -2434,8 +2431,8 @@ def _parliamentary_action_frame(
     if rank_col and rank_col in result.columns:
         result["is_top3_vote"] = pd.to_numeric(result[rank_col], errors="coerce").le(3)
     else:
-        top3_codes = set(result.nlargest(3, "qt_votos")["codigo_ibge"].dropna().astype("Int64").astype(str))
-        result["is_top3_vote"] = result["codigo_ibge"].astype("Int64").astype(str).isin(top3_codes)
+        top3_codes = set(result.nlargest(3, "qt_votos")["codigo_ibge"].dropna().astype("string"))
+        result["is_top3_vote"] = result["codigo_ibge"].astype("string").isin(top3_codes)
 
     result["categoria_coerencia"] = (
         result.get("classificacao_retorno_parlamentar", pd.Series(index=result.index, dtype="object"))
@@ -2580,8 +2577,8 @@ def _parliamentary_emendas_dialog(
         st.info("Detalhamento das emendas indisponível.")
         return
     emendas = emendas_df.copy()
-    codes = pd.to_numeric(emendas["cd_ibge_municipio"], errors="coerce").astype("Int64")
-    emendas = emendas[codes.astype(str).str.zfill(7).eq(codigo_ibge)].copy()
+    codes = emendas["cd_ibge_municipio"].astype("string")
+    emendas = emendas[codes.eq(codigo_ibge)].copy()
     if emendas.empty:
         st.info("Não há emendas registradas para este município.")
         return

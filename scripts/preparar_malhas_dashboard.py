@@ -36,7 +36,7 @@ def main() -> None:
             raise ValueError(f"{filename} has no CRS")
         frame = frame.to_crs(4326)
         frame = frame.dropna(subset=["geometry"]).copy()
-        frame[sort_column] = pd.to_numeric(frame[sort_column], errors="raise").astype("int64")
+        frame[sort_column] = frame[sort_column].astype("string")
         frame = frame.sort_values(sort_column).reset_index(drop=True)
         frame["geometry"] = frame.geometry.simplify(tolerance, preserve_topology=True)
         if frame.geometry.is_empty.any() or not frame.geometry.is_valid.all():

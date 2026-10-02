@@ -27,7 +27,7 @@ def normalized(value: object) -> str:
 
 
 def code_strings(series: pd.Series) -> pd.Series:
-    return pd.to_numeric(series, errors="coerce").astype("Int64").astype(str)
+    return series.astype("string")
 
 
 def main() -> None:
