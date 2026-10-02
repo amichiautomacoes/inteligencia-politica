@@ -1220,7 +1220,7 @@ def _render_neighborhood_side_cards(df: pd.DataFrame | None, municipality_code: 
     else:
         rows["_bairro"] = rows["nm_bairro"].map(_normalized_text)
         by_name = rows.groupby("_bairro")["qt_votos"].sum()
-        by_name = by_name.loc[by_name.index.ne("")]
+        by_name = by_name.loc[by_name.index != ""]
         total = float(by_name.sum())
         with_votes = int(by_name.gt(0).sum())
         leader_key = str(by_name.idxmax()) if total > 0 else ""
