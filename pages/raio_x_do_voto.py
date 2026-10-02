@@ -14,7 +14,8 @@ import streamlit as st
 
 from hf_sync import data_files, file_by_kind, hf_filesystem, load_env, load_parquet, selected_deputado_files
 from eleitoral.maps.dna_geo_reference import load_geo_reference
-from eleitoral.maps.choropleth_maps import detailed_map, parliamentary_map, selected_context, territorial_map
+from eleitoral.maps.choropleth_maps import parliamentary_map, territorial_map
+from eleitoral.maps.territorial_mesh import municipality_mesh_map, municipality_options
 from eleitoral.common.shared_header import render_page_header
 
 try:
@@ -1198,57 +1199,56 @@ def _render_map_side_cards(df: pd.DataFrame | None) -> None:
     st.markdown('<div class="raiox-map-side-cards">' + "".join(cards) + '</div>', unsafe_allow_html=True)
 
 
-def _render_neighborhood_side_cards(
-    votes: pd.DataFrame | None, municipio: str, fig: go.Figure | None, map_note: str,
-) -> None:
+def _render_neighborhood_side_cards(df: pd.DataFrame | None, municipality_code: int | None) -> None:
     card = _map_side_card
-    unavailable = "Selecione um município com dados de bairros"
-    if municipio == "Todos" or votes is None or votes.empty or not {"nm_bairro", "qt_votos"}.issubset(votes.columns):
-        cards = [
-            card("Bairro principal (Top 1)", "—", unavailable),
-            card("Dependência do bairro principal", "—", unavailable),
-            card("Penetração por bairros", "—", unavailable),
-            card("Densidade média por bairro", "—", unavailable),
-        ]
-    else:
-        rows = votes[["nm_bairro", "qt_votos"]].copy()
+    required = {"cd_ibge_municipio", "nm_bairro", "qt_votos"}
+    rows = pd.DataFrame()
+    if df is not None and municipality_code is not None and required.issubset(df.columns):
+        codes = df["cd_ibge_municipio"].astype(str).str.strip().str.removesuffix(".0")
+        rows = df.loc[codes.eq(str(municipality_code)), ["nm_bairro", "qt_votos"]].copy()
         rows["nm_bairro"] = rows["nm_bairro"].fillna("").astype(str).str.strip()
         rows["qt_votos"] = pd.to_numeric(rows["qt_votos"], errors="coerce").fillna(0)
-        rows = rows[rows["nm_bairro"].ne("")]
-        by_name = rows.groupby(rows["nm_bairro"].map(_normalized_text))["qt_votos"].sum()
-        by_name = by_name[by_name.index != ""]
+        rows = rows.loc[rows["nm_bairro"].ne("")]
+
+    if rows.empty:
+        cards = [
+            card("Bairro principal (Top 1)", "—", "Dados de bairros indisponíveis"),
+            card("Dependência do bairro principal", "—", "Dados de bairros indisponíveis"),
+            card("Penetração por bairros", "—", "Dados de bairros indisponíveis"),
+            card("Densidade média por bairro", "—", "Dados de bairros indisponíveis"),
+        ]
+    else:
+        rows["_bairro"] = rows["nm_bairro"].map(_normalized_text)
+        by_name = rows.groupby("_bairro")["qt_votos"].sum()
+        by_name = by_name.loc[by_name.index.ne("")]
         total = float(by_name.sum())
         with_votes = int(by_name.gt(0).sum())
         leader_key = str(by_name.idxmax()) if total > 0 else ""
-        leader_rows = rows[rows["nm_bairro"].map(_normalized_text).eq(leader_key)]
-        leader_name = str(leader_rows.iloc[0]["nm_bairro"]).title() if not leader_rows.empty else "—"
+        leader_name = (
+            str(rows.loc[rows["_bairro"].eq(leader_key), "nm_bairro"].iloc[0]).title()
+            if leader_key else "—"
+        )
         leader_votes = float(by_name.max()) if total > 0 else 0.0
-        leader_share = leader_votes / total if total > 0 else 0.0
-        official = fig is not None and map_note.startswith("Malha: bairros oficiais do IBGE.")
-        total_bairros = len(fig.data[0].geojson["features"]) if official else 0
-        # Contar apenas bairros com voto que existem na malha oficial.
-        mapped_with_votes = int(sum(float(value[0]) > 0 for value in fig.data[0].customdata)) if official else 0
-        reach = mapped_with_votes / total_bairros if total_bairros else 0.0
+        share = leader_votes / total if total > 0 else 0.0
         cards = [
             card(
                 "Bairro principal (Top 1)",
-                f"{leader_name} ({_format_percent(leader_share)})" if total > 0 else "—",
+                f"{leader_name} ({_format_percent(share)})" if total > 0 else "—",
                 f"{_format_number(leader_votes)} votos no bairro líder" if total > 0 else "Sem votos por bairro",
-                "Alta concentração" if leader_share > 0.30 else "Bairro líder",
-                "warn" if leader_share > 0.30 else "good",
+                "Alta concentração" if share > 0.30 else "Bairro líder",
+                "warn" if share > 0.30 else "good",
             ),
             card(
-                "Dependência do bairro principal", _format_percent(leader_share) if total > 0 else "—",
-                "Dos votos com bairro identificado" if total > 0 else "Sem votos por bairro",
-                "Alerta de concentração" if leader_share > 0.30 else "Concentração moderada",
-                "warn" if leader_share > 0.30 else "good",
+                "Dependência do bairro principal",
+                _format_percent(share) if total > 0 else "—",
+                "Dos votos nos bairros do município" if total > 0 else "Sem votos por bairro",
+                "Alerta de concentração" if share > 0.30 else "Concentração moderada",
+                "warn" if share > 0.30 else "good",
             ),
             card(
                 "Penetração por bairros",
-                f"{_format_number(mapped_with_votes)} / {_format_number(total_bairros)}" if total_bairros else "—",
-                f"{_format_percent(reach)} dos bairros oficiais do município" if total_bairros else "Total de bairros oficiais indisponível nesta malha",
-                ("Presença em mais da metade dos bairros" if reach >= 0.5 else "Presença em menos da metade dos bairros") if total_bairros else "",
-                ("good" if reach >= 0.5 else "warn") if total_bairros else "",
+                f"{_format_number(with_votes)} bairros com voto",
+                "Total de bairros do município indisponível",
             ),
             card(
                 "Densidade média por bairro",
@@ -1257,6 +1257,7 @@ def _render_neighborhood_side_cards(
             ),
         ]
     st.markdown('<div class="raiox-map-side-cards">' + "".join(cards) + '</div>', unsafe_allow_html=True)
+
 
 def _municipal_concentration_frame(df: pd.DataFrame | None) -> pd.DataFrame:
     if df is None or df.empty or not {"nm_municipio", "qt_votos"}.issubset(df.columns):
@@ -1678,75 +1679,6 @@ def _render_territory_leader(df: pd.DataFrame | None) -> None:
         """,
         unsafe_allow_html=True,
     )
-
-
-def _mesorregiao_filter(
-    df: pd.DataFrame | None, municipal_votes: pd.DataFrame | None = None
-) -> tuple[pd.DataFrame | None, str, str]:
-    if df is None or df.empty:
-        return df, "Todas", "Todos"
-
-    votes = municipal_votes if municipal_votes is not None and not municipal_votes.empty else df
-    votes = votes.copy()
-    if "qt_votos" in votes.columns:
-        votes["qt_votos"] = pd.to_numeric(votes["qt_votos"], errors="coerce").fillna(0)
-    top_cities = (
-        votes.groupby(["nm_mesorregiao", "nm_municipio"], as_index=False)["qt_votos"]
-        .sum()
-        .sort_values(["qt_votos", "nm_mesorregiao", "nm_municipio"], ascending=[False, True, True])
-    ) if {"nm_mesorregiao", "nm_municipio", "qt_votos"}.issubset(votes.columns) else pd.DataFrame()
-    meso_options = sorted(
-        df["nm_mesorregiao"].dropna().astype(str).str.strip().loc[lambda s: s.ne("")].unique()
-    ) if "nm_mesorregiao" in df.columns else []
-    top_cities = top_cities[
-        top_cities["nm_mesorregiao"].isin(meso_options)
-    ] if not top_cities.empty else top_cities
-    if not top_cities.empty:
-        meso_totals = (
-            top_cities.groupby("nm_mesorregiao", as_index=False)["qt_votos"]
-            .sum()
-            .sort_values(["qt_votos", "nm_mesorregiao"], ascending=[False, True])
-        )
-        default_meso = str(meso_totals.iloc[0]["nm_mesorregiao"])
-    else:
-        default_meso = "Todas"
-    meso_choices = ["Todas", *meso_options]
-    candidate_key = st.session_state.get("selected_deputado_key")
-    if st.session_state.get("pagina1_demographic_candidate_key") != candidate_key:
-        st.session_state["pagina1_demographic_candidate_key"] = candidate_key
-        st.session_state["pagina1_mesorregiao"] = default_meso
-        st.session_state.pop("pagina1_municipio", None)
-    if st.session_state.get("pagina1_mesorregiao") not in meso_choices:
-        st.session_state["pagina1_mesorregiao"] = default_meso
-    meso_col, city_col = st.columns(2, gap="small")
-    with meso_col:
-        mesorregiao = st.selectbox("Mesorregião", meso_choices, key="pagina1_mesorregiao")
-    filtered = df if mesorregiao == "Todas" else df[
-        df["nm_mesorregiao"].astype(str).str.strip().eq(mesorregiao)
-    ].copy()
-
-    city_options = sorted(
-        filtered["nm_municipio"].dropna().astype(str).str.strip().loc[lambda s: s.ne("")].unique()
-    ) if "nm_municipio" in filtered.columns else []
-    city_choices = ["Todos", *city_options]
-    eligible_cities = top_cities[
-        top_cities["nm_mesorregiao"].eq(mesorregiao)
-    ] if mesorregiao != "Todas" else top_cities
-    eligible_cities = eligible_cities[eligible_cities["nm_municipio"].isin(city_options)]
-    default_city = str(eligible_cities.iloc[0]["nm_municipio"]) if not eligible_cities.empty else "Todos"
-    if st.session_state.get("pagina1_municipio") not in city_choices:
-        st.session_state["pagina1_municipio"] = default_city
-    with city_col:
-        municipio = st.selectbox("Município", city_choices, key="pagina1_municipio")
-    if municipio != "Todos":
-        filtered = filtered[filtered["nm_municipio"].astype(str).str.strip().eq(municipio)].copy()
-    return filtered, mesorregiao, municipio
-
-
-
-
-
-
 
 
 def _demographic_label(column: str, prefix: str) -> str:
@@ -2728,43 +2660,31 @@ with cards_col:
     _render_map_side_cards(votos_municipio_df)
 _section_header(
     "Votação por Bairros dentro dos municípios",
-    "Distribuição dos votos no município selecionado. A legenda do mapa informa a malha territorial disponível.",
+    "Votos por bairro no município selecionado.",
 )
+selected_code = None
 detail_map_col, detail_cards_col = st.columns([0.70, 0.30], gap="large")
 with detail_map_col:
     with st.container(border=True):
-        _, filter_col = st.columns([0.35, 0.65], gap="small")
-        with filter_col:
-            neighborhood_df, mesorregiao, municipio = _mesorregiao_filter(
-                votos_bairro_df, votos_municipio_df
+        try:
+            municipality_choices = municipality_options()
+            selected_code = st.selectbox(
+                "Município",
+                [code for code, _ in municipality_choices],
+                format_func=dict(municipality_choices).get,
+                key="pagina1_municipio_malha",
             )
-        municipality_codes = pd.to_numeric(
-            neighborhood_df.get("cd_ibge_municipio", pd.Series(dtype=str)),
-            errors="coerce",
-        ).dropna() if neighborhood_df is not None else pd.Series(dtype=float)
-        neighborhood_fig, map_note = (
-            detailed_map(neighborhood_df, int(municipality_codes.mode().iloc[0]))
-            if municipio != "Todos" and not municipality_codes.empty
-            else (None, "Selecione um município com votos para ver o mapa.")
-        )
-        if neighborhood_fig is not None:
-            st.plotly_chart(
-                neighborhood_fig,
-                width="stretch",
-                height=560,
-                key="pagina1_bairro_mapa",
-            )
-        else:
-            st.info(map_note)
-        if map_note and neighborhood_fig is not None:
-            st.caption(map_note)
+            if selected_code is not None:
+                mesh_fig, _ = municipality_mesh_map(selected_code, votos_bairro_df)
+                if mesh_fig is None:
+                    st.info("Mapa de votos por bairro indisponível para este município.")
+                else:
+                    st.plotly_chart(mesh_fig, width="stretch", height=560, key="pagina1_malha_municipal")
+                    st.caption("Azul mais escuro indica mais votos; a escala considera também a proporção de regiões com votos no município. Passe o cursor para ver os bairros e seus votos.")
+        except Exception as exc:
+            st.warning(f"Não foi possível carregar o mapa de votos por bairro: {exc}")
 with detail_cards_col:
-    st.markdown(
-        '<div class="raiox-map-side-cards">'
-        + '<div class="raiox-map-side-card"></div>' * 4
-        + '</div>',
-        unsafe_allow_html=True,
-    )
+    _render_neighborhood_side_cards(votos_bairro_df, selected_code)
 
 _major_section_header(
     "Força da política local",

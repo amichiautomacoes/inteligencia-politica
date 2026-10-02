@@ -37,7 +37,7 @@ pages/
 
 Os módulos de `src/eleitoral` são importados pelas páginas. As malhas GeoParquet são lidas com pandas, convertidas para GeoJSON e entregues a `plotly.express.choropleth`.
 
-No Raio X, o total de votos aparece no cabeçalho. O mapa estadual tem o card **Território líder** acima dele e quatro indicadores laterais. O mapa municipal ocupa 70% da linha, com filtros de mesorregião e município no próprio card e quatro cards laterais vazios. Ele usa a malha oficial de bairros quando disponível; caso contrário, a legenda identifica a malha alternativa. **Força da política local** aparece como seção com card vazio, reservada para análise futura. A seção de concentração reúne as roscas Top 1/5/15/20. O mapa parlamentar traz a explicação das classes na própria legenda. Na seção de custos, treemap e gráfico territorial ocupam cards lado a lado.
+No Raio X, o total de votos aparece no cabeçalho. O mapa estadual tem o card **Território líder** acima dele e quatro indicadores laterais. A seção de bairros usa o `stage01b_bairros.parquet` para associar votos à malha do município selecionado e calcular os cards de bairro. Quando uma unidade da malha abrange vários bairros eleitorais, o hover mostra o total e os votos de cada bairro do TSE, sem expor o identificador geográfico. A taxa de penetração por bairros aguarda uma fonte para o total de bairros do município; o card mostra apenas quantos bairros têm voto. **Força da política local** aparece como seção com card vazio, reservada para análise futura. A seção de concentração reúne as roscas Top 1/5/15/20. O mapa parlamentar traz a explicação das classes na própria legenda. Na seção de custos, treemap e gráfico territorial ocupam cards lado a lado.
 
 ## Dados do Hugging Face
 
@@ -113,7 +113,7 @@ GeoParquet → pandas → geometria WKB → GeoJSON → Plotly
 
 As geometrias são convertidas para `EPSG:4326`, e os carregamentos são armazenados em cache pelo Streamlit. Se uma malha não puder ser lida, a interface informa o prefixo configurado e o erro original.
 
-No mapa parlamentar, as cores representam **classes**, com título e explicação na legenda, e não uma escala de valores monetários. No mapa detalhado do Raio X, a fonte geométrica pode ser bairros oficiais, áreas ponderadas ou setores censitários, conforme a disponibilidade e a correspondência com os votos.
+No mapa parlamentar, as cores representam **classes**, com título e explicação na legenda, e não uma escala de valores monetários.
 
 Os scripts auxiliares em `scripts/` usam GeoPandas e têm a dependência separada em `scripts/requirements.txt`.
 

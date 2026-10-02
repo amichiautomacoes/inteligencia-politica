@@ -51,7 +51,7 @@ A página segue a ordem: **Mapa Territorial da Votação → Votação por Bairr
 
 A faixa **Mapa Territorial da Votação** apresenta o subtítulo `Leitura territorial do desempenho eleitoral no recorte ativo.`. Logo abaixo, antes do mapa e dos cards laterais, o card horizontal de **Território líder** destaca a mesorregião mais votada e seu volume. O total de votos do candidato fica no hero, abaixo do cargo. Os números são brancos, os rótulos menores, e as descrições usam azul acinzentado.
 
-O seletor **Mesorregião / Município** fica sozinho no canto superior direito, dentro do card do mapa. Ele altera o agrupamento do mapa estadual; não é o par de filtros do mapa municipal abaixo.
+O seletor **Mesorregião / Município** fica sozinho no canto superior direito, dentro do card do mapa. Ele altera o agrupamento do mapa estadual.
 
 O card do mapa ocupa **70% da largura** disponível e tem cerca de 560 px de altura. Os 30% restantes contêm quatro cards empilhados: **Município principal (Top 1)** (nome, participação no total e votos da cidade líder, com alerta acima de 30%), **Dependência do reduto principal** (parcela dos votos no município líder, com alerta acima de 30%), **Penetração territorial** (municípios com votos sobre os municípios do estado) e **Densidade média por município** (votos divididos apenas pelos municípios com voto). No modo municipal, cada município de Minas Gerais é um polígono Plotly; o hover informa nome e votos. A intensidade progride do azul muito claro ao azul profundo, com transformação logarítmica dos votos. No modo mesorregional, cada mesorregião é um único polígono da malha oficial, colorido pelo total de seus votos; o hover informa nome e votos da mesorregião. Áreas sem votos continuam desenhadas na cor mínima. As linhas visíveis correspondem à malha selecionada.
 
@@ -61,11 +61,9 @@ Se a malha ou os votos não puderem ser carregados, o mapa cede lugar a uma mens
 
 ### 2.2 Votação por Bairros dentro dos municípios
 
-**Pergunta visual:** dentro do município selecionado, como se distribuem os votos entre os bairros ou as unidades da malha disponível?
+Esta seção apresenta um seletor de município e a distribuição de votos por bairro do `stage01b_bairros.parquet`. A geometria usa bairros oficiais nos municípios presentes no parquet de bairros; nos demais, usa áreas ponderadas quando há mais de oito unidades distintas e setores censitários quando há oito ou menos. A cor usa os mesmos cinco tons de azul do mapa estadual. Dentro do município selecionado, os votos por polígono passam por escala logarítmica relativa ao maior valor local; a intensidade também é multiplicada pela raiz quadrada da proporção de polígonos com votos. A faixa cromática permanece fixa de zero a um, para que a cobertura territorial afete visivelmente o tom máximo. O hover mostra apenas o total de votos e os nomes dos bairros eleitorais com seus respectivos votos. Quando um polígono abrange vários bairros do TSE, todos aparecem na lista. Códigos e nomes das unidades geométricas não aparecem na visualização.
 
-A seção começa com o cabeçalho interno `Votação por Bairros dentro dos municípios`. O mapa ocupa **70% da largura** e a coluna à direita contém quatro cards vazios empilhados, reservados para indicadores futuros. O card do mapa mostra os filtros **Mesorregião** e **Município**, lado a lado, no canto superior direito, sem título interno. A entrada inicial é a mesorregião com mais votos do candidato e, dentro dela, o município mais votado.
-
-O mapa tem cerca de 560 px de altura e escala azul local ao município. Quando há malha oficial de bairros do IBGE com correspondência nos votos, os polígonos representam bairros e recebem os votos eleitorais associados por `cd_ibge_bairro` e `code_neighborhood`. O nome exibido vem sempre de `nm_bairro` do parquet eleitoral. Sem essa correspondência, o mapa tenta áreas ponderadas, cruzando `code_weighting` da malha com `cd_ibge_bairro` do parquet eleitoral. Se não houver correspondência nessa malha, o mapa usa os setores individualmente, cruzando `code_tract` com `cd_setor_censitario`. As malhas alternativas fornecem o contorno e o código, exibido como identificador territorial no cabeçalho do hover. Os nomes dos bairros e os votos vêm do parquet eleitoral. Se vários bairros compartilham o código de uma unidade territorial, seus votos são somados nesse polígono e cada bairro aparece com seus votos no hover. A cor combina os votos de cada polígono, em escala logarítmica relativa ao maior valor do município, com a proporção de unidades da malha que têm votos: o teto de intensidade é multiplicado pela raiz quadrada dessa proporção. A legenda informa a malha, a cobertura de unidades e a quantidade de votos sem correspondência. Se não houver município selecionado ou geometria disponível, aparece uma mensagem específica.
+À direita, quatro cards mostram **Bairro principal (Top 1)**, **Dependência do bairro principal**, **Penetração por bairros** e **Densidade média por bairro**. Os cálculos usam nomes de bairros do `stage01b_bairros.parquet`, agrupados dentro do município selecionado; não usam a contagem de unidades geométricas. Como esse arquivo contém apenas bairros com votos, o card de penetração mostra a quantidade de bairros com voto e informa que o total de bairros do município está indisponível. A proporção será calculada quando houver uma fonte para esse denominador.
 
 ### 2.3 Força da política local
 
@@ -166,7 +164,6 @@ O mapa municipal PyDeck ocupa toda a largura e cerca de **640 px** de altura. Ca
 | Deputado na barra lateral | Três páginas | Mesmo candidato ao trocar de rota |
 | Cápsula Raio X / DNA / Expansão 2030 | Navegação | Opção ativa destacada no hero |
 | Mesorregião / Município do primeiro mapa | Mapa estadual e Top 10 | Restrito à visualização territorial |
-| Mesorregião e Município do mapa detalhado | Mapa municipal de bairros ou da malha disponível | Restrito ao mapa detalhado |
 | Tipo de despesa no treemap | KPIs de custo e gráfico territorial | Botão restaura gasto total |
 | Município e dimensão da rosca DNA | Rosca e total do recorte | Restrito à seção de distribuição |
 | Perfil dos mapas DNA | Mapa de potencial ou mapa de expansão correspondente | Cada seção mantém seu próprio seletor |
@@ -184,8 +181,6 @@ Os pares de mapa e cards laterais da página 1, os gráficos de custos lado a la
 ## 6. Critérios de fidelidade para futuras alterações
 
 1. Preservar a diferença entre **intensidade** (azul ou verde contínuo) e **classe** (cores da atuação parlamentar e expansão).
-2. Usar a malha oficial de bairros no mapa detalhado quando disponível; informar na legenda quando o mapa usar áreas ponderadas ou setores censitários.
-3. Dimensionar a escala azul do mapa detalhado dentro do município selecionado e identificar a unidade territorial no hover.
 4. Mostrar voto observado, estimativa demográfica, gasto rateado e potencial em seus papéis corretos, com unidades e notas visíveis.
 5. Fazer seleção e estado vazio permanecerem compreensíveis sem depender só de cor.
 6. Atualizar este briefing quando mudar texto, card, escala, interação, ordem de seção ou granularidade de mapa.
