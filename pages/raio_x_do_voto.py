@@ -1203,21 +1203,52 @@ def _render_map_side_cards(df: pd.DataFrame | None) -> None:
 def _render_neighborhood_side_cards(df: pd.DataFrame | None, municipality_code: str | None) -> None:
     card = _map_side_card
     required = {"cd_ibge_municipio", "nm_bairro", "qt_votos"}
+    municipality_rows = pd.DataFrame()
     rows = pd.DataFrame()
     if df is not None and municipality_code is not None and required.issubset(df.columns):
         codes = df["cd_ibge_municipio"].astype("string")
-        rows = df.loc[codes.eq(str(municipality_code)), ["nm_bairro", "qt_votos"]].copy()
+        municipality_rows = df.loc[codes.eq(str(municipality_code))].copy()
+        rows = municipality_rows[["nm_bairro", "qt_votos"]].copy()
         rows["nm_bairro"] = rows["nm_bairro"].fillna("").astype(str).str.strip()
         rows["qt_votos"] = pd.to_numeric(rows["qt_votos"], errors="coerce").fillna(0)
         rows = rows.loc[rows["nm_bairro"].ne("")]
 
+    municipality_total = pd.to_numeric(
+        municipality_rows.get("qt_votos", pd.Series(dtype=float)), errors="coerce"
+    ).fillna(0).sum()
+    mesoregion_name = ""
+    if not municipality_rows.empty and "nm_mesorregiao" in municipality_rows.columns:
+        mesoregions = municipality_rows["nm_mesorregiao"].dropna().astype(str).str.strip()
+        mesoregions = mesoregions.loc[mesoregions.ne("")]
+        if not mesoregions.empty:
+            mesoregion_name = str(mesoregions.iloc[0])
+    if not mesoregion_name and municipality_code is not None:
+        _, _, _, regions = load_geo_reference()
+        if regions is not None and not regions.empty and {
+            "codigo_ibge", "mesorregiao_nome"
+        }.issubset(regions.columns):
+            selected_region = regions.loc[
+                regions["codigo_ibge"].astype("string").eq(str(municipality_code)),
+                "mesorregiao_nome",
+            ].dropna().astype(str).str.strip()
+            selected_region = selected_region.loc[selected_region.ne("")]
+            if not selected_region.empty:
+                mesoregion_name = str(selected_region.iloc[0])
+
+    cards = [
+        card(
+            "Total de votos",
+            _format_number(municipality_total) if not municipality_rows.empty else "—",
+            f"Mesorregião: {mesoregion_name}" if mesoregion_name else "Mesorregião indisponível",
+        )
+    ]
     if rows.empty:
-        cards = [
+        cards.extend([
             card("Bairro principal (Top 1)", "—", "Dados de bairros indisponíveis"),
             card("Dependência do bairro principal", "—", "Dados de bairros indisponíveis"),
             card("Penetração por bairros", "—", "Dados de bairros indisponíveis"),
             card("Densidade média por bairro", "—", "Dados de bairros indisponíveis"),
-        ]
+        ])
     else:
         rows["_bairro"] = rows["nm_bairro"].map(_normalized_text)
         by_name = rows.groupby("_bairro")["qt_votos"].sum()
@@ -1231,7 +1262,7 @@ def _render_neighborhood_side_cards(df: pd.DataFrame | None, municipality_code: 
         )
         leader_votes = float(by_name.max()) if total > 0 else 0.0
         share = leader_votes / total if total > 0 else 0.0
-        cards = [
+        cards.extend([
             card(
                 "Bairro principal (Top 1)",
                 f"{leader_name} ({_format_percent(share)})" if total > 0 else "—",
@@ -1256,7 +1287,7 @@ def _render_neighborhood_side_cards(df: pd.DataFrame | None, municipality_code: 
                 f"{_format_number(round(total / with_votes))} votos / bairro" if with_votes else "—",
                 f"Considerando apenas os {_format_number(with_votes)} bairros com voto" if with_votes else "Sem votos por bairro",
             ),
-        ]
+        ])
     st.markdown('<div class="raiox-map-side-cards">' + "".join(cards) + '</div>', unsafe_allow_html=True)
 
 
@@ -2691,7 +2722,13 @@ with detail_map_col:
                     st.info("Mapa de votos por bairro indisponível para este município.")
                 else:
                     st.plotly_chart(mesh_fig, width="stretch", height=560, key="pagina1_malha_municipal")
-                    st.caption("Azul mais escuro indica mais votos; a escala considera também a proporção de regiões com votos no município. Passe o cursor para ver os bairros e seus votos.")
+                    mesh_kind = (mesh_fig.layout.meta or {}).get("mesh_kind")
+                    scale_type = (mesh_fig.layout.meta or {}).get("scale_type")
+                    scale_label = "logarítmica" if scale_type == "logarithmic" else "linear"
+                    if mesh_kind == "setor":
+                        st.caption(f"Azul mais escuro indica mais votos. A escala {scale_label} é relativa ao maior valor do município e, nos setores censitários, ocupa toda a faixa de cores para manter visíveis os setores com votos. Passe o cursor para ver os bairros e seus votos.")
+                    else:
+                        st.caption(f"Azul mais escuro indica mais votos. A escala {scale_label} considera também a proporção de regiões com votos no município. Passe o cursor para ver os bairros e seus votos.")
         except Exception as exc:
             st.warning(f"Não foi possível carregar o mapa de votos por bairro: {exc}")
 with detail_cards_col:

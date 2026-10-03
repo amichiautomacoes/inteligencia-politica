@@ -7,7 +7,9 @@ import html
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
-from shapely.geometry import Point, mapping
+from shapely import make_valid, union_all
+from shapely.geometry import MultiPolygon, Point, Polygon, mapping
+from shapely.geometry.polygon import orient
 
 from eleitoral.maps.dna_geo_reference import (
     load_geo_layer,
@@ -15,6 +17,9 @@ from eleitoral.maps.dna_geo_reference import (
     load_municipality_sectors,
     load_sector_neighborhood_lookup,
 )
+
+
+MIN_MUNICIPAL_COVERAGE = 0.95
 
 
 def mesoregion_options() -> list[str]:
@@ -51,20 +56,54 @@ def municipality_options(mesorregiao: str | None = None) -> list[tuple[str, str]
     )
 
 
+def _municipality_geometry(municipality_code: str):
+    municipalities = load_geo_layer("municipio")
+    municipality_rows = municipalities.loc[
+        municipalities["code_muni"].astype("string").eq(str(municipality_code))
+    ]
+    return municipality_rows.iloc[0]["geometry"] if not municipality_rows.empty else None
+
+
+def _mesh_covers_municipality(mesh: pd.DataFrame, municipality_geometry) -> bool:
+    """Return whether a subdivision mesh represents the whole municipality."""
+    if municipality_geometry is None or municipality_geometry.is_empty:
+        return True
+    geometries = [
+        make_valid(geometry) if not geometry.is_valid else geometry
+        for geometry in mesh.get("geometry", pd.Series(dtype=object)).dropna()
+        if not geometry.is_empty
+    ]
+    if not geometries:
+        return False
+    municipality = (
+        make_valid(municipality_geometry)
+        if not municipality_geometry.is_valid
+        else municipality_geometry
+    )
+    if municipality.is_empty or municipality.area <= 0:
+        return False
+    covered_area = union_all(geometries).intersection(municipality).area
+    return covered_area / municipality.area >= MIN_MUNICIPAL_COVERAGE
+
+
 def municipality_mesh(municipality_code: str) -> tuple[str, pd.DataFrame, str, str]:
     """Select geometry by availability, without joining electoral data."""
+    municipality_geometry = _municipality_geometry(municipality_code)
     neighborhoods = load_geo_layer("bairro")
     neighborhoods = neighborhoods.loc[
         neighborhoods["code_muni"].astype("string").eq(str(municipality_code))
     ]
-    if not neighborhoods.empty:
+    if not neighborhoods.empty and _mesh_covers_municipality(neighborhoods, municipality_geometry):
         return "bairro", neighborhoods, "code_neighborhood", "name_neighborhood"
 
     areas = load_geo_layer("area_ponderada")
     areas = areas.loc[areas["code_muni"].astype("string").eq(str(municipality_code))]
     # Use the weighted-area mesh when at least four distinct units exist;
-    # smaller municipalities fall back to the census-sector mesh.
-    if areas["code_weighting"].dropna().nunique() >= 4:
+    # smaller or incomplete meshes fall back to the census-sector mesh.
+    if (
+        areas["code_weighting"].dropna().nunique() >= 4
+        and _mesh_covers_municipality(areas, municipality_geometry)
+    ):
         return "area_ponderada", areas, "code_weighting", "code_weighting"
 
     sectors = load_municipality_sectors(municipality_code)
@@ -128,6 +167,45 @@ def _boundary_coordinates(geometry) -> tuple[list[float | None], list[float | No
     return lon, lat
 
 
+def _plotly_polygon_geometry(geometry, municipality_geometry):
+    """Clip a sector to the municipality and use Plotly's ring orientation.
+
+    The compact census-sector layer uses counter-clockwise exterior rings. In
+    Plotly's geographic projection those rings can be interpreted as the
+    polygon complement, painting the area outside the municipality. Clipping
+    also removes the small differences between the sector and corrected
+    municipal layers.
+    """
+    if geometry is None or geometry.is_empty:
+        return None
+
+    sector = make_valid(geometry) if not geometry.is_valid else geometry
+    municipality = (
+        make_valid(municipality_geometry)
+        if not municipality_geometry.is_valid
+        else municipality_geometry
+    )
+    clipped = sector.intersection(municipality)
+    if clipped.is_empty:
+        return None
+
+    polygons: list[Polygon] = []
+
+    def collect_polygon_parts(candidate) -> None:
+        if isinstance(candidate, Polygon):
+            polygons.append(orient(candidate, sign=-1.0))
+        elif isinstance(candidate, MultiPolygon) or hasattr(candidate, "geoms"):
+            for part in candidate.geoms:
+                collect_polygon_parts(part)
+
+    collect_polygon_parts(clipped)
+    if not polygons:
+        return None
+    if len(polygons) == 1:
+        return polygons[0]
+    return MultiPolygon(polygons)
+
+
 def municipality_mesh_map(
     municipality_code: str, votes: pd.DataFrame | None,
 ) -> tuple[go.Figure | None, int]:
@@ -143,15 +221,15 @@ def municipality_mesh_map(
     # neighborhood/weighted-area/sector mesh is only the interior subdivision;
     # its vote coverage must never determine whether the municipal boundary is
     # visible.
-    municipalities = load_geo_layer("municipio")
-    municipality_rows = municipalities.loc[
-        municipalities["code_muni"].astype("string").eq(str(municipality_code))
-    ]
-    municipality_geometry = (
-        municipality_rows.iloc[0]["geometry"]
-        if not municipality_rows.empty
-        else None
-    )
+    municipality_geometry = _municipality_geometry(municipality_code)
+    if kind == "setor" and municipality_geometry is not None and not municipality_geometry.is_empty:
+        mesh["geometry"] = mesh["geometry"].map(
+            lambda geometry: _plotly_polygon_geometry(geometry, municipality_geometry)
+        )
+        mesh = mesh.dropna(subset=["geometry"])
+        mesh = mesh.loc[mesh["geometry"].map(lambda shape: not shape.is_empty)]
+        if mesh.empty:
+            return None, 0
 
     # Official neighborhood geometry carries its own name. The compact sector
     # geometry does not, so recover the corresponding IBGE neighborhood names
@@ -187,6 +265,7 @@ def municipality_mesh_map(
     rows["_code"] = rows[vote_code].astype("string")
     rows["_name"] = rows["nm_bairro"].fillna("").astype(str).str.strip()
     rows["qt_votos"] = pd.to_numeric(rows["qt_votos"], errors="coerce").fillna(0)
+    municipality_vote_total = float(rows["qt_votos"].sum())
     rows = _attach_coordinate_matches(rows, mesh)
     rows = rows.loc[rows["_code"].notna() & rows["_code"].ne("")]
     by_neighborhood = rows.groupby(["_code", "_name"], as_index=False)["qt_votos"].sum()
@@ -218,10 +297,20 @@ def municipality_mesh_map(
     mesh["total_label"] = mesh["votes"].map(lambda value: f"{int(value):,}".replace(",", "."))
     active_share = float(mesh["votes"].gt(0).mean())
     max_votes = float(mesh["votes"].max())
-    mesh["color_intensity"] = (
-        np.log1p(mesh["votes"]) / np.log1p(max_votes) * np.sqrt(active_share)
-        if max_votes > 0 else 0.0
-    )
+    # A sector mesh can contain hundreds of polygons while the electoral file
+    # has one row per named bairro/local. Penalizing the colors by sector
+    # coverage makes legitimate votes practically indistinguishable from zero.
+    # Keep the coverage factor for the coarser meshes, but use the full local
+    # color range when sectors are the geographic fallback.
+    coverage_factor = 1.0 if kind == "setor" else np.sqrt(active_share)
+    use_log_scale = municipality_vote_total > 5_000
+    if max_votes <= 0:
+        relative_intensity = 0.0
+    elif use_log_scale:
+        relative_intensity = np.log1p(mesh["votes"]) / np.log1p(max_votes)
+    else:
+        relative_intensity = mesh["votes"] / max_votes
+    mesh["color_intensity"] = relative_intensity * coverage_factor
     geojson = {
         "type": "FeatureCollection",
         "features": [
@@ -266,5 +355,10 @@ def municipality_mesh_map(
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font={"color": "#eaf2ff"},
+        meta={
+            "mesh_kind": kind,
+            "scale_type": "logarithmic" if use_log_scale else "linear",
+            "municipality_vote_total": municipality_vote_total,
+        },
     )
     return fig, len(mesh)
