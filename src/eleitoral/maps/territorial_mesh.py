@@ -62,7 +62,9 @@ def municipality_mesh(municipality_code: str) -> tuple[str, pd.DataFrame, str, s
 
     areas = load_geo_layer("area_ponderada")
     areas = areas.loc[areas["code_muni"].astype("string").eq(str(municipality_code))]
-    if areas["code_weighting"].dropna().nunique() > 8:
+    # Use the weighted-area mesh when at least four distinct units exist;
+    # smaller municipalities fall back to the census-sector mesh.
+    if areas["code_weighting"].dropna().nunique() >= 4:
         return "area_ponderada", areas, "code_weighting", "code_weighting"
 
     sectors = load_municipality_sectors(municipality_code)
@@ -107,6 +109,25 @@ def _attach_coordinate_matches(rows: pd.DataFrame, mesh: pd.DataFrame) -> pd.Dat
     return rows
 
 
+def _boundary_coordinates(geometry) -> tuple[list[float | None], list[float | None]]:
+    """Return Plotly-compatible coordinates for a polygon's exterior boundary."""
+    if geometry is None or geometry.is_empty:
+        return [], []
+    boundary = geometry.boundary
+    parts = list(boundary.geoms) if hasattr(boundary, "geoms") else [boundary]
+    lon: list[float | None] = []
+    lat: list[float | None] = []
+    for part in parts:
+        if not hasattr(part, "coords"):
+            continue
+        for x, y in part.coords:
+            lon.append(float(x))
+            lat.append(float(y))
+        lon.append(None)
+        lat.append(None)
+    return lon, lat
+
+
 def municipality_mesh_map(
     municipality_code: str, votes: pd.DataFrame | None,
 ) -> tuple[go.Figure | None, int]:
@@ -117,6 +138,20 @@ def municipality_mesh_map(
     mesh = mesh.loc[mesh["id"].notna() & mesh["id"].ne("")].drop_duplicates("id")
     if mesh.empty:
         return None, 0
+
+    # The municipality layer is the invariant geographic frame. The selected
+    # neighborhood/weighted-area/sector mesh is only the interior subdivision;
+    # its vote coverage must never determine whether the municipal boundary is
+    # visible.
+    municipalities = load_geo_layer("municipio")
+    municipality_rows = municipalities.loc[
+        municipalities["code_muni"].astype("string").eq(str(municipality_code))
+    ]
+    municipality_geometry = (
+        municipality_rows.iloc[0]["geometry"]
+        if not municipality_rows.empty
+        else None
+    )
 
     # Official neighborhood geometry carries its own name. The compact sector
     # geometry does not, so recover the corresponding IBGE neighborhood names
@@ -215,6 +250,16 @@ def municipality_mesh_map(
         customdata=mesh[["total_label", "details"]],
         hovertemplate="<b>Total de votos: %{customdata[0]}</b><br>%{customdata[1]}<extra></extra>",
     ))
+    boundary_lon, boundary_lat = _boundary_coordinates(municipality_geometry)
+    if boundary_lon and boundary_lat:
+        fig.add_trace(go.Scattergeo(
+            lon=boundary_lon,
+            lat=boundary_lat,
+            mode="lines",
+            line={"color": "rgba(248,251,255,0.98)", "width": 2.2},
+            hoverinfo="skip",
+            showlegend=False,
+        ))
     fig.update_geos(fitbounds="locations", visible=False, projection_type="mercator", bgcolor="rgba(0,0,0,0)")
     fig.update_layout(
         margin={"l": 0, "r": 0, "t": 0, "b": 0},
