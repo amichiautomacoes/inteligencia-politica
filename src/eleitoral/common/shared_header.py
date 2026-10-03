@@ -262,6 +262,22 @@ def apply_shared_visual_model() -> None:
             font-size: 1.05rem;
             font-weight: 700;
         }}
+        .st-key-dna_potential_map_card [data-testid="stVerticalBlockBorderWrapper"] {{
+            border-color: var(--raiox-outline-border) !important;
+            background: rgba(7, 24, 54, 0.18) !important;
+            box-shadow: none;
+        }}
+        .dna-potential-side-cards {{
+            display: grid;
+            gap: 1rem;
+        }}
+        .dna-potential-side-card {{
+            min-height: 10.45rem;
+            border: 1px solid var(--raiox-outline-border);
+            border-radius: 16px;
+            background: var(--raiox-card-bg);
+            box-shadow: 0 12px 30px rgba(1, 8, 24, 0.22);
+        }}
         .dna-icp-card {{
             position: relative;
             overflow: hidden;
@@ -539,6 +555,22 @@ def major_section_header(title: str, subtitle: str) -> None:
         <div class="mapa-major-section">
             <div class="mapa-major-section-title">{html.escape(title)}</div>
             <div class="mapa-major-section-subtitle">{html.escape(subtitle)}</div>
+        </div>
+        """)
+    )
+
+
+def section_header(title: str, subtitle: str = "") -> None:
+    subtitle_html = (
+        f'<div class="mapa-section-subtitle">{html.escape(subtitle)}</div>'
+        if subtitle
+        else ""
+    )
+    st.html(
+        dedent(f"""
+        <div class="mapa-section-card">
+            <div class="mapa-section-title">{html.escape(title)}</div>
+            {subtitle_html}
         </div>
         """)
     )

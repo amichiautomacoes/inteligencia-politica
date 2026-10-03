@@ -1,125 +1,234 @@
-﻿# Inteligência Política
+# Inteligência Política
 
-Dashboard Streamlit para análise territorial, demográfica, financeira e parlamentar da votação de deputados.
+Dashboard multipágina em Streamlit para análise eleitoral de deputados de Minas Gerais. A aplicação cruza votação territorial, perfil demográfico, despesas de campanha, emendas parlamentares e potencial de expansão com malhas oficiais do IBGE.
 
-## Páginas
+Este README é a referência técnica do projeto. A aparência, a hierarquia de informação, os estados de tela e as interações estão documentados no [briefing visual](Visual.md).
 
-A aplicação possui três páginas navegáveis:
+## Escopo atual
 
-- **Raio X Eleitoral** — mapas de votação estadual e municipal, concentração territorial, atuação parlamentar e custo do voto.
-- **DNA Eleitoral** — perfil estratégico da base eleitoral, ICP, distribuição demográfica e potencial.
-- **Expansão 2030** — oportunidades territoriais para 2030, com mapa municipal por classes.
+| Rota | Arquivo | Responsabilidade |
+| --- | --- | --- |
+| `/raio-x-eleitoral` | `pages/raio_x_do_voto.py` | Votação estadual e intramunicipal, concentração, atuação parlamentar e custo do voto |
+| `/dna-eleitoral` | `pages/dna_eleitor.py` | Eleitor ideal, distribuição demográfica, clusters de ICP e estrutura inicial da matriz de potencial |
+| `/expansao-2030` | `pages/expansao_2030.py` | Classificação municipal de proteção de base e oportunidade demográfica |
 
-As páginas são as únicas entradas do Streamlit e ficam em `pages/`:
+`app.py` registra as três rotas com `st.navigation`, descobre os deputados disponíveis no Hugging Face e mantém a seleção do candidato em `st.session_state`. A troca de página preserva o deputado selecionado.
 
-```text
-pages/
-├── raio_x_do_voto.py
-├── dna_eleitor.py
-└── expansao_2030.py
-```
+Dois blocos ainda são estruturais, sem análise final:
 
-## Estrutura do projeto
+- **Força da política local**, no Raio X, contém um card vazio reservado.
+- **Matriz de Potencial Demográfico**, no DNA, exibe a malha intramunicipal em cor neutra e quatro cards vazios. A rotina analítica de compatibilidade existente em `pages/dna_eleitor.py` não é chamada pela rota atual.
+
+## Arquitetura
 
 ```text
 .
-├── app.py                         # Entrada, configuração e navegação
-├── hf_sync.py                     # Leitura do Hugging Face e seleção dos parquets
-├── pages/                         # As três páginas Streamlit
+├── app.py                         # Configuração, índice de candidatos e navegação
+├── hf_sync.py                     # Acesso ao Hugging Face, descoberta e leitura dos arquivos
+├── pages/
+│   ├── raio_x_do_voto.py          # Página analítica principal
+│   ├── dna_eleitor.py             # Página de perfil eleitoral
+│   └── expansao_2030.py           # Página de expansão territorial
 ├── src/eleitoral/
-│   ├── common/                    # Cabeçalho, estilo e textos editoriais
-│   ├── maps/                      # GeoParquet, GeoJSON e Plotly
-│   └── dna/                       # Componentes e cálculos do DNA Eleitor
-├── assets/                        # Imagens usadas pela interface
-├── Dockerfile                     # Imagem de produção
-└── requirements.txt
+│   ├── common/
+│   │   ├── shared_header.py       # Hero, navegação interna, CSS e seleção compartilhada
+│   │   └── dna_copy.py            # Normalização de textos do DNA
+│   ├── dna/
+│   │   ├── cluster_cards.py       # Cards expansíveis dos perfis de ICP
+│   │   ├── dna_distribution.py    # Rosca e filtros demográficos
+│   │   └── dna_expansion.py       # Cálculo e mapa categórico de expansão
+│   └── maps/
+│       ├── choropleth_maps.py      # Coropléticos estaduais e parlamentar
+│       ├── dna_geo_reference.py   # Leitura, CRS e referências geográficas
+│       └── territorial_mesh.py    # Malha detalhada de bairro/área/setor
+├── scripts/                        # Preparação e auditoria de malhas fora do runtime
+├── assets/background.png           # Fundo compartilhado da interface
+├── .streamlit/config.toml          # Telemetria do Streamlit desativada
+├── requirements.txt                # Dependências da aplicação
+├── scripts/requirements.txt        # Dependência adicional dos scripts geográficos
+└── Dockerfile                      # Imagem Python 3.12, porta 8502
 ```
 
-Os módulos de `src/eleitoral` são importados pelas páginas. As malhas GeoParquet são lidas com pandas, convertidas para GeoJSON e entregues a `plotly.express.choropleth`.
+Os módulos auxiliares ficam fora de `pages/` para que o Streamlit não os registre como páginas.
 
-No Raio X, o total de votos aparece no cabeçalho. O mapa estadual tem o card **Território líder** acima dele e quatro indicadores laterais. A seção de bairros usa o `stage01b_bairros.parquet` para associar votos à malha do município selecionado e calcular os cards de bairro. A malha detalhada só usa bairros ou áreas ponderadas quando os polígonos cobrem pelo menos 95% do território municipal; caso contrário, recorre à malha completa de setores censitários, incluindo os setores sem votos. A escala de cores é linear nos municípios com até 5 mil votos e logarítmica somente acima desse total. Quando uma unidade da malha abrange vários bairros eleitorais, o hover mostra o total e os votos de cada bairro do TSE, sem expor o identificador geográfico. A taxa de penetração por bairros aguarda uma fonte para o total de bairros do município; o card mostra apenas quantos bairros têm voto. **Força da política local** aparece como seção com card vazio, reservada para análise futura. A seção de concentração reúne as roscas Top 1/5/15/20. O mapa parlamentar traz a explicação das classes na própria legenda. Na seção de custos, treemap e gráfico territorial ocupam cards lado a lado.
+### Fluxo de execução
 
-## Dados do Hugging Face
+```text
+.env / variáveis do processo
+        ↓
+HfFileSystem + listagem remota
+        ↓
+índice de deputados pelo caminho dos arquivos
+        ↓
+seleção persistida em st.session_state
+        ↓
+file_by_kind() resolve o parquet da seção
+        ↓
+leitura em cache → cálculo pandas/numpy → Plotly/HTML/Streamlit
+```
 
-Configure as variáveis no ambiente de execução. O token não deve ser versionado:
+Não há sincronização obrigatória para disco local: o runtime abre os arquivos diretamente no bucket. Apesar do nome, `sync_deputados()` atualiza a listagem/cache e não baixa a base para `data/`.
+
+## Configuração
+
+Crie `.env` a partir de `.env.example` e preencha o token quando o bucket não for público:
 
 ```env
 HF_BUCKET_URL="hf://buckets/amichianalista/mkt-politico"
-HF_VISUALIZACAO_PREFIX="deputados"
+HF_VISUALIZACAO_PREFIX="deputados/estaduais/2022"
 HF_GEOGRAPHY_PREFIX="IBGE/malha_mapas"
 HF_GEOGRAPHY_REFERENCE_PREFIX="IBGE/MG/dadosterritorio"
 HF_TOKEN="seu_token"
 ```
 
-`HF_VISUALIZACAO_PREFIX` aponta para os dados eleitorais dos candidatos. `HF_GEOGRAPHY_PREFIX` aponta para as malhas otimizadas dos mapas. `HF_GEOGRAPHY_REFERENCE_PREFIX` aponta para as tabelas de referência territorial, que permanecem na pasta original.
+| Variável | Uso |
+| --- | --- |
+| `HF_BUCKET_URL` | Raiz do bucket acessado pelo `HfFileSystem`; obrigatória |
+| `HF_VISUALIZACAO_PREFIX` | Raiz dos candidatos e de seus artefatos; padrão `deputados/estaduais/2022` |
+| `HF_GEOGRAPHY_PREFIX` | GeoParquets otimizados usados nos mapas |
+| `HF_GEOGRAPHY_REFERENCE_PREFIX` | Tabelas auxiliares de códigos e nomes territoriais |
+| `HF_TOKEN` | Autenticação do Hugging Face; não deve ser versionada |
 
-As principais malhas são:
+`HF_DEPUTADOS_PREFIX` ainda é aceito como nome legado quando `HF_VISUALIZACAO_PREFIX` não está definido. As demais chaves presentes no `.env` local não são consumidas pelo dashboard.
 
-- `MG_municipios_2022.parquet`
-- `MG_mesorregioes_2022.parquet`
-- `MG_AreaPonderada_CD2022.parquet`
-- `MG_bairros_CD2022.parquet`
-- `MG_setores_mapa_CD2022.parquet`
+### Descoberta de candidatos
 
-As tabelas `municipios_mg_mesorregioes.parquet` e `setor_bairro_lookup.parquet` continuam em `HF_GEOGRAPHY_REFERENCE_PREFIX`.
+O formato canônico é:
+
+```text
+deputados/{estaduais|federais}/{ano}/{slug_do_candidato}/...
+```
+
+`hf_sync.deputado_parts()` extrai ano, cargo e nome do caminho remoto. `selected_deputado_files()` aplica o recorte do deputado escolhido na barra lateral. Os helpers compartilhados só voltam à lista completa quando esse recorte não encontra arquivo algum, para que a página possa exibir o estado de indisponibilidade.
+
+## Contrato de dados eleitorais
+
+`hf_sync.file_by_kind()` resolve os artefatos abaixo pelo sufixo do caminho. Os nomes são parte do contrato entre a preparação dos dados e a visualização.
+
+| Grupo | Arquivo esperado | Consumidor principal |
+| --- | --- | --- |
+| Território | `territorio/stage01a_municipios.parquet` | Mapa estadual, concentração, KPIs e votos totais |
+| Território | `territorio/stage01b_bairros.parquet` | Mapa intramunicipal e detalhamento por bairro |
+| Demografia | `demografico/stage02_genero.parquet` | Distribuição do eleitorado |
+| Demografia | `demografico/stage02_idade.parquet` | Distribuição do eleitorado |
+| Demografia | `demografico/stage02_escolaridade.parquet` | Distribuição do eleitorado |
+| Demografia | `demografico/stage02_estado_civil.parquet` | Distribuição do eleitorado |
+| Perfil | `perfil/stage04_icp_geral_geo.parquet` | Eleitor ideal |
+| Perfil | `perfil/stage04_icp_clusters_geo.parquet` | Base eleitoral e perfis de expansão |
+| Gastos | `gastos/despesas_campanha.parquet` | Treemap e KPIs de custo |
+| Gastos | `gastos/gastos_territoriais_por_tipo.parquet` | Custo de referência por tipo e território |
+| Gastos | `gastos/gastos_territoriais.parquet` | Fallback com rateio territorial |
+| Emendas | `gastos/emendas_legislativa.parquet` | Mapa de atuação parlamentar e detalhamento |
+| Censo | `IBGE/censo/genero_apond.parquet` | Cálculo da expansão |
+| Censo | `IBGE/censo/idade_apond.parquet` | Cálculo da expansão |
+| Censo | `IBGE/censo/escolaridade_apond.parquet` | Cálculo da expansão |
+| Potencial | `potencial_demografico/stage08c_potencial_demografico_icp_geral.parquet` | Expansão para o eleitor ideal |
+| Potencial | `potencial_demografico/stage08c_potencial_demografico_icp_clusters.parquet` | Expansão por classificação de ICP |
+
+O app também reconhece CSV, JSON, JSONL, XLS/XLSX e imagens ao listar o bucket, mas as seções analíticas atuais leem os artefatos tabulares acima como Parquet. JPG, JPEG e PNG podem fornecer a foto do candidato.
+
+### Semântica dos gastos territoriais
+
+Quando `gastos_territoriais_por_tipo.parquet` existe, cada linha municipal repete o total de campanha do tipo de despesa. O dashboard conta esse total uma vez e o divide pelos votos do território; o resultado é um **custo de referência**, não gasto observado naquele município.
+
+Sem esse arquivo, o app usa `gastos_territoriais.parquet`, aplica o rateio proporcional disponível e informa a limitação na interface.
+
+## Geografia e mapas
+
+As malhas são carregadas de `HF_GEOGRAPHY_PREFIX`:
+
+| Arquivo | Papel |
+| --- | --- |
+| `MG_municipios_2022.parquet` | Moldura dos 853 municípios e mapas estaduais |
+| `MG_mesorregioes_2022.parquet` | Polígonos e rótulos mesorregionais |
+| `MG_bairros_CD2022.parquet` | Primeira opção da malha intramunicipal |
+| `MG_AreaPonderada_CD2022.parquet` | Segunda opção da malha intramunicipal |
+| `MG_setores_mapa_CD2022.parquet` | Fallback completo por município |
+
+As referências `municipios_mg_mesorregioes.parquet` e `setor_bairro_lookup.parquet` permanecem em `HF_GEOGRAPHY_REFERENCE_PREFIX`.
+
+O pipeline geográfico é:
+
+```text
+GeoParquet → metadados de CRS → WKB/Shapely → EPSG:4326 → GeoJSON → Plotly
+```
+
+As geometrias estaduais são simplificadas antes da conversão. O carregamento por setor usa filtro de `code_muni`, evitando ler toda a malha estadual em cada seleção.
+
+Para o mapa intramunicipal, `territorial_mesh.municipality_mesh()` escolhe:
+
+1. bairros oficiais, se cobrirem ao menos 95% do município;
+2. áreas ponderadas, se houver pelo menos quatro unidades e cobertura mínima de 95%;
+3. todos os setores censitários do município nos demais casos.
+
+Linhas eleitorais sem código territorial aproveitável podem ser associadas por latitude/longitude ao polígono que contém o local de votação, ou ao polígono mais próximo dentro da tolerância definida. O contorno municipal é desenhado por cima da subdivisão escolhida.
+
+O mapa estadual usa `log1p(votos)` para distribuir a intensidade. No mapa detalhado, a escala é linear até 5 mil votos no município e logarítmica acima desse total.
+
+## Cache e estado
+
+- A listagem remota tem TTL de 600 segundos.
+- Leituras de Parquet, malhas e referências usam `st.cache_data` sem TTL explícito.
+- O `HfFileSystem` usa `st.cache_resource` por token.
+- `sync_deputados(force=True)` limpa a listagem remota e os caches tabulares de `hf_sync.py`.
+- A troca de deputado limpa `territorial_context`; os demais controles têm chaves próprias por seção.
+
+Após substituir arquivos mantendo o mesmo caminho, reinicie o processo ou limpe o cache do Streamlit para evitar leitura antiga.
 
 ## Execução local
 
+Requisitos: Python 3.12 recomendado e acesso ao bucket configurado.
+
 ```powershell
+Copy-Item .env.example .env
 python -m pip install -r requirements.txt
 streamlit run app.py
 ```
 
-O endereço padrão local é `http://localhost:8501`.
+O endereço padrão é `http://localhost:8501`.
 
-Para verificar a estrutura e os imports:
+Os scripts de preparação geográfica têm dependência separada:
 
 ```powershell
-python -m compileall -q app.py pages src
-rg -n "from pages|import pages" -g "*.py" .
+python -m pip install -r scripts/requirements.txt
 ```
 
-A segunda busca deve não retornar referências antigas aos módulos auxiliares.
+Eles não são executados na inicialização do dashboard.
 
-## Docker
+## Docker e deploy
 
-A imagem usa Streamlit na porta `8502`:
+A imagem usa Python 3.12 slim, executa o Streamlit na porta `8502` e possui healthcheck em `/_stcore/health`:
 
 ```powershell
 docker build -t inteligencia-politica .
 docker run --env-file .env -p 8502:8502 inteligencia-politica
 ```
 
-O `Dockerfile` copia `pages`, `src`, `assets` e `hf_sync.py` para a imagem e inicia:
+Configuração usada no painel de deploy:
 
-```text
-streamlit run app.py --server.port=8502 --server.address=0.0.0.0
+- repositório: `amichiautomacoes/inteligencia-politica`;
+- branch: `main`;
+- contexto de build: `/`;
+- porta: `8502`.
+
+O `Dockerfile` copia somente o necessário ao runtime (`app.py`, `hf_sync.py`, `pages/`, `src/`, `assets/` e `.streamlit/config.toml`). Dados locais, caches, `.env` e scripts de preparação ficam fora da imagem.
+
+## Validação e manutenção
+
+Não há suíte automatizada de testes neste repositório. Antes de publicar, execute ao menos:
+
+```powershell
+python -m compileall -q app.py pages src
+git diff --check
+streamlit run app.py
 ```
 
-No painel de deploy, use:
+No smoke test, abra as três rotas, troque o deputado, altere os seletores territoriais e confirme os estados com e sem dados.
 
-- Repositório: `amichiautomacoes/inteligencia-politica`
-- Branch: `main`
-- Caminho de build: `/`
-- Porta: `8502`
+Regras de manutenção:
 
-## Mapas
-
-Os mapas eleitorais e o mapa parlamentar usam coropléticos Plotly. O fluxo das malhas é:
-
-```text
-GeoParquet → pandas → geometria WKB → GeoJSON → Plotly
-```
-
-As geometrias são convertidas para `EPSG:4326`, e os carregamentos são armazenados em cache pelo Streamlit. Se uma malha não puder ser lida, a interface informa o prefixo configurado e o erro original.
-
-No mapa parlamentar, as cores representam **classes**, com título e explicação na legenda, e não uma escala de valores monetários.
-
-Os scripts auxiliares em `scripts/` usam GeoPandas e têm a dependência separada em `scripts/requirements.txt`.
-
-## Organização e manutenção
-
-- Não coloque módulos auxiliares dentro de `pages`; isso evita que o Streamlit os trate como páginas.
-- Não versione `.env`, tokens ou credenciais.
-- Remova `__pycache__` antes de empacotar manualmente; o `.dockerignore` já os exclui da imagem.
-- Depois de alterar os módulos, compile o projeto e teste o carregamento das três rotas antes do deploy.
+- não coloque módulos auxiliares em `pages/`;
+- não versione `.env`, tokens, dados locais ou caches;
+- preserve códigos territoriais como texto para não perder zeros nem alterar junções;
+- ao mudar nomes de artefatos, atualize `file_by_kind()` e este contrato;
+- ao mudar ordem, texto, cor, layout ou interação da interface, atualize também [Visual.md](Visual.md).

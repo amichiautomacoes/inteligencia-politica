@@ -15,10 +15,16 @@ from eleitoral.common.dna_copy import sentence_label
 from eleitoral.dna.dna_distribution import render_electorate_distribution
 from eleitoral.maps.dna_geo_reference import load_geo_reference
 from eleitoral.maps.choropleth_maps import continuous_choropleth
+from eleitoral.maps.territorial_mesh import (
+    mesoregion_options,
+    municipality_mesh_map,
+    municipality_options,
+)
 from eleitoral.common.shared_header import (
     apply_shared_visual_model,
     major_section_header,
     render_page_header,
+    section_header,
     selected_files,
 )
 
@@ -468,7 +474,7 @@ def _potential_map(
     return fig, note
 
 
-def _render_demographic_potential() -> None:
+def _render_demographic_potential_analysis() -> None:
     icp_general = _read_selected_parquet("icp_geral")
     icp_clusters = _read_selected_parquet("icp_clusters")
     labels = ["ELEITOR IDEAL"]
@@ -507,6 +513,57 @@ def _render_demographic_potential() -> None:
     st.caption(note)
 
 
+def _render_empty_potential_cards() -> None:
+    st.html(
+        dedent("""
+        <div class="dna-potential-side-cards" aria-hidden="true">
+            <div class="dna-potential-side-card"></div>
+            <div class="dna-potential-side-card"></div>
+            <div class="dna-potential-side-card"></div>
+            <div class="dna-potential-side-card"></div>
+        </div>
+        """)
+    )
+
+
+def _render_demographic_potential() -> None:
+    map_col, cards_col = st.columns([0.70, 0.30], gap="large")
+    with map_col:
+        with st.container(border=True, key="dna_potential_map_card"):
+            try:
+                mesoregions = mesoregion_options()
+                selected_mesorregiao = st.selectbox(
+                    "Mesorregião",
+                    ["Todas", *mesoregions],
+                    key="dna_potential_mesorregiao",
+                )
+                municipality_choices = municipality_options(selected_mesorregiao)
+                if not municipality_choices:
+                    st.info("Nenhum município disponível para a mesorregião selecionada.")
+                else:
+                    selected_code = st.selectbox(
+                        "Município",
+                        [code for code, _ in municipality_choices],
+                        format_func=dict(municipality_choices).get,
+                        key=f"dna_potential_municipio_{selected_mesorregiao}",
+                    )
+                    mesh_fig, _ = municipality_mesh_map(selected_code, None, neutral=True)
+                    if mesh_fig is None:
+                        st.info("Malha territorial indisponível para este município.")
+                    else:
+                        st.plotly_chart(
+                            mesh_fig,
+                            width="stretch",
+                            height=560,
+                            key="dna_potential_municipality_mesh",
+                            config={"displayModeBar": False},
+                        )
+            except Exception as exc:
+                st.warning(f"Não foi possível carregar a malha municipal: {exc}")
+    with cards_col:
+        _render_empty_potential_cards()
+
+
 apply_shared_visual_model()
 render_page_header("dna")
 
@@ -532,6 +589,7 @@ for index, (section_title, section_subtitle) in enumerate(DNA_SECTIONS):
         icp_general_df = _read_selected_parquet("icp_geral")
         _render_icp_geral_card(icp_general_df)
     elif index == 2:
+        section_header("Potencial demográfico municipal")
         _render_demographic_potential()
     else:
         render_electorate_distribution(_read_selected_parquet)

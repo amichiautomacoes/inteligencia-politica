@@ -18,12 +18,12 @@ O percurso é vertical. Uma capa apresenta o candidato; faixas de seção delimi
 | Cabeçalho interno | Card azul mais leve, com título e subtítulo em duas linhas de hierarquia | Introduzir uma visualização dentro da seção |
 | Cards de conteúdo | Azul profundo translúcido, borda azul clara fina, sombra e leve blur | Agrupar informação sem esconder o fundo |
 | Gráficos Plotly | Fundo transparente, textos claros e grades discretas | Integrar gráfico e card |
-| Mapas | Coropléticos Plotly no Raio X; mapa PyDeck na Expansão 2030 | Mostrar votos por intensidade e oportunidades por classe |
+| Mapas | Coropléticos Plotly nas três páginas, sem mapa-base de ruas | Mostrar votos por intensidade, malhas neutras ou oportunidades por classe |
 | Mensagens de ausência | Aviso ou informação textual dentro do espaço da visualização | Explicar falta de dados sem simular um resultado |
 
 A base cromática é `#eaf2ff` para texto, `#f8fbff` para títulos e números, `#b7c7e6` para descrição e legendas. Os cards usam gradientes próximos de `rgba(11,31,77,.76)` e `rgba(7,24,54,.68)`, com bordas azuis próximas de `rgba(59,130,246,.24)`. Azul claro (`#60a5fa`), azul médio (`#2563eb`) e azul profundo (`#0b1f4d`) expressam intensidade ou seleção; verde, amarelo, laranja e cinza têm significado específico nos mapas categóricos.
 
-Os preenchimentos dos mapas são opacos. No mapa PyDeck, o fundo Carto sem rótulos não acrescenta nomes de ruas por baixo dos polígonos. Os tooltips usam fundo azul quase preto e texto claro. Os 853 municípios de Minas Gerais compõem os mapas estaduais; os polígonos municipais são simplificados com tolerância pequena para preservar a leitura dos limites. O mapa detalhado usa bairros oficiais quando a malha cobre pelo menos 95% do município; caso contrário, tenta áreas ponderadas com cobertura equivalente e recorre à malha completa de setores censitários quando necessário.
+Os preenchimentos dos mapas são opacos e aparecem sobre fundo transparente, sem nomes de ruas sob os polígonos. Os tooltips usam fundo escuro e texto claro. Os 853 municípios de Minas Gerais compõem os mapas estaduais; os polígonos municipais são simplificados com tolerância pequena para preservar a leitura dos limites. O mapa detalhado usa bairros oficiais quando a malha cobre pelo menos 95% do município; caso contrário, tenta áreas ponderadas com ao menos quatro unidades e cobertura equivalente, e recorre à malha completa de setores censitários quando necessário.
 
 ### 1.2 Hierarquia de texto e formatação
 
@@ -61,7 +61,7 @@ Se a malha ou os votos não puderem ser carregados, o mapa cede lugar a uma mens
 
 ### 2.2 Votação por Bairros dentro dos municípios
 
-Esta seção apresenta seletores de mesorregião e município e a distribuição de votos por bairro do `stage01b_bairros.parquet`. A mesorregião filtra os municípios disponíveis no segundo seletor. A geometria usa bairros oficiais quando seus polígonos cobrem pelo menos 95% do município. Se a cobertura for menor, usa áreas ponderadas quando existem pelo menos quatro unidades e elas alcançam a mesma cobertura mínima; nos demais casos, usa todos os setores censitários do município, inclusive aqueles sem votos. A cor usa os mesmos cinco tons de azul do mapa estadual. Dentro do município selecionado, os votos por polígono usam escala linear relativa ao maior valor local quando o candidato recebeu até 5 mil votos no município; a transformação logarítmica é aplicada somente quando o total municipal ultrapassa 5 mil votos. Nas malhas de bairros e áreas ponderadas, a intensidade também é multiplicada pela raiz quadrada da proporção de polígonos com votos, mantendo a faixa cromática fixa de zero a um. No fallback por setores censitários, a escala local ocupa toda a faixa de zero a um, sem esse fator de cobertura, para que os poucos setores associados aos registros eleitorais permaneçam visíveis. O hover mostra o nome do bairro mesmo quando o total é zero, além dos votos dos bairros eleitorais associados. Quando um polígono abrange vários bairros do TSE, todos aparecem na lista. Códigos das unidades geométricas não aparecem na visualização.
+Esta seção apresenta seletores de mesorregião e município e a distribuição de votos por bairro do `stage01b_bairros.parquet`. A mesorregião filtra os municípios disponíveis no segundo seletor. A geometria usa bairros oficiais quando seus polígonos cobrem pelo menos 95% do município. Se a cobertura for menor, usa áreas ponderadas quando existem pelo menos quatro unidades e elas alcançam a mesma cobertura mínima; nos demais casos, usa todos os setores censitários do município, inclusive aqueles sem votos. Um contorno branco mais espesso preserva a silhueta municipal sobre qualquer uma dessas subdivisões. A cor usa os mesmos cinco tons de azul do mapa estadual. Dentro do município selecionado, os votos por polígono usam escala linear relativa ao maior valor local quando o candidato recebeu até 5 mil votos no município; a transformação logarítmica é aplicada somente quando o total municipal ultrapassa 5 mil votos. Nas malhas de bairros e áreas ponderadas, a intensidade também é multiplicada pela raiz quadrada da proporção de polígonos com votos, mantendo a faixa cromática fixa de zero a um. No fallback por setores censitários, a escala local ocupa toda a faixa de zero a um, sem esse fator de cobertura, para que os poucos setores associados aos registros eleitorais permaneçam visíveis. O hover mostra o total e os bairros eleitorais associados; o nome oficial aparece quando a própria malha ou a tabela auxiliar o fornece. Quando um polígono abrange vários bairros do TSE, todos aparecem na lista. Códigos das unidades geométricas não aparecem na visualização.
 
 À direita, cinco cards mostram, nesta ordem, **Total de votos** (total municipal e mesorregião), **Bairro principal (Top 1)**, **Dependência do bairro principal**, **Penetração por bairros** e **Densidade média por bairro**. Os cálculos usam nomes de bairros do `stage01b_bairros.parquet`, agrupados dentro do município selecionado; não usam a contagem de unidades geométricas. Como esse arquivo contém apenas bairros com votos, o card de penetração mostra a quantidade de bairros com voto e informa que o total de bairros do município está indisponível. A proporção será calculada quando houver uma fonte para esse denominador.
 
@@ -107,9 +107,9 @@ Depois do hero comum, a página apresenta **três faixas principais** nesta orde
 
 ### 3.1 Identidade da Base Eleitoral
 
-**Pergunta visual:** quem é o eleitor predominante e quais perfis compõem a base do candidato?
+**Pergunta visual:** quem é o eleitor predominante do candidato?
 
-A faixa principal usa o subtítulo `Quem é o eleitor-chave e quais atributos definem o perfil do seu eleitor.`. Ela é seguida por dois cards empilhados, cada um ocupando a largura do conteúdo.
+A faixa principal usa o subtítulo `Quem é o eleitor-chave e quais atributos definem o perfil do seu eleitor.`. Ela é seguida pelo card de eleitor ideal, ocupando a largura do conteúdo.
 
 #### 3.1.1 Eleitor ideal do candidato
 
@@ -117,31 +117,33 @@ O primeiro card tem borda azul clara, fundo profundo e espaçamento amplo. O tí
 
 Na base do card, **quatro colunas compactas** apresentam Gênero, Faixa etária, Escolaridade e Estado civil. Cada coluna contém um emoji colorido de identificação, a categoria dominante e seu percentual em azul claro. Divisórias sutis substituem caixas individuais. Os percentuais das quatro dimensões são independentes; não formam fatias de uma soma de 100%. Se o percentual não é válido ou não existe, o card não inventa o número.
 
-#### 3.1.2 BASE ELEITORAL DO CANDIDATO
-
-O segundo card é um painel próprio, com título em caixa alta e pergunta `Quais perfis sustentam a candidatura e qual o peso de cada um na votação?`. Uma **barra de composição** apresenta a participação das classificações na votação do candidato: azul para Base eleitoral, ciano para Eleitor consolidado e verde para Eleitor emergente. A legenda abaixo identifica cada segmento e seu percentual. Uma classificação vazia apresenta travessão; uma parcela sem classificação aparece em cinza azulado.
-
-A lista abaixo contém **uma linha expansível por ICP**, ordenada dentro da classificação pelo peso eleitoral. A linha fechada mostra uma badge de maturidade (`🎯 Base Principal`, `🛡️ Consolidado` ou `🚀 Emergente / Expansão`), identificador ICP, atributos demográficos dominantes em chips, percentual da votação e votos absolutos; uma seta sugere abertura. A linha aberta recebe borda mais clara e revela quatro blocos demográficos em grade de duas colunas. Cada bloco mostra dimensão, categoria dominante, percentual e uma barra azul individual. Uma nota esclarece que os percentuais descrevem categorias dominantes **dentro do perfil**. O bloco final `Leitura estratégica` traz a justificativa textual disponível. Dois ICPs com o mesmo rótulo estratégico continuam separados. Ausência de perfis gera mensagem, não um ICP fictício.
-
 ### 3.2 Distribuição do Perfil do Eleitorado
 
-**Pergunta visual:** como se repartem as categorias de uma dimensão demográfica nos votos do recorte?
+**Pergunta visual:** como se repartem as categorias demográficas e quais perfis sustentam a candidatura?
 
-A faixa principal traz `Distribuição demográfica estimada dos votos, com recorte por município e perfil.`. O conteúdo está em um card de borda fina. Dentro dele, o título menor `Distribuição do eleitorado` e uma legenda explicam que as parcelas são estimadas.
+A faixa principal traz `Distribuição demográfica estimada dos votos, com recorte por município e perfil.`. Primeiro aparece a distribuição; logo abaixo, ainda nesta mesma faixa principal, vem o painel **BASE ELEITORAL DO CANDIDATO**.
+
+#### 3.2.1 Distribuição do eleitorado
+
+O conteúdo está em um card de borda fina. Dentro dele, o título menor `Distribuição do eleitorado` e uma legenda explicam que as parcelas são estimadas.
 
 A composição usa **gráfico à esquerda e filtros à direita** (proporção aproximada 2,3:1). À direita há uma chamada `Refine a distribuição`, um seletor **MUNICÍPIO** com opção `Todos os municípios` e um seletor **PERFIL DEMOGRÁFICO** com Gênero, Faixa etária, Escolaridade e Estado civil. O município altera o universo de votos; a dimensão altera as fatias.
 
 À esquerda, uma badge indica a categoria dominante da dimensão selecionada. A **rosca Plotly** tem centro vazado amplo, total de votos em tipografia forte no miolo e subtítulo menor em azul acinzentado. Os percentuais ficam fora da rosca, ligados às respectivas fatias por linhas. O hover mostra categoria e participação. À direita, abaixo dos seletores, a legenda mostra cor, categoria e percentual, sem votos estimados. Para gênero, feminino usa azul, masculino usa laranja e não informado usa cinza. O gráfico mostra **uma dimensão por vez**. A nota abaixo afirma que os parquets não permitem cruzar diretamente idade, gênero e escolaridade de indivíduos. Dados ausentes geram mensagem no lugar da rosca.
 
+#### 3.2.2 BASE ELEITORAL DO CANDIDATO
+
+O segundo bloco é um painel próprio, com título em caixa alta e pergunta `Quais perfis sustentam a candidatura e qual o peso de cada um na votação?`. Uma **barra de composição** apresenta a participação das classificações na votação do candidato: azul para Base eleitoral, ciano para Eleitor consolidado e verde para Eleitor emergente. A legenda abaixo identifica cada segmento e seu percentual. Uma classificação vazia apresenta travessão; uma parcela sem classificação aparece em cinza azulado.
+
+A lista abaixo contém **uma linha expansível por ICP**, ordenada dentro da classificação pelo peso eleitoral. A linha fechada mostra uma badge de maturidade (`🎯 Base Principal`, `🛡️ Consolidado` ou `🚀 Emergente / Expansão`), identificador ICP, atributos demográficos dominantes em chips, percentual da votação e votos absolutos; uma seta sugere abertura. A linha aberta recebe borda mais clara e revela quatro blocos demográficos em grade de duas colunas. Cada bloco mostra dimensão, categoria dominante, percentual e uma barra azul individual. Uma nota esclarece que os percentuais descrevem categorias dominantes **dentro do perfil**. O bloco final `Leitura estratégica` traz a justificativa textual disponível. Dois ICPs com o mesmo rótulo estratégico continuam separados. Ausência de perfis gera mensagem, não um ICP fictício.
+
 ### 3.3 Matriz de Potencial Demográfico
 
-**Pergunta visual:** quais municípios têm população demograficamente próxima do eleitor ideal ou de uma classificação de ICP?
+Esta seção está em preparação para receber as métricas de potencial. A faixa principal mantém o subtítulo `Comparativo entre o perfil do eleitor do candidato e a população local. Identificação de sobre-representação e frentes de expansão.`.
 
-A faixa principal usa o subtítulo `Comparativo entre o perfil do eleitor do candidato e a população local. Identificação de sobre-representação e frentes de expansão.`. Um seletor alinhado à direita oferece **ELEITOR IDEAL** e as classificações estratégicas disponíveis. Acima do mapa aparece uma legenda textual do perfil escolhido, com as categorias e percentuais de gênero, idade e escolaridade comparados.
+Logo após a faixa principal, o card interno **Potencial demográfico municipal** introduz uma estrutura em duas colunas, na proporção aproximada de 70% para o mapa e 30% para os cards laterais. À esquerda, seletores de **Mesorregião** e **Município** controlam a malha exibida. A formação territorial reutiliza exatamente a lógica do mapa detalhado do Raio X: bairros oficiais quando cobrem pelo menos 95% do município, áreas ponderadas com ao menos quatro unidades e cobertura equivalente e, nos demais casos, a malha completa de setores censitários.
 
-O protagonista é um mapa municipal de Minas Gerais em **escala contínua verde**, com aproximadamente **620 px** de altura. Verde claro representa compatibilidade mínima; verde escuro indica maior proximidade entre o ICP e o Censo. A medida reúne as três dimensões em média e usa transformação logarítmica para distribuir as cores. Municípios sem votos do candidato ou sem os três cruzamentos completos ficam na cor mínima, mas permanecem desenhados. O hover mostra município, compatibilidade de 0 a 100, aderência e votos. O volume de votos aparece como informação, não como intensidade de cor.
-
-Uma legenda abaixo do mapa explica a fórmula e o tratamento de municípios sem dados. A interface não apresenta estado civil nesse comparativo e não transforma a cor em previsão de votos. Se o perfil ou a malha não está disponível, surge aviso no lugar do mapa.
+Por enquanto, todos os polígonos aparecem no mesmo azul muito claro (`#e8f1ff`), com divisórias azuladas e contorno municipal branco mais espesso, apenas para apresentar a geometria. Não há informação analítica, intensidade de cor, legenda nem tooltip de dados. À direita ficam **quatro cards vazios**, empilhados e reservados para as próximas métricas. Se a malha não puder ser carregada, o card do mapa mostra uma mensagem de indisponibilidade.
 
 ## 4. Página 3 — Expansão 2030
 
@@ -153,7 +155,7 @@ A faixa principal mantém o texto atual `Mapeamento em nível de bairro e área 
 
 Antes do mapa há uma **legenda de quatro cards**. Cada um combina amostra de cor, nome da classe e uma explicação curta: **verde** para oportunidade alta com perfil aderente, **azul** para base com muitos votos que pede proteção, **amarelo** para oportunidade com menor aderência e **cinza** para baixa similaridade ou informação insuficiente. A legenda torna o mapa categórico; cores não representam uma sequência contínua.
 
-O mapa municipal PyDeck ocupa toda a largura e cerca de **640 px** de altura. Cada município recebe uma das quatro classes. O hover informa nome, classe, votos, oportunidade e similaridade. A nota inferior explicita que os limites de votos, similaridade e potencial são relativos ao perfil selecionado e que potencial demográfico **não é previsão de votos**. Se não houver dados completos de Censo/potencial ou a malha municipal falhar, a seção mostra uma informação textual no lugar do mapa.
+O mapa municipal é um **coroplético Plotly** de largura total e cerca de **640 px** de altura. Cada município recebe uma das quatro classes e a barra categórica do próprio Plotly permanece visível. O hover informa nome, classe, votos, oportunidade e similaridade. A nota inferior explicita que os limites de votos, similaridade e potencial são relativos ao perfil selecionado e que potencial demográfico **não é previsão de votos**. Se não houver dados completos de Censo/potencial ou a malha municipal falhar, a seção mostra uma informação textual no lugar do mapa.
 
 ## 5. Interação, estados e continuidade visual
 
@@ -163,10 +165,12 @@ O mapa municipal PyDeck ocupa toda a largura e cerca de **640 px** de altura. Ca
 | --- | --- | --- |
 | Deputado na barra lateral | Três páginas | Mesmo candidato ao trocar de rota |
 | Cápsula Raio X / DNA / Expansão 2030 | Navegação | Opção ativa destacada no hero |
-| Mesorregião / Município do primeiro mapa | Mapa estadual e Top 10 | Restrito à visualização territorial |
+| Filtro territorial Mesorregião / Município | Mapa estadual do Raio X e conteúdo da janela aberta por clique | Restrito ao primeiro mapa |
+| Mesorregião e município da votação por bairros | Malha intramunicipal e cinco cards laterais | Restrito à seção detalhada do Raio X |
 | Tipo de despesa no treemap | KPIs de custo e gráfico territorial | Botão restaura gasto total |
 | Município e dimensão da rosca DNA | Rosca e total do recorte | Restrito à seção de distribuição |
-| Perfil dos mapas DNA | Mapa de potencial ou mapa de expansão correspondente | Cada seção mantém seu próprio seletor |
+| Mesorregião e município da Matriz DNA | Malha neutra exibida na preparação do potencial | Restrito à Matriz de Potencial |
+| Perfil para expansão | Classes e métricas do mapa de Expansão 2030 | Restrito à página de expansão |
 
 ### 5.2 Estado sem dados
 
@@ -180,7 +184,9 @@ Os pares de mapa e cards laterais da página 1, os gráficos de custos lado a la
 
 ## 6. Critérios de fidelidade para futuras alterações
 
-1. Preservar a diferença entre **intensidade** (azul ou verde contínuo) e **classe** (cores da atuação parlamentar e expansão).
-4. Mostrar voto observado, estimativa demográfica, gasto rateado e potencial em seus papéis corretos, com unidades e notas visíveis.
+1. Preservar a diferença entre **intensidade** (gradiente azul contínuo) e **classe** (cores da atuação parlamentar e da expansão).
+2. Manter a leitura em camadas: hero, faixa principal, cabeçalho interno quando necessário e conteúdo analítico.
+3. Não apresentar os cards vazios de política local e potencial como se já contivessem conclusões.
+4. Mostrar voto observado, estimativa demográfica, custo de referência, gasto rateado e potencial em seus papéis corretos, com unidades e notas visíveis.
 5. Fazer seleção e estado vazio permanecerem compreensíveis sem depender só de cor.
 6. Atualizar este briefing quando mudar texto, card, escala, interação, ordem de seção ou granularidade de mapa.

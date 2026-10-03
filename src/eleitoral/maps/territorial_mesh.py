@@ -207,7 +207,7 @@ def _plotly_polygon_geometry(geometry, municipality_geometry):
 
 
 def municipality_mesh_map(
-    municipality_code: str, votes: pd.DataFrame | None,
+    municipality_code: str, votes: pd.DataFrame | None, *, neutral: bool = False,
 ) -> tuple[go.Figure | None, int]:
     kind, mesh, code_column, label_column = municipality_mesh(municipality_code)
     mesh = mesh.dropna(subset=[code_column, "geometry"]).copy()
@@ -252,6 +252,57 @@ def municipality_mesh_map(
         except Exception:
             # The map remains usable if the optional reference table is absent.
             pass
+
+    geojson = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {"id": row.id},
+                "geometry": mapping(row.geometry.simplify(0.0001, preserve_topology=True)),
+            }
+            for row in mesh.itertuples(index=False)
+        ],
+    }
+
+    if neutral:
+        fig = go.Figure(go.Choropleth(
+            geojson=geojson,
+            locations=mesh["id"],
+            z=np.zeros(len(mesh)),
+            zmin=0,
+            zmax=1,
+            featureidkey="properties.id",
+            colorscale=[[0, "#e8f1ff"], [1, "#e8f1ff"]],
+            showscale=False,
+            marker_line_color="rgba(197,221,255,0.86)",
+            marker_line_width=0.65,
+            hoverinfo="skip",
+        ))
+        boundary_lon, boundary_lat = _boundary_coordinates(municipality_geometry)
+        if boundary_lon and boundary_lat:
+            fig.add_trace(go.Scattergeo(
+                lon=boundary_lon,
+                lat=boundary_lat,
+                mode="lines",
+                line={"color": "rgba(248,251,255,0.98)", "width": 2.2},
+                hoverinfo="skip",
+                showlegend=False,
+            ))
+        fig.update_geos(
+            fitbounds="locations",
+            visible=False,
+            projection_type="mercator",
+            bgcolor="rgba(0,0,0,0)",
+        )
+        fig.update_layout(
+            margin={"l": 0, "r": 0, "t": 0, "b": 0},
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            font={"color": "#eaf2ff"},
+            meta={"mesh_kind": kind, "display_mode": "neutral"},
+        )
+        return fig, len(mesh)
 
     vote_code = {
         "bairro": "cd_ibge_bairro",
@@ -311,17 +362,6 @@ def municipality_mesh_map(
     else:
         relative_intensity = mesh["votes"] / max_votes
     mesh["color_intensity"] = relative_intensity * coverage_factor
-    geojson = {
-        "type": "FeatureCollection",
-        "features": [
-            {
-                "type": "Feature",
-                "properties": {"id": row.id},
-                "geometry": mapping(row.geometry.simplify(0.0001, preserve_topology=True)),
-            }
-            for row in mesh.itertuples(index=False)
-        ],
-    }
     fig = go.Figure(go.Choropleth(
         geojson=geojson,
         locations=mesh["id"],
