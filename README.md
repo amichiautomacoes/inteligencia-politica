@@ -16,7 +16,7 @@ Este README é a referência técnica do projeto. A aparência, a hierarquia de 
 
 Dois blocos seguem parcialmente implementados:
 
-- **Força da política local**, no Raio X, cruza o capital político local do stage 7a com o market share municipal, colore os quatro quadrantes estratégicos e mantém quatro cards laterais vazios.
+- **Força da política local**, no Raio X, cruza o capital político local do stage 7a com o market share municipal, colore os quatro quadrantes estratégicos e resume cada classe em um card lateral interativo.
 - **Matriz de Potencial Demográfico**, no DNA, exibe a malha intramunicipal em cor neutra e quatro cards vazios. A rotina analítica de compatibilidade existente em `pages/dna_eleitor.py` não é chamada pela rota atual.
 
 ## Arquitetura
@@ -120,6 +120,7 @@ deputados/{estaduais|federais}/{ano}/{slug_do_candidato}/...
 | Gastos | `gastos/gastos_territoriais.parquet` | Fallback com rateio territorial |
 | Emendas | `gastos/emendas_legislativa.parquet` | Mapa de atuação parlamentar e detalhamento |
 | Força local | `forca_local/stage07a_capital_local_municipios.parquet` | Quadrantes de efetividade da estrutura política municipal |
+| Força local | `forca_local/stage07b_afinidade_eleitos.parquet` | Composição nominal de prefeitos e vereadores no detalhe municipal |
 | Censo | `IBGE/censo/genero_apond.parquet` | Cálculo da expansão |
 | Censo | `IBGE/censo/idade_apond.parquet` | Cálculo da expansão |
 | Censo | `IBGE/censo/escolaridade_apond.parquet` | Cálculo da expansão |
@@ -139,6 +140,10 @@ Sem esse arquivo, o app usa `gastos_territoriais.parquet`, aplica o rateio propo
 O mapa cruza `capital_local_0a100`, do stage 7a, com `pct_market_share`, do stage 1a. A nota é considerada alta acima de 50/100, corte que coincide com a entrada na faixa alta dos dados atuais. O market share municipal é considerado alto quando alcança ou supera a participação estadual do próprio candidato, calculada pela soma dos votos dividida pela soma dos votos válidos municipais.
 
 `faixa_capital_local` não controla a cor porque possui três níveis (`baixa`, `media` e `alta`), enquanto a matriz visual exige dois eixos binários.
+
+Os quatro cards laterais apresentam quantidade de municípios, participação nos votos do candidato, município líder e recomendação estratégica. Ao clicar em um card, sua classe permanece colorida e as demais são atenuadas; um segundo clique restaura o mapa completo.
+
+O clique em um município usa a seleção de pontos do Plotly e abre um `st.dialog`. A janela combina votos e market share do stage 1a, indicadores de capital político do stage 7a e a composição nominal do stage 7b. O recorte geográfico mostra apenas o polígono municipal com a mesma cor do mapa estadual; a lista ao lado reúne prefeito e vereadores, com partido, vínculo político e afinidade.
 
 ## Geografia e mapas
 

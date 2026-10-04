@@ -215,6 +215,7 @@ def file_by_kind(files: list[str], kind: str) -> str | None:
         "despesas_campanha": "gastos/despesas_campanha.parquet",
         "emendas_legislativa": "gastos/emendas_legislativa.parquet",
         "capital_local": "forca_local/stage07a_capital_local_municipios.parquet",
+        "afinidade_eleitos": "forca_local/stage07b_afinidade_eleitos.parquet",
         "icp_geral": "perfil/stage04_icp_geral_geo.parquet",
         "icp_clusters": "perfil/stage04_icp_clusters_geo.parquet",
         "censo_escolaridade": "IBGE/censo/escolaridade_apond.parquet",

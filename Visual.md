@@ -67,11 +67,13 @@ Esta seção apresenta seletores de mesorregião e município e a distribuição
 
 ### 2.3 Força da política local
 
-A faixa principal usa o título `Força da política local` e o subtítulo `Veja se vereadores e prefeitos das cidades foram decisivos na sua votação`. A leitura abre com quatro cards de legenda: **verde** para Máquina eficiente / A força funcionou, **vermelho** para Traição ou máquina inoperante / A força falhou, **azul** para Voto orgânico ou de opinião / Força própria e **cinza** para Sem penetração / Esperado.
+A faixa principal usa o título `Força da política local` e o subtítulo `Veja se vereadores e prefeitos das cidades foram decisivos na sua votação`. A estrutura repete a proporção 70/30 do Mapa Territorial da Votação.
 
-Logo abaixo, a estrutura repete a proporção 70/30 do Mapa Territorial da Votação. À esquerda há um card com o filtro territorial fixado em **Município** e a malha completa de Minas Gerais, com divisões municipais brancas e contorno estadual mais espesso. O mapa cruza `capital_local_0a100` com o market share municipal. Nota alta significa resultado acima de 50/100; market share alto significa resultado municipal igual ou superior à participação estadual do candidato. O hover mostra município, classe, leitura, nota, market share local e referência estadual.
+À esquerda há um card com o filtro territorial fixado em **Município** e a malha completa de Minas Gerais, com divisões municipais brancas e contorno estadual mais espesso. O mapa cruza `capital_local_0a100` com o market share municipal. Nota alta significa resultado acima de 50/100; market share alto significa resultado municipal igual ou superior à participação estadual do candidato. O hover mostra município, classe, leitura, nota, market share local e referência estadual.
 
-À direita ficam **quatro cards vazios**, empilhados e visualmente idênticos aos cards laterais do primeiro mapa. Eles reservam espaço para futuros indicadores; a conclusão disponível nesta etapa está apenas na classe e no tooltip do mapa.
+À direita, quatro cards empilhados também funcionam como legenda e filtro. **Apoio que virou voto** usa verde; **Apoio que não entregou**, vermelho; **Força própria**, azul; e **Territórios frios**, cinza. Cada card informa quantidade de municípios, participação nos votos do candidato, principal município e uma ação recomendada. Ao clicar, apenas a classe escolhida mantém sua cor no mapa e as demais ficam atenuadas; clicar novamente limpa o destaque.
+
+Um clique em qualquer município abre a janela **Força política local**, com o nome municipal como título interno. No topo aparecem a classificação e quatro números: votos, market share local, referência estadual e capital político local. Uma frase traduz a cor em leitura estratégica. Abaixo, o layout divide-se em duas colunas: à esquerda, o polígono isolado do município conserva a cor recebida e é seguido pelos detalhes da prefeitura, Câmara, partidos aliados e base dos dados; à direita, uma lista rolável apresenta prefeito e vereadores, com nome, partido, vínculo e afinidade.
 
 ### 2.4 Concentração territorial dos votos
 
@@ -172,6 +174,8 @@ O mapa municipal é um **coroplético Plotly** de largura total e cerca de **640
 | Filtro territorial Mesorregião / Município | Mapa estadual do Raio X e conteúdo da janela aberta por clique | Restrito ao primeiro mapa |
 | Mesorregião e município da votação por bairros | Malha intramunicipal e cinco cards laterais | Restrito à seção detalhada do Raio X |
 | Filtro Município da força política local | Mapa categórico dos quatro quadrantes em Minas Gerais | Única granularidade disponível nesta etapa |
+| Cards da força política local | Destacam ou restauram uma classe do mapa | Card ativo recebe contorno reforçado |
+| Clique em município da força política local | Abre o mapa isolado, os indicadores e a composição política municipal | Janela modal; fecha sem alterar o filtro dos cards |
 | Tipo de despesa no treemap | KPIs de custo e gráfico territorial | Botão restaura gasto total |
 | Município e dimensão da rosca DNA | Rosca e total do recorte | Restrito à seção de distribuição |
 | Mesorregião e município da Matriz DNA | Malha neutra exibida na preparação do potencial | Restrito à Matriz de Potencial |
@@ -191,7 +195,7 @@ Os pares de mapa e cards laterais da página 1, os gráficos de custos lado a la
 
 1. Preservar a diferença entre **intensidade** (gradiente azul contínuo) e **classe** (cores da atuação parlamentar e da expansão).
 2. Manter a leitura em camadas: hero, faixa principal, cabeçalho interno quando necessário e conteúdo analítico.
-3. Não apresentar os cards vazios de política local e potencial como se já contivessem conclusões.
+3. Não apresentar os cards vazios da Matriz de Potencial como se já contivessem conclusões; na força política local, manter as recomendações vinculadas aos quatro quadrantes.
 4. Mostrar voto observado, estimativa demográfica, custo de referência, gasto rateado e potencial em seus papéis corretos, com unidades e notas visíveis.
 5. Fazer seleção e estado vazio permanecerem compreensíveis sem depender só de cor.
 6. Atualizar este briefing quando mudar texto, card, escala, interação, ordem de seção ou granularidade de mapa.

@@ -174,12 +174,14 @@ def _territorial_code(values: pd.Series) -> pd.Series:
 def local_political_strength_map(
     capital_local: pd.DataFrame | None,
     votes: pd.DataFrame | None,
-) -> tuple[go.Figure | None, float | None]:
+    selected_class: str | None = None,
+) -> tuple[go.Figure | None, float | None, list[dict[str, object]]]:
     """Classify the effectiveness of local political capital in each municipality."""
     geojson, tse, municipalities, _ = load_geo_reference()
     capital_required = {"cd_municipio", "nm_municipio", "capital_local_0a100"}
     vote_required = {
         "cd_municipio",
+        "nm_municipio",
         "qt_votos",
         "qt_votos_validos_municipio",
         "pct_market_share",
@@ -196,7 +198,7 @@ def local_political_strength_map(
         or not capital_required.issubset(capital_local.columns)
         or not vote_required.issubset(votes.columns)
     ):
-        return None, None
+        return None, None, []
 
     capital = capital_local.copy()
     capital["_codigo_tse"] = _territorial_code(capital["cd_municipio"])
@@ -217,6 +219,7 @@ def local_political_strength_map(
     for column in ("qt_votos", "qt_votos_validos_municipio", "pct_market_share"):
         municipal_votes[column] = pd.to_numeric(municipal_votes[column], errors="coerce")
     municipal_votes = municipal_votes.groupby("_codigo_tse", as_index=False).agg(
+        nm_municipio=("nm_municipio", "first"),
         qt_votos=("qt_votos", "sum"),
         qt_votos_validos_municipio=("qt_votos_validos_municipio", "max"),
         pct_market_share=("pct_market_share", "first"),
@@ -236,6 +239,18 @@ def local_political_strength_map(
     code_reference["codigo_tse"] = _territorial_code(code_reference["codigo_tse"])
     code_reference["codigo_ibge"] = _territorial_code(code_reference["codigo_ibge"])
     combined = capital.merge(municipal_votes, on="_codigo_tse", how="left")
+    votes_by_name = municipal_votes.copy()
+    votes_by_name["_municipio_norm"] = votes_by_name["nm_municipio"].map(
+        _normalized_name
+    )
+    votes_by_name = votes_by_name.drop_duplicates("_municipio_norm").set_index(
+        "_municipio_norm"
+    )
+    combined["_municipio_norm"] = combined["nm_municipio_x"].map(_normalized_name)
+    for column in ("qt_votos", "pct_market_share"):
+        combined[column] = combined[column].fillna(
+            combined["_municipio_norm"].map(votes_by_name[column])
+        )
     combined = combined.merge(
         code_reference,
         left_on="_codigo_tse",
@@ -256,7 +271,7 @@ def local_political_strength_map(
         )
     )
     combined["codigo_ibge"] = combined["codigo_ibge"].fillna(
-        combined["nm_municipio"].map(_normalized_name).map(name_to_code)
+        combined["nm_municipio_x"].map(_normalized_name).map(name_to_code)
     )
     combined = combined.dropna(subset=["codigo_ibge"]).drop_duplicates("codigo_ibge")
 
@@ -265,6 +280,7 @@ def local_political_strength_map(
             "codigo_ibge",
             "capital_local_0a100",
             "pct_market_share",
+            "qt_votos",
         ]],
         on="codigo_ibge",
         how="left",
@@ -277,6 +293,7 @@ def local_political_strength_map(
     frame["pct_market_share"] = pd.to_numeric(
         frame["pct_market_share"], errors="coerce"
     )
+    frame["qt_votos"] = pd.to_numeric(frame["qt_votos"], errors="coerce").fillna(0)
     note_high = frame["capital_local_0a100"].gt(50)
     market_share_high = frame["pct_market_share"].ge(statewide_market_share)
     valid_classification = (
@@ -307,13 +324,43 @@ def local_political_strength_map(
     )
     frame["referencia_label"] = f"{statewide_market_share:.2f}%"
 
+    total_candidate_votes = float(frame["qt_votos"].sum())
+    summaries: list[dict[str, object]] = []
+    for classification in LOCAL_STRENGTH_COLORS:
+        class_rows = frame.loc[
+            frame["classe_forca_local"].eq(classification)
+        ].copy()
+        class_votes = float(class_rows["qt_votos"].sum())
+        leader = class_rows.sort_values("qt_votos", ascending=False).head(1)
+        summaries.append({
+            "classification": classification,
+            "municipalities": int(len(class_rows)),
+            "votes": class_votes,
+            "vote_share": (
+                class_votes / total_candidate_votes if total_candidate_votes > 0 else 0.0
+            ),
+            "leader": (
+                str(leader.iloc[0]["municipio"]).title() if not leader.empty else "—"
+            ),
+            "leader_votes": (
+                float(leader.iloc[0]["qt_votos"]) if not leader.empty else 0.0
+            ),
+        })
+
+    selected_class = (
+        selected_class if selected_class in LOCAL_STRENGTH_COLORS else None
+    )
+    map_colors = [
+        color if selected_class in (None, classification) else "#334155"
+        for classification, color in LOCAL_STRENGTH_COLORS.items()
+    ]
     fig = categorical_choropleth(
         frame,
         geojson,
         location="codigo_ibge_str",
         category="classe_forca_local",
         categories=list(LOCAL_STRENGTH_COLORS),
-        colors=list(LOCAL_STRENGTH_COLORS.values()),
+        colors=map_colors,
         hover_name="municipio",
         custom_data=[
             "classe_forca_local",
@@ -321,6 +368,8 @@ def local_political_strength_map(
             "nota_label",
             "market_share_label",
             "referencia_label",
+            "codigo_ibge_str",
+            "municipio",
         ],
     )
     fig.update_traces(
@@ -335,7 +384,57 @@ def local_political_strength_map(
     )
     fig.update_coloraxes(showscale=False)
     _add_boundary(fig, geojson.get("regional_lines", {}).get("state", ([], [])), width=3.0)
-    return fig, statewide_market_share
+    return fig, statewide_market_share, summaries
+
+
+def local_political_strength_municipality_map(
+    codigo_ibge: str,
+    municipality: str,
+    classification: str,
+) -> go.Figure | None:
+    """Render only the selected municipality using its local-strength class color."""
+    geojson, _, _, _ = load_geo_reference()
+    if not geojson or classification not in LOCAL_STRENGTH_COLORS:
+        return None
+
+    code = str(codigo_ibge).strip()
+    selected_features = [
+        feature
+        for feature in geojson.get("features", [])
+        if str(feature.get("properties", {}).get("id", "")).strip() == code
+    ]
+    if not selected_features:
+        return None
+
+    selected_geojson = {
+        "type": "FeatureCollection",
+        "features": selected_features,
+    }
+    frame = pd.DataFrame(
+        {
+            "codigo_ibge": [code],
+            "municipio": [municipality],
+            "classe_forca_local": [classification],
+        }
+    )
+    fig = categorical_choropleth(
+        frame,
+        selected_geojson,
+        location="codigo_ibge",
+        category="classe_forca_local",
+        categories=[classification],
+        colors=[LOCAL_STRENGTH_COLORS[classification]],
+        hover_name="municipio",
+        custom_data=["classe_forca_local"],
+    )
+    fig.update_traces(
+        hovertemplate="<b>%{hovertext}</b><br>%{customdata[0]}<extra></extra>",
+        marker_line_color="rgba(255,255,255,0.98)",
+        marker_line_width=2.4,
+    )
+    fig.update_coloraxes(showscale=False)
+    fig.update_layout(margin={"l": 4, "r": 4, "t": 4, "b": 4})
+    return fig
 
 
 ACTION_COLORS = {
