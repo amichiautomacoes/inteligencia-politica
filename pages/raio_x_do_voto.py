@@ -601,19 +601,31 @@ def _apply_visual_model() -> None:
             margin-top: 0.6rem;
         }}
         .raiox-concentration-pill-label {{
-            color: #f8fbff;
-            font-size: 1.08rem;
-            font-weight: 800;
+            color: #86efac;
+            font-size: 0.82rem;
+            font-weight: 900;
             text-transform: uppercase;
-            letter-spacing: 0.05em;
+            letter-spacing: 0.075em;
         }}
-        .raiox-concentration-pill-value {{
+        .raiox-concentration-pill-value,
+        .raiox-concentration-pill-metric {{
             color: #ffffff;
-            font-size: clamp(1.55rem, 2vw, 2.1rem);
-            font-weight: 800;
+            font-size: clamp(2rem, 3.2vw, 3rem);
+            font-weight: 950;
             line-height: 1.1;
-            margin: 0.45rem 0 0.28rem;
+            margin: 0.56rem 0 0.08rem;
             font-variant-numeric: tabular-nums;
+        }}
+        .raiox-concentration-pill-unit {{
+            margin-left: 0.34rem;
+            color: #b7c7e6;
+            font-size: clamp(0.86rem, 1vw, 1rem);
+            font-weight: 750;
+            letter-spacing: 0;
+        }}
+        [class*="st-key-pagina1_concentration_donut_"] .js-line {{
+            stroke-linecap: round !important;
+            stroke-linejoin: round !important;
         }}
         .raiox-concentration-pill-city {{
             color: #ffffff;
@@ -1259,13 +1271,17 @@ def _render_local_politics_cards(
                 f"linear-gradient(145deg, {color}24 0%, rgba(7,24,54,.72) 58%, {color}0d 100%)"
             )
         )
+        wrapper_margin = "0" if index == len(summaries) - 1 else "0 0 .55rem 0"
         style_rules.append(f"""
+        .st-key-pagina1_forca_local_card_{index} {{
+            margin: {wrapper_margin};
+        }}
         .st-key-pagina1_forca_local_card_{index} button {{
-            min-height: 13.5rem;
+            min-height: 10.65rem;
             height: auto;
             align-items: flex-start;
             justify-content: flex-start;
-            padding: 1rem 1.05rem 1.05rem;
+            padding: .82rem .95rem .86rem;
             border: 1px solid {color}66;
             border-radius: 16px;
             background: {card_background};
@@ -1287,23 +1303,23 @@ def _render_local_politics_cards(
             width: 100%;
             margin: 0;
             text-align: left;
-            line-height: 1.4;
+            line-height: 1.28;
         }}
         .st-key-pagina1_forca_local_card_{index} button p br {{
             display: block;
             content: "";
-            margin-top: 0.72rem;
+            margin-top: 0.42rem;
         }}
         .st-key-pagina1_forca_local_card_{index} button p strong:first-of-type {{
             display: inline-flex;
             align-items: center;
             max-width: 100%;
-            padding: 0.34rem 0.58rem;
+            padding: 0.28rem 0.52rem;
             border: 1px solid {color}99;
             border-radius: 999px;
             background: {color}2b;
             color: #f8fbff;
-            font-size: 0.76rem;
+            font-size: 0.72rem;
             font-weight: 900;
             line-height: 1.2;
             letter-spacing: 0.035em;
@@ -1311,13 +1327,13 @@ def _render_local_politics_cards(
         .st-key-pagina1_forca_local_card_{index} button p strong:nth-of-type(2),
         .st-key-pagina1_forca_local_card_{index} button p strong:nth-of-type(3) {{
             color: #ffffff;
-            font-size: 1.28rem;
+            font-size: 1.12rem;
             font-weight: 900;
             line-height: 1.08;
         }}
         .st-key-pagina1_forca_local_card_{index} button p strong:nth-of-type(4) {{
             color: #b7c7e6;
-            font-size: 0.78rem;
+            font-size: 0.72rem;
             font-weight: 850;
             letter-spacing: 0.04em;
             text-transform: uppercase;
@@ -1330,13 +1346,13 @@ def _render_local_politics_cards(
         .st-key-pagina1_forca_local_card_{index} button p code {{
             display: inline-block;
             max-width: 100%;
-            padding: 0.42rem 0.62rem;
+            padding: 0.34rem 0.56rem;
             border: 1px solid {color}73;
             border-radius: 999px;
             background: {color}24;
             color: #f8fbff;
             font-family: inherit;
-            font-size: 0.78rem;
+            font-size: 0.72rem;
             font-weight: 800;
             line-height: 1.25;
             white-space: normal;
@@ -1877,11 +1893,12 @@ def _concentration_reference_rows(concentration_df: pd.DataFrame) -> pd.DataFram
     if concentration_df.empty:
         return pd.DataFrame()
     total_rows = len(concentration_df)
-    points = [point for point in (1, 5, 10, 20, 50) if point <= total_rows]
+    points = [point for point in (1, 5, 15, 20) if point <= total_rows]
     if total_rows not in points:
         points.append(total_rows)
     rows = concentration_df.iloc[[point - 1 for point in points]].copy()
     rows["referencia"] = [f"Top {point}" if point < total_rows else "Todos" for point in points]
+    rows["referencia_rank"] = points
     return rows
 
 
@@ -1906,10 +1923,9 @@ def _accumulated_concentration_chart(concentration_df: pd.DataFrame, max_rank: i
     if chart_df.empty:
         chart_df = concentration_df.head(1).copy()
 
-    ref_df = _concentration_reference_rows(chart_df)
+    ref_df = _concentration_reference_rows(concentration_df)
     max_rank_value = int(chart_df["rank_municipio"].max())
-    max_pct_value = float((chart_df["pct_acumulado"] * 100).max())
-    y_axis_max = min(100, max(82, np.ceil((max_pct_value + 4) / 5) * 5))
+    y_axis_max = 100
     x_axis_padding = max(1.5, max_rank_value * 0.035)
     fig = go.Figure()
     fig.add_trace(
@@ -1963,9 +1979,13 @@ def _accumulated_concentration_chart(concentration_df: pd.DataFrame, max_rank: i
                 hovertemplate=(
                     "<b>%{text}</b><br>"
                     "%{customdata[0]:,.0f} votos acumulados<br>"
-                    "%{customdata[1]:.1%} da votação total<extra></extra>"
+                    "%{customdata[1]:.1%} da votação total<br>"
+                    "Clique para ver os municípios<extra></extra>"
                 ),
-                customdata=np.stack([ref_df["votos_acumulados"], ref_df["pct_acumulado"]], axis=-1),
+                customdata=np.stack(
+                    [ref_df["votos_acumulados"], ref_df["pct_acumulado"], ref_df["referencia_rank"]],
+                    axis=-1,
+                ),
                 showlegend=False,
             )
         )
@@ -1996,7 +2016,7 @@ def _accumulated_concentration_chart(concentration_df: pd.DataFrame, max_rank: i
                 "x1": 1,
                 "yref": "y",
                 "y0": 0,
-                "y1": 80,
+                "y1": 100,
                 "fillcolor": "rgba(56, 189, 248, 0.055)",
                 "line": {"width": 0},
                 "layer": "below",
@@ -2012,12 +2032,12 @@ def _accumulated_concentration_chart(concentration_df: pd.DataFrame, max_rank: i
                 "y0": level,
                 "y1": level,
                 "line": {
-                    "color": "rgba(125, 211, 252, 0.72)" if level == 80 else "rgba(226, 232, 240, 0.16)",
-                    "width": 2.4 if level == 80 else 1,
-                    "dash": "solid" if level == 80 else "dot",
+                    "color": "rgba(125, 211, 252, 0.72)" if level == 100 else "rgba(226, 232, 240, 0.16)",
+                    "width": 2.4 if level == 100 else 1,
+                    "dash": "solid" if level == 100 else "dot",
                 },
             }
-            for level in (25, 50, 75, 80)
+            for level in (25, 50, 75, 100)
         ],
         annotations=[
             {
@@ -2029,13 +2049,13 @@ def _accumulated_concentration_chart(concentration_df: pd.DataFrame, max_rank: i
                 "text": f"{level}%",
                 "showarrow": False,
                 "font": {
-                    "color": "#E0F2FE" if level == 80 else "rgba(226, 232, 240, 0.72)",
-                    "size": 12 if level == 80 else 10,
+                    "color": "#E0F2FE" if level == 100 else "rgba(226, 232, 240, 0.72)",
+                    "size": 12 if level == 100 else 10,
                 },
-                "bgcolor": "rgba(8, 47, 73, 0.82)" if level == 80 else "rgba(5, 12, 28, 0.62)",
-                "borderpad": 3 if level == 80 else 2,
+                "bgcolor": "rgba(8, 47, 73, 0.82)" if level == 100 else "rgba(5, 12, 28, 0.62)",
+                "borderpad": 3 if level == 100 else 2,
             }
-            for level in (25, 50, 75, 80)
+            for level in (25, 50, 75, 100)
         ],
         hoverlabel={
             "bgcolor": "rgba(5,12,28,0.95)",
@@ -2047,31 +2067,52 @@ def _accumulated_concentration_chart(concentration_df: pd.DataFrame, max_rank: i
 
 
 CONCENTRATION_STEPS = (
-    (1, "Top 1", "#3b82f6"),
-    (5, "Top 2–5", "#2563eb"),
-    (15, "Top 6–15", "#1d4ed8"),
-    (20, "Top 16–20", "#1e40af"),
+    (1, "Top 1", "#2563eb"),
+    (5, "Top 2–5", "#3b82f6"),
+    (15, "Top 6–15", "#38bdf8"),
+    (20, "Top 16–20", "#60a5fa"),
 )
 
 
 def _concentration_donut(share: float, color: str) -> go.Figure:
-    fig = go.Figure(go.Pie(
-        values=[max(0, min(1, share)), max(0, 1 - share)],
-        labels=["Votos acumulados", "Demais votos"],
-        hole=0.73,
-        marker={"colors": [color, "rgba(147, 197, 253, 0.13)"],
-                "line": {"color": "rgba(7, 24, 54, 0.8)", "width": 2}},
-        textinfo="none",
-        sort=False,
-        direction="clockwise",
-        hovertemplate="%{label}: %{percent}<extra></extra>",
+    progress = max(0.0, min(1.0, float(share)))
+    stroke_width = 28
+    background_theta = np.linspace(0, 360, 241)
+    # Start at 12 o'clock and move clockwise.
+    progress_theta = np.linspace(90, 90 - (360 * progress), max(2, int(180 * progress) + 2))
+    fig = go.Figure()
+    fig.add_trace(go.Scatterpolar(
+        r=np.ones(len(background_theta)),
+        theta=background_theta,
+        mode="lines",
+        line={"color": "rgba(20, 48, 88, 0.92)", "width": stroke_width},
+        hoverinfo="skip",
+        showlegend=False,
+    ))
+    fig.add_trace(go.Scatterpolar(
+        r=np.ones(len(progress_theta)),
+        theta=progress_theta,
+        mode="lines",
+        line={"color": color, "width": stroke_width, "shape": "spline", "smoothing": 1.2},
+        hovertemplate=f"Votos acumulados: {_format_percent(progress)}<extra></extra>",
         showlegend=False,
     ))
     fig.update_layout(
         height=170, margin={"l": 4, "r": 4, "t": 4, "b": 4},
         paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        polar={
+            "bgcolor": "rgba(0,0,0,0)",
+            "radialaxis": {"visible": False, "range": [0, 1.28]},
+            "angularaxis": {"visible": False, "rotation": 90, "direction": "clockwise"},
+        },
         annotations=[{"text": _format_percent(share), "x": 0.5, "y": 0.5,
                       "showarrow": False, "font": {"size": 18, "color": "#ffffff"}}],
+        hoverlabel={
+            "bgcolor": "rgba(5,12,28,0.95)",
+            "font_color": "#EAF2FF",
+            "bordercolor": "rgba(147,197,253,0.55)",
+        },
     )
     return fig
 
@@ -2114,6 +2155,94 @@ def _concentration_breakdown_dialog(concentration_df: pd.DataFrame, selected_ran
     )
 
 
+def _concentration_chart_selection(event: object | None) -> int | None:
+    if event is None:
+        return None
+    if hasattr(event, "selection"):
+        selection = getattr(event, "selection")
+    elif isinstance(event, dict):
+        selection = event.get("selection", {})
+    else:
+        selection = {}
+    points = (
+        selection.get("points", [])
+        if isinstance(selection, dict)
+        else getattr(selection, "points", [])
+    )
+    if not points:
+        return None
+    point = points[0]
+    customdata = point.get("customdata") if isinstance(point, dict) else getattr(point, "customdata", None)
+    if customdata is None or len(customdata) < 3:
+        return None
+    try:
+        rank = int(float(customdata[2]))
+    except (TypeError, ValueError):
+        return None
+    return rank if rank > 0 else None
+
+
+@st.dialog("Municípios da concentração", width="large")
+def _concentration_municipalities_dialog(concentration_df: pd.DataFrame, selected_rank: int) -> None:
+    if concentration_df.empty:
+        st.info("Dados municipais indisponíveis.")
+        return
+
+    total_rows = len(concentration_df)
+    effective_rank = min(max(1, int(selected_rank)), total_rows)
+    selected = concentration_df.head(effective_rank).copy()
+    reference = selected.iloc[-1]
+    is_all = effective_rank >= total_rows
+    title = "Todos os municípios" if is_all else f"Top {effective_rank} municípios"
+    st.subheader(title)
+    st.caption(
+        f"{_format_number(float(reference['votos_acumulados']))} votos acumulados · "
+        f"{_format_percent(float(reference['pct_acumulado']))} da votação total"
+    )
+
+    if is_all:
+        display = selected[[
+            "rank_municipio",
+            "nm_municipio",
+            "qt_votos",
+            "pct_votos",
+            "pct_acumulado",
+        ]].rename(columns={
+            "rank_municipio": "Posição",
+            "nm_municipio": "Município",
+            "qt_votos": "Votos",
+            "pct_votos": "% individual",
+            "pct_acumulado": "% acumulado",
+        })
+        display["% individual"] = pd.to_numeric(display["% individual"], errors="coerce").fillna(0) * 100
+        display["% acumulado"] = pd.to_numeric(display["% acumulado"], errors="coerce").fillna(0) * 100
+        st.dataframe(
+            display,
+            hide_index=True,
+            height=650,
+            width="stretch",
+            column_config={
+                "Posição": st.column_config.NumberColumn(format="%d"),
+                "Votos": st.column_config.NumberColumn(format="%d"),
+                "% individual": st.column_config.NumberColumn(format="%.2f%%"),
+                "% acumulado": st.column_config.NumberColumn(format="%.2f%%"),
+            },
+        )
+        return
+
+    st.plotly_chart(
+        _territorial_concentration_chart(
+            concentration_df,
+            "votos_municipio",
+            label_col="nm_municipio",
+            title=title,
+            limit=effective_rank,
+        ),
+        width="stretch",
+        key=f"pagina1_concentration_dialog_chart_{effective_rank}",
+    )
+
+
 def _render_accumulated_concentration_section(df: pd.DataFrame | None) -> None:
     concentration_df = _municipal_concentration_frame(df)
     _major_section_header(
@@ -2134,19 +2263,14 @@ def _render_accumulated_concentration_section(df: pd.DataFrame | None) -> None:
         donut_cols = st.columns(4, gap="small")
         for column, (rank, _, color) in zip(donut_cols, CONCENTRATION_STEPS):
             row = row_at(rank)
-            effective_rank = int(row["rank_municipio"])
             share = float(row["pct_acumulado"])
-            territory_label = (
-                str(row["nm_municipio"]).title() if rank == 1
-                else f"{effective_rank} municípios"
-            )
             with column:
                 with st.container(border=True):
                     st.markdown(
                         f'<div class="raiox-concentration-pill-label">Top {rank}</div>'
-                        f'<div class="raiox-concentration-pill-city">'
-                        f'{_format_number(float(row["votos_acumulados"]))} votos'
-                        f'<span> · {html.escape(territory_label)}</span>'
+                        f'<div class="raiox-concentration-pill-metric">'
+                        f'<span class="raiox-concentration-pill-number">{_format_number(float(row["votos_acumulados"]))}</span>'
+                        f'<span class="raiox-concentration-pill-unit">votos</span>'
                         '</div>', unsafe_allow_html=True,
                     )
                     st.plotly_chart(
@@ -2183,15 +2307,21 @@ def _render_accumulated_concentration_section(df: pd.DataFrame | None) -> None:
                     f'<div class="raiox-concentration-city-list">{city_items}</div>',
                     unsafe_allow_html=True,
                 )
-        max_rank = min(50, len(concentration_df))
-        if len(concentration_df) > 50:
-            st.caption(
-                f"Visualização focada nos Top 50 de {_format_number(len(concentration_df))} municípios."
-            )
-        st.plotly_chart(
-            _accumulated_concentration_chart(concentration_df, max_rank=max_rank),
-            width="stretch",
+        st.caption(
+            f"Curva acumulada até 100% da votação em {_format_number(len(concentration_df))} municípios."
         )
+        curve_revision = st.session_state.get("pagina1_concentration_curve_revision", 0)
+        curve_event = st.plotly_chart(
+            _accumulated_concentration_chart(concentration_df),
+            width="stretch",
+            key=f"pagina1_concentration_curve_{curve_revision}",
+            on_select="rerun",
+            selection_mode="points",
+        )
+        selected_curve_rank = _concentration_chart_selection(curve_event)
+        if selected_curve_rank is not None:
+            st.session_state["pagina1_concentration_curve_revision"] = curve_revision + 1
+            _concentration_municipalities_dialog(concentration_df, selected_curve_rank)
 
 
 def _municipal_votes_frame(df: pd.DataFrame | None) -> pd.DataFrame | None:
@@ -3361,13 +3491,6 @@ local_politics_fig, statewide_market_share, local_politics_summaries = local_pol
 local_map_col, local_cards_col = st.columns([0.70, 0.30], gap="large")
 with local_map_col:
     with st.container(border=True):
-        _, local_filter_col = st.columns([0.70, 0.30], gap="small")
-        with local_filter_col:
-            st.selectbox(
-                "Filtro territorial",
-                ["Município"],
-                key="pagina1_forca_politica_territorial_kind",
-            )
         if local_politics_fig is None:
             st.info("Mapa de força política local indisponível.")
         else:
