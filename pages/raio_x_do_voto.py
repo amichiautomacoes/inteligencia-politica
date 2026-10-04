@@ -15,6 +15,8 @@ from hf_sync import data_files, file_by_kind, hf_filesystem, load_env, load_parq
 from eleitoral.maps.dna_geo_reference import load_geo_reference
 from eleitoral.maps.choropleth_maps import (
     LOCAL_STRENGTH_COLORS,
+    LOCAL_STRENGTH_ICONS,
+    LOCAL_STRENGTH_LABELS,
     LOCAL_STRENGTH_LEGEND,
     local_political_strength_map,
     local_political_strength_municipality_map,
@@ -420,15 +422,16 @@ def _apply_visual_model() -> None:
             position: absolute;
             top: 1rem;
             right: 1.2rem;
-            color: #eaf2ff;
-            background: transparent;
-            border: 1px solid var(--raiox-outline-border);
+            color: #f0fdf4;
+            background: linear-gradient(145deg, rgba(22, 163, 74, 0.92), rgba(21, 128, 61, 0.86));
+            border: 1px solid rgba(134, 239, 172, 0.62);
             border-radius: 999px;
             padding: 0.38rem 0.78rem;
             font-size: 0.76rem;
             font-weight: 850;
             letter-spacing: 0.06em;
             text-transform: uppercase;
+            box-shadow: 0 8px 20px rgba(22, 163, 74, 0.22);
         }}
         .mapa-kpi-wide-value {{
             max-width: 44rem;
@@ -437,6 +440,13 @@ def _apply_visual_model() -> None:
             font-size: 2.35rem;
             font-weight: 900;
             line-height: 1.02;
+        }}
+        .mapa-kpi-wide-caption {{
+            margin-top: 0.72rem;
+            color: #dbeafe;
+            font-size: 1.15rem;
+            font-weight: 800;
+            line-height: 1.25;
         }}
         .raiox-kpi-title {{
             font-size: 1.1rem;
@@ -1027,30 +1037,30 @@ def _territorial_concentration_chart(
                     [0.45, "rgba(37, 99, 235, 0.92)"],
                     [1.0, "rgba(147, 197, 253, 1.0)"],
                 ],
-                "line": {"color": "rgba(239,246,255,0.86)", "width": 1.2},
+                "line": {"color": "rgba(239,246,255,0.86)", "width": 1.5},
             },
             customdata=customdata,
             text=trace_text,
             textposition="auto",
-            textfont={"color": "#f8fbff", "size": 12, "family": "Segoe UI, Inter, sans-serif"},
-            insidetextfont={"color": "#ffffff", "size": 12, "family": "Segoe UI, Inter, sans-serif"},
-            outsidetextfont={"color": "#f8fbff", "size": 12, "family": "Segoe UI, Inter, sans-serif"},
+            textfont={"color": "#f8fbff", "size": 16, "family": "Segoe UI, Inter, sans-serif"},
+            insidetextfont={"color": "#ffffff", "size": 16, "family": "Segoe UI, Inter, sans-serif"},
+            outsidetextfont={"color": "#f8fbff", "size": 16, "family": "Segoe UI, Inter, sans-serif"},
             cliponaxis=False,
             opacity=0.98,
             hovertemplate="<b>%{y}</b><br>Votos: %{customdata[0]:,.0f}<br>Participacao: %{customdata[1]:.1%}<extra></extra>",
         )
     )
     fig.update_layout(
-        height=max(480, 120 + len(ranking) * 34),
-        margin={"l": 200, "r": 28, "t": 58, "b": 22},
+        height=max(560, 150 + len(ranking) * 58),
+        margin={"l": 270, "r": 46, "t": 72, "b": 30},
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        font={"color": "#f8fbff", "family": "Segoe UI, Inter, sans-serif"},
+        font={"color": "#f8fbff", "size": 15, "family": "Segoe UI, Inter, sans-serif"},
         title={
             "text": title,
             "x": 0.0,
             "xanchor": "left",
-            "font": {"size": 19, "color": "#f8fbff", "family": "Segoe UI, Inter, sans-serif"},
+            "font": {"size": 23, "color": "#f8fbff", "family": "Segoe UI, Inter, sans-serif"},
         },
         xaxis={
             "title": "",
@@ -1061,14 +1071,14 @@ def _territorial_concentration_chart(
         },
         yaxis={
             "title": "",
-            "tickfont": {"size": 11, "color": "#f8fbff"},
+            "tickfont": {"size": 16, "color": "#f8fbff"},
             "automargin": True,
             "ticks": "",
             "showgrid": False,
             "zeroline": False,
         },
         coloraxis_showscale=False,
-        bargap=0.22,
+        bargap=0.12,
     )
     return fig
 
@@ -1211,22 +1221,18 @@ def _render_local_politics_cards(
 ) -> None:
     card_copy = {
         "Máquina eficiente": (
-            "Apoio que virou voto",
             "Apoio local forte e votação acima da média estadual.",
             "Manter e fortalecer",
         ),
         "Traição ou máquina inoperante": (
-            "Apoio que não entregou",
             "Há aliados locais, mas a votação ficou abaixo da média estadual.",
             "Revisar articulação",
         ),
         "Voto orgânico / opinião": (
-            "Força própria",
             "Boa votação mesmo sem uma estrutura política local forte.",
             "Construir novas alianças",
         ),
         "Sem penetração": (
-            "Territórios frios",
             "Pouco apoio local e votação abaixo da média estadual.",
             "Priorizar com critério",
         ),
@@ -1244,45 +1250,117 @@ def _render_local_politics_cards(
             f"0 0 0 2px {color}, 0 14px 32px rgba(1,8,24,.34)"
             if is_selected else "0 12px 30px rgba(1,8,24,.22)"
         )
+        card_background = (
+            f"radial-gradient(circle at 0% 0%, {color}52 0%, {color}26 42%, transparent 72%), "
+            f"linear-gradient(145deg, {color}30 0%, rgba(7,24,54,.76) 58%, {color}12 100%)"
+            if is_selected
+            else (
+                f"radial-gradient(circle at 0% 0%, {color}38 0%, {color}18 42%, transparent 72%), "
+                f"linear-gradient(145deg, {color}24 0%, rgba(7,24,54,.72) 58%, {color}0d 100%)"
+            )
+        )
         style_rules.append(f"""
         .st-key-pagina1_forca_local_card_{index} button {{
-            min-height: 9.25rem;
+            min-height: 13.5rem;
             height: auto;
+            align-items: flex-start;
             justify-content: flex-start;
-            padding: 0.9rem 1rem;
-            border: 1px solid rgba(177,211,255,.34);
-            border-left: 6px solid {color};
+            padding: 1rem 1.05rem 1.05rem;
+            border: 1px solid {color}66;
             border-radius: 16px;
-            background: var(--raiox-card-bg);
+            background: {card_background};
             box-shadow: {selected_shadow};
             color: #eaf2ff;
             text-align: left;
+            backdrop-filter: blur(7px);
+            -webkit-backdrop-filter: blur(7px);
         }}
         .st-key-pagina1_forca_local_card_{index} button:hover {{
             border-color: {color};
+            background:
+                radial-gradient(circle at 0% 0%, {color}52 0%, {color}28 44%, transparent 74%),
+                linear-gradient(145deg, {color}30 0%, rgba(7,24,54,.78) 58%, {color}14 100%);
             color: #ffffff;
         }}
         .st-key-pagina1_forca_local_card_{index} button p {{
             white-space: pre-line;
+            width: 100%;
+            margin: 0;
             text-align: left;
-            line-height: 1.35;
+            line-height: 1.4;
+        }}
+        .st-key-pagina1_forca_local_card_{index} button p br {{
+            display: block;
+            content: "";
+            margin-top: 0.72rem;
+        }}
+        .st-key-pagina1_forca_local_card_{index} button p strong:first-of-type {{
+            display: inline-flex;
+            align-items: center;
+            max-width: 100%;
+            padding: 0.34rem 0.58rem;
+            border: 1px solid {color}99;
+            border-radius: 999px;
+            background: {color}2b;
+            color: #f8fbff;
+            font-size: 0.76rem;
+            font-weight: 900;
+            line-height: 1.2;
+            letter-spacing: 0.035em;
+        }}
+        .st-key-pagina1_forca_local_card_{index} button p strong:nth-of-type(2),
+        .st-key-pagina1_forca_local_card_{index} button p strong:nth-of-type(3) {{
+            color: #ffffff;
+            font-size: 1.28rem;
+            font-weight: 900;
+            line-height: 1.08;
+        }}
+        .st-key-pagina1_forca_local_card_{index} button p strong:nth-of-type(4) {{
+            color: #b7c7e6;
+            font-size: 0.78rem;
+            font-weight: 850;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }}
+        .st-key-pagina1_forca_local_card_{index} button p em {{
+            color: #dbeafe;
+            font-style: normal;
+            font-weight: 750;
+        }}
+        .st-key-pagina1_forca_local_card_{index} button p code {{
+            display: inline-block;
+            max-width: 100%;
+            padding: 0.42rem 0.62rem;
+            border: 1px solid {color}73;
+            border-radius: 999px;
+            background: {color}24;
+            color: #f8fbff;
+            font-family: inherit;
+            font-size: 0.78rem;
+            font-weight: 800;
+            line-height: 1.25;
+            white-space: normal;
         }}
         """)
     st.html("<style>" + "".join(style_rules) + "</style>")
 
     for index, summary in enumerate(summaries):
         classification = str(summary["classification"])
-        title, description, action = card_copy[classification]
+        title = LOCAL_STRENGTH_LABELS[classification]
+        icon = LOCAL_STRENGTH_ICONS[classification]
+        description, action = card_copy[classification]
         municipalities = int(summary["municipalities"])
         vote_share = float(summary["vote_share"])
         leader = str(summary["leader"])
         leader_votes = float(summary["leader_votes"])
-        selected_suffix = " · EXIBINDO NO MAPA" if classification == selected_class else ""
+        selected_suffix = " · EXIBINDO" if classification == selected_class else ""
+        cities_label = "Cidade" if municipalities == 1 else "Cidades"
         label = (
-            f"**{title.upper()}**{selected_suffix}  \n"
-            f"**{_format_number(municipalities)} municípios · {_format_percent(vote_share)} dos votos**  \n"
-            f"Principal: {leader} · {_format_number(leader_votes)} votos  \n"
-            f"Estratégia: {action}"
+            f"**{icon} {title.upper()}{selected_suffix}**  \n"
+            f"**{_format_number(municipalities)} {cities_label}** | "
+            f"**{_format_percent(vote_share)} da sua votação**  \n"
+            f"**Cidade-chave:** {leader} *({_format_number(leader_votes)} votos)*  \n"
+            f"`Estratégia · {action}`"
         )
         if st.button(
             label,
@@ -1391,6 +1469,7 @@ def _local_politics_municipality_dialog(
     classification = selection["classificacao"]
     code = selection["codigo_ibge"]
     color = LOCAL_STRENGTH_COLORS[classification]
+    icon = LOCAL_STRENGTH_ICONS[classification]
     reading, criteria = LOCAL_STRENGTH_LEGEND[classification]
 
     capital_rows = pd.DataFrame()
@@ -1469,7 +1548,7 @@ def _local_politics_municipality_dialog(
             margin:.05rem 0 .8rem;border:1px solid {color};border-radius:999px;
             background:rgba(8,28,64,.72);color:#f8fbff;font-weight:800;">
             <span style="width:.72rem;height:.72rem;border-radius:50%;background:{color};"></span>
-            {html.escape(classification)} — {html.escape(reading)}
+            {icon} {html.escape(reading)}
         </div>
         """,
         unsafe_allow_html=True,
@@ -2135,6 +2214,48 @@ def _total_votes_label(df: pd.DataFrame | None) -> str:
     return _format_number(total)
 
 
+def _leading_municipality_selection(df: pd.DataFrame | None) -> tuple[str, str]:
+    municipal = _municipal_votes_frame(df)
+    required = {"cd_ibge_municipio", "qt_votos"}
+    if municipal is None or municipal.empty or not required.issubset(municipal.columns):
+        return "", ""
+
+    ranking = municipal.copy()
+    ranking["_municipality_code"] = (
+        ranking["cd_ibge_municipio"]
+        .astype("string")
+        .str.replace(r"\.0$", "", regex=True)
+        .str.strip()
+    )
+    ranking["qt_votos"] = pd.to_numeric(ranking["qt_votos"], errors="coerce").fillna(0)
+    ranking = ranking.loc[ranking["_municipality_code"].notna() & ranking["_municipality_code"].ne("")]
+    if ranking.empty:
+        return "", ""
+
+    aggregations: dict[str, str] = {"qt_votos": "sum"}
+    if "nm_mesorregiao" in ranking.columns:
+        aggregations["nm_mesorregiao"] = "first"
+    if "nm_municipio" in ranking.columns:
+        aggregations["nm_municipio"] = "first"
+    ranking = ranking.groupby("_municipality_code", as_index=False).agg(aggregations)
+    sort_columns = ["qt_votos"]
+    ascending = [False]
+    if "nm_municipio" in ranking.columns:
+        sort_columns.append("nm_municipio")
+        ascending.append(True)
+    leader = ranking.sort_values(sort_columns, ascending=ascending).iloc[0]
+    mesoregion_value = leader.get("nm_mesorregiao", "")
+    mesoregion = "" if pd.isna(mesoregion_value) else str(mesoregion_value).strip()
+    return mesoregion, str(leader["_municipality_code"])
+
+
+def _candidate_widget_suffix() -> str:
+    filters = st.session_state.get("deputados_filters", {})
+    parts = [filters.get("ano"), filters.get("cargo"), filters.get("nome")]
+    normalized = "_".join(_normalized_text(part).replace(" ", "_") for part in parts if part)
+    return normalized.casefold() or "padrao"
+
+
 def _render_territory_leader(df: pd.DataFrame | None) -> None:
     name = "--"
     votes = "--"
@@ -2152,10 +2273,10 @@ def _render_territory_leader(df: pd.DataFrame | None) -> None:
 
     if ui is not None and not USE_CUSTOM_KPI_CARDS:
         ui.metric_card(
-            label="Território líder",
+            label="Principal reduto eleitoral",
             value=name,
-            description=f"{votes} votos",
-            delta="Maior concentração",
+            description=f"{votes} votos recebidos",
+            delta="Maior base eleitoral",
             variant="dashboard",
             key="kpi_territorio_lider",
         )
@@ -2164,10 +2285,10 @@ def _render_territory_leader(df: pd.DataFrame | None) -> None:
     st.markdown(
         f"""
         <div class="mapa-kpi-wide-card">
-            <div class="mapa-kpi-wide-tag">Maior concentração</div>
-            <div class="mapa-kpi-label">Território líder</div>
+            <div class="mapa-kpi-wide-tag">Maior base eleitoral</div>
+            <div class="mapa-kpi-label">Principal reduto eleitoral</div>
             <div class="mapa-kpi-wide-value">{html.escape(name)}</div>
-            <div class="mapa-kpi-caption">{votes} votos</div>
+            <div class="mapa-kpi-wide-caption">{votes} votos recebidos</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -3129,7 +3250,7 @@ _apply_visual_model()
 votos_municipio_df = _read_selected_parquet("votos_municipio")
 votos_bairro_df = _read_selected_parquet("votos_bairro")
 _render_page_header(_total_votes_label(votos_municipio_df))
-_major_section_header("Mapa Territorial da Votação", "Leitura territorial do desempenho eleitoral no recorte ativo.")
+_major_section_header("Mapa de Força Eleitoral", "Onde estão concentrados seus votos e a força da sua votação.")
 _render_territory_leader(votos_municipio_df)
 map_col, cards_col = st.columns([0.70, 0.30], gap="large")
 with map_col:
@@ -3161,21 +3282,45 @@ with detail_map_col:
     with st.container(border=True):
         try:
             mesoregions = mesoregion_options()
+            leading_mesorregiao, leading_municipality_code = _leading_municipality_selection(
+                votos_municipio_df
+            )
+            mesoregion_choices = ["Todas", *mesoregions]
+            default_mesorregiao = next(
+                (
+                    option
+                    for option in mesoregion_choices
+                    if _normalized_text(option) == _normalized_text(leading_mesorregiao)
+                ),
+                "Todas",
+            )
+            candidate_widget_suffix = _candidate_widget_suffix()
             selected_mesorregiao = st.selectbox(
                 "Mesorregião",
-                ["Todas", *mesoregions],
-                key="pagina1_malha_mesorregiao",
+                mesoregion_choices,
+                index=mesoregion_choices.index(default_mesorregiao),
+                key=f"pagina1_malha_mesorregiao_{candidate_widget_suffix}",
             )
             municipality_choices = municipality_options(selected_mesorregiao)
             if not municipality_choices:
                 selected_code = None
                 st.info("Nenhum município disponível para a mesorregião selecionada.")
             else:
+                municipality_codes = [code for code, _ in municipality_choices]
+                default_municipality_index = (
+                    municipality_codes.index(leading_municipality_code)
+                    if leading_municipality_code in municipality_codes
+                    else 0
+                )
                 selected_code = st.selectbox(
                     "Município",
-                    [code for code, _ in municipality_choices],
+                    municipality_codes,
+                    index=default_municipality_index,
                     format_func=dict(municipality_choices).get,
-                    key=f"pagina1_municipio_malha_{selected_mesorregiao}",
+                    key=(
+                        f"pagina1_municipio_malha_{candidate_widget_suffix}_"
+                        f"{_normalized_text(selected_mesorregiao).replace(' ', '_').casefold()}"
+                    ),
                 )
             if selected_code is not None:
                 mesh_fig, _ = municipality_mesh_map(selected_code, votos_bairro_df)
@@ -3185,10 +3330,16 @@ with detail_map_col:
                     st.plotly_chart(mesh_fig, width="stretch", height=560, key="pagina1_malha_municipal")
                     mesh_kind = (mesh_fig.layout.meta or {}).get("mesh_kind")
                     scale_type = (mesh_fig.layout.meta or {}).get("scale_type")
-                    scale_label = "logarítmica" if scale_type == "logarithmic" else "linear"
-                    if mesh_kind == "setor":
-                        st.caption(f"Azul mais escuro indica mais votos. A escala {scale_label} é relativa ao maior valor do município e, nos setores censitários, ocupa toda a faixa de cores para manter visíveis os setores com votos. Passe o cursor para ver os bairros e seus votos.")
+                    if scale_type == "uniform":
+                        st.caption(
+                            "Municípios com menos de 1.000 votos usam um único tom de azul, "
+                            "sem escala de intensidade. Passe o cursor para ver os bairros e seus votos."
+                        )
+                    elif mesh_kind == "setor":
+                        scale_label = "logarítmica" if scale_type == "logarithmic" else "linear"
+                        st.caption(f"Azul mais escuro indica mais votos. A escala {scale_label} é relativa ao maior valor do município e, nos setores censitários, ocupa toda a faixa de cores para manter visíveis os setores com votos. O tooltip identifica os bairros do TSE mesmo onde o candidato não recebeu votos; setores sem referência direta usam o bairro territorialmente mais próximo no município.")
                     else:
+                        scale_label = "logarítmica" if scale_type == "logarithmic" else "linear"
                         st.caption(f"Azul mais escuro indica mais votos. A escala {scale_label} considera também a proporção de regiões com votos no município. Passe o cursor para ver os bairros e seus votos.")
         except Exception as exc:
             st.warning(f"Não foi possível carregar o mapa de votos por bairro: {exc}")

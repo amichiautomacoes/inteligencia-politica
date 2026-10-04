@@ -16,10 +16,12 @@ from eleitoral.maps.dna_geo_reference import (
     load_geo_reference,
     load_municipality_sectors,
     load_sector_neighborhood_lookup,
+    load_tse_neighborhood_sector_crosswalk,
 )
 
 
 MIN_MUNICIPAL_COVERAGE = 0.95
+MIN_WEIGHTED_AREAS_FOR_MESH = 2
 
 
 def mesoregion_options() -> list[str]:
@@ -98,12 +100,10 @@ def municipality_mesh(municipality_code: str) -> tuple[str, pd.DataFrame, str, s
 
     areas = load_geo_layer("area_ponderada")
     areas = areas.loc[areas["code_muni"].astype("string").eq(str(municipality_code))]
-    # Use the weighted-area mesh when at least four distinct units exist;
-    # smaller or incomplete meshes fall back to the census-sector mesh.
-    if (
-        areas["code_weighting"].dropna().nunique() >= 4
-        and _mesh_covers_municipality(areas, municipality_geometry)
-    ):
+    # A single weighted area would not subdivide the municipality, so only
+    # that case falls back to census sectors. Municipalities with two or more
+    # weighted areas use that coarser and more legible official mesh.
+    if areas["code_weighting"].dropna().nunique() >= MIN_WEIGHTED_AREAS_FOR_MESH:
         return "area_ponderada", areas, "code_weighting", "code_weighting"
 
     sectors = load_municipality_sectors(municipality_code)
@@ -165,6 +165,79 @@ def _boundary_coordinates(geometry) -> tuple[list[float | None], list[float | No
         lon.append(None)
         lat.append(None)
     return lon, lat
+
+
+def _numeric_code_strings(values: pd.Series) -> pd.Series:
+    return (
+        pd.to_numeric(values, errors="coerce")
+        .round()
+        .astype("Int64")
+        .astype("string")
+    )
+
+
+def _sector_tse_neighborhood_names(
+    mesh: pd.DataFrame, municipality_code: str,
+) -> pd.Series:
+    """Label every sector from the complete TSE-neighborhood crosswalk.
+
+    The crosswalk has one representative census sector for every TSE
+    neighborhood. Sectors without a direct representative inherit the label
+    from the nearest reference sector inside the same municipality so the
+    tooltip remains informative even when the selected candidate had no votes
+    there.
+    """
+    empty = pd.Series("", index=mesh.index, dtype="string")
+    try:
+        crosswalk = load_tse_neighborhood_sector_crosswalk()
+    except Exception:
+        return empty
+
+    required = {"cd_ibge_municipio", "id_unidade", "nm_bairro"}
+    if crosswalk.empty or not required.issubset(crosswalk.columns):
+        return empty
+
+    rows = crosswalk.copy()
+    rows["_municipality_code"] = _numeric_code_strings(rows["cd_ibge_municipio"])
+    rows = rows.loc[rows["_municipality_code"].eq(str(municipality_code))].copy()
+    if rows.empty:
+        return empty
+
+    rows["_sector_code"] = _numeric_code_strings(rows["id_unidade"])
+    rows["_tse_name"] = rows["nm_bairro"].fillna("").astype(str).str.strip()
+    if "nm_bairro_atribuido" in rows.columns:
+        attributed = rows["nm_bairro_atribuido"].fillna("").astype(str).str.strip()
+        rows.loc[rows["_tse_name"].eq(""), "_tse_name"] = attributed
+    rows = rows.loc[rows["_sector_code"].notna() & rows["_tse_name"].ne("")]
+    if rows.empty:
+        return empty
+
+    direct_names = rows.groupby("_sector_code")["_tse_name"].apply(
+        lambda names: " / ".join(dict.fromkeys(names))
+    )
+    result = mesh["id"].map(direct_names).fillna("").astype("string")
+    reference_rows = mesh.loc[mesh["id"].isin(direct_names.index), ["id", "geometry"]]
+    reference_rows = reference_rows.loc[
+        reference_rows["geometry"].map(lambda geometry: geometry is not None and not geometry.is_empty)
+    ]
+    if reference_rows.empty:
+        return result
+
+    references = [
+        (row.geometry.representative_point(), str(direct_names.loc[row.id]))
+        for row in reference_rows.itertuples(index=False)
+    ]
+    for index in result.index[result.eq("")]:
+        geometry = mesh.at[index, "geometry"]
+        if geometry is None or geometry.is_empty:
+            continue
+        point = geometry.representative_point()
+        _, nearest_name = min(
+            references,
+            key=lambda reference: point.distance(reference[0]),
+        )
+        result.at[index] = nearest_name
+    return result
 
 
 def _plotly_polygon_geometry(geometry, municipality_geometry):
@@ -252,6 +325,9 @@ def municipality_mesh_map(
         except Exception:
             # The map remains usable if the optional reference table is absent.
             pass
+        mesh["_tse_neighborhoods"] = _sector_tse_neighborhood_names(
+            mesh, municipality_code
+        )
 
     geojson = {
         "type": "FeatureCollection",
@@ -336,15 +412,18 @@ def municipality_mesh_map(
     if not np.isclose(mesh["votes"].sum(), matched_rows):
         raise ValueError("A soma dos votos na malha diverge dos registros eleitorais associados.")
     mesh["details"] = mesh["id"].map(details).fillna("")
-    mesh["details"] = mesh.apply(
-        lambda row: row["details"]
-        if row["details"]
-        else (
-            f"{html.escape(row['_mesh_name'])}: 0 votos"
-            if row["_mesh_name"] else "Sem votos associados"
-        ),
-        axis=1,
-    )
+    def territory_details(row: pd.Series) -> str:
+        if kind == "setor" and str(row.get("_tse_neighborhoods") or "").strip():
+            tse_names = html.escape(str(row["_tse_neighborhoods"]))
+            vote_details = row["details"] or "Sem votos do candidato"
+            return f"<b>Bairros TSE de referência:</b> {tse_names}<br>{vote_details}"
+        if row["details"]:
+            return str(row["details"])
+        if row["_mesh_name"]:
+            return f"{html.escape(str(row['_mesh_name']))}: 0 votos"
+        return "Sem votos associados"
+
+    mesh["details"] = mesh.apply(territory_details, axis=1)
     mesh["total_label"] = mesh["votes"].map(lambda value: f"{int(value):,}".replace(",", "."))
     active_share = float(mesh["votes"].gt(0).mean())
     max_votes = float(mesh["votes"].max())
@@ -354,14 +433,29 @@ def municipality_mesh_map(
     # Keep the coverage factor for the coarser meshes, but use the full local
     # color range when sectors are the geographic fallback.
     coverage_factor = 1.0 if kind == "setor" else np.sqrt(active_share)
+    use_uniform_color = 0 < municipality_vote_total < 1_000
     use_log_scale = municipality_vote_total > 5_000
     if max_votes <= 0:
         relative_intensity = 0.0
+    elif use_uniform_color:
+        relative_intensity = np.ones(len(mesh))
     elif use_log_scale:
         relative_intensity = np.log1p(mesh["votes"]) / np.log1p(max_votes)
     else:
         relative_intensity = mesh["votes"] / max_votes
-    mesh["color_intensity"] = relative_intensity * coverage_factor
+    mesh["color_intensity"] = (
+        relative_intensity
+        if use_uniform_color
+        else relative_intensity * coverage_factor
+    )
+    colorscale = (
+        [[0, "#2563eb"], [1, "#2563eb"]]
+        if use_uniform_color
+        else [
+            [0, "#e8f1ff"], [0.25, "#bfd9ff"], [0.5, "#60a5fa"],
+            [0.75, "#2563eb"], [1, "#0b1f4d"],
+        ]
+    )
     fig = go.Figure(go.Choropleth(
         geojson=geojson,
         locations=mesh["id"],
@@ -369,13 +463,10 @@ def municipality_mesh_map(
         zmin=0,
         zmax=1,
         featureidkey="properties.id",
-        colorscale=[
-            [0, "#e8f1ff"], [0.25, "#bfd9ff"], [0.5, "#60a5fa"],
-            [0.75, "#2563eb"], [1, "#0b1f4d"],
-        ],
+        colorscale=colorscale,
         showscale=False,
-        marker_line_color="rgba(225,238,255,0.8)",
-        marker_line_width=0.65,
+        marker_line_color="rgba(235,244,255,0.98)",
+        marker_line_width=1.3,
         customdata=mesh[["total_label", "details"]],
         hovertemplate="<b>Total de votos: %{customdata[0]}</b><br>%{customdata[1]}<extra></extra>",
     ))
@@ -385,7 +476,7 @@ def municipality_mesh_map(
             lon=boundary_lon,
             lat=boundary_lat,
             mode="lines",
-            line={"color": "rgba(248,251,255,0.98)", "width": 2.2},
+            line={"color": "rgba(248,251,255,1)", "width": 3.2},
             hoverinfo="skip",
             showlegend=False,
         ))
@@ -397,7 +488,11 @@ def municipality_mesh_map(
         font={"color": "#eaf2ff"},
         meta={
             "mesh_kind": kind,
-            "scale_type": "logarithmic" if use_log_scale else "linear",
+            "scale_type": (
+                "uniform"
+                if use_uniform_color
+                else "logarithmic" if use_log_scale else "linear"
+            ),
             "municipality_vote_total": municipality_vote_total,
         },
     )

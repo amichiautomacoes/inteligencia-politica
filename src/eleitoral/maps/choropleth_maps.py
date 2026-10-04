@@ -19,11 +19,25 @@ LOCAL_STRENGTH_COLORS = {
     "Sem penetração": "#94A3B8",
 }
 
+LOCAL_STRENGTH_LABELS = {
+    "Máquina eficiente": "Alianças de alto retorno",
+    "Traição ou máquina inoperante": "Acordos sem entrega",
+    "Voto orgânico / opinião": "Votação própria",
+    "Sem penetração": "Zonas neutras",
+}
+
+LOCAL_STRENGTH_ICONS = {
+    "Máquina eficiente": "🤝",
+    "Traição ou máquina inoperante": "⚠️",
+    "Voto orgânico / opinião": "⭐",
+    "Sem penetração": "❄️",
+}
+
 LOCAL_STRENGTH_LEGEND = {
-    "Máquina eficiente": ("A força funcionou", "Nota alta + market share alto"),
-    "Traição ou máquina inoperante": ("A força falhou", "Nota alta + market share baixo"),
-    "Voto orgânico / opinião": ("Força própria", "Nota baixa + market share alto"),
-    "Sem penetração": ("Esperado", "Nota baixa + market share baixo"),
+    "Máquina eficiente": (LOCAL_STRENGTH_LABELS["Máquina eficiente"], "Nota alta + market share alto"),
+    "Traição ou máquina inoperante": (LOCAL_STRENGTH_LABELS["Traição ou máquina inoperante"], "Nota alta + market share baixo"),
+    "Voto orgânico / opinião": (LOCAL_STRENGTH_LABELS["Voto orgânico / opinião"], "Nota baixa + market share alto"),
+    "Sem penetração": (LOCAL_STRENGTH_LABELS["Sem penetração"], "Nota baixa + market share baixo"),
 }
 
 
@@ -374,7 +388,7 @@ def local_political_strength_map(
     )
     fig.update_traces(
         hovertemplate=(
-            "<b>%{hovertext}</b><br>%{customdata[0]} — %{customdata[1]}"
+            "<b>%{hovertext}</b><br>%{customdata[1]}"
             "<br>Capital local: %{customdata[2]}"
             "<br>Market share municipal: %{customdata[3]}"
             "<br>Referência estadual: %{customdata[4]}<extra></extra>"

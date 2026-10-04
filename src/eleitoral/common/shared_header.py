@@ -7,7 +7,15 @@ from textwrap import dedent
 
 import streamlit as st
 
-from hf_sync import data_files, hf_filesystem, load_env, selected_deputado_files
+from hf_sync import (
+    data_files,
+    file_by_kind,
+    first_existing_column,
+    hf_filesystem,
+    load_env,
+    load_parquet,
+    selected_deputado_files,
+)
 
 
 ASSET_DIR = Path(__file__).resolve().parents[3] / "assets"
@@ -126,16 +134,6 @@ def apply_shared_visual_model() -> None:
             line-height: 1.1;
             text-transform: uppercase;
             text-shadow: 0 0 16px rgba(147, 197, 253, 0.28);
-        }}
-        .raiox-candidate-votes {{
-            display: inline-block;
-            padding: 0.75rem 1rem;
-            border: 1px solid var(--raiox-outline-border);
-            border-radius: 10px;
-            background: var(--raiox-card-bg-soft);
-            color: #f8fbff;
-            font-size: 1.45rem;
-            font-weight: 850;
         }}
         .raiox-page-switch {{
             position: absolute;
@@ -466,6 +464,30 @@ def selected_deputado_label() -> dict[str, str]:
     }
 
 
+def selected_deputado_party() -> str:
+    file_name = file_by_kind(selected_files(), "votos_municipio")
+    if not file_name:
+        return "NÃO INFORMADO"
+
+    try:
+        frame = load_parquet(file_name, load_env().get("HF_TOKEN"))
+    except Exception:
+        return "NÃO INFORMADO"
+
+    party_column = first_existing_column(
+        frame,
+        ("sg_partido", "partido", "nm_partido", "nome_partido"),
+    )
+    if not party_column:
+        return "NÃO INFORMADO"
+
+    parties = frame[party_column].dropna().astype(str).str.strip()
+    parties = parties[~parties.str.lower().isin({"", "nan", "none", "<na>"})]
+    if parties.empty:
+        return "NÃO INFORMADO"
+    return parties.iloc[0].upper()
+
+
 @st.cache_data(show_spinner=False)
 def _remote_image_data_url(file_name: str, token: str | None = None) -> str:
     suffix = Path(file_name).suffix.lower()
@@ -508,6 +530,7 @@ def _page_switch(active_page: str) -> str:
 
 def render_page_header(active_page: str, total_votes: str | None = None) -> None:
     deputado = selected_deputado_label()
+    partido = selected_deputado_party()
     page_titles = {
         "raio_x": f"RAIO X da votação {deputado['ano']}",
         "dna": "DNA do Eleitor",
@@ -527,7 +550,7 @@ def render_page_header(active_page: str, total_votes: str | None = None) -> None
         else '<div class="raiox-candidate-photo"></div>'
     )
     votes_html = (
-        f'<div class="raiox-candidate-votes">TOTAL DE VOTOS: {html.escape(total_votes)}</div>'
+        f'<div class="raiox-candidate-line">TOTAL DE VOTOS: {html.escape(total_votes)}</div>'
         if total_votes is not None else ""
     )
     st.html(
@@ -541,6 +564,7 @@ def render_page_header(active_page: str, total_votes: str | None = None) -> None
                 <div class="raiox-candidate-info">
                     <div class="raiox-candidate-line">NOME: {html.escape(deputado["nome"])}</div>
                     <div class="raiox-candidate-line">CARGO: {html.escape(deputado["cargo"])}</div>
+                    <div class="raiox-candidate-line">PARTIDO: {html.escape(partido)}</div>
                     {votes_html}
                 </div>
             </div>

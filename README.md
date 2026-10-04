@@ -107,7 +107,7 @@ deputados/{estaduais|federais}/{ano}/{slug_do_candidato}/...
 
 | Grupo | Arquivo esperado | Consumidor principal |
 | --- | --- | --- |
-| Território | `territorio/stage01a_municipios.parquet` | Mapa estadual, concentração, KPIs e votos totais |
+| Território | `territorio/stage01a_municipios.parquet` | Cabeçalho (partido), mapa estadual, concentração, KPIs e votos totais |
 | Território | `territorio/stage01b_bairros.parquet` | Mapa intramunicipal e detalhamento por bairro |
 | Demografia | `demografico/stage02_genero.parquet` | Distribuição do eleitorado |
 | Demografia | `demografico/stage02_idade.parquet` | Distribuição do eleitorado |
@@ -157,7 +157,7 @@ As malhas são carregadas de `HF_GEOGRAPHY_PREFIX`:
 | `MG_AreaPonderada_CD2022.parquet` | Segunda opção da malha intramunicipal |
 | `MG_setores_mapa_CD2022.parquet` | Fallback completo por município |
 
-As referências `municipios_mg_mesorregioes.parquet` e `setor_bairro_lookup.parquet` permanecem em `HF_GEOGRAPHY_REFERENCE_PREFIX`.
+As referências `municipios_mg_mesorregioes.parquet`, `setor_bairro_lookup.parquet` e `crosswalk_setor_bairro.parquet` permanecem em `HF_GEOGRAPHY_REFERENCE_PREFIX`. O último arquivo relaciona os bairros do TSE aos setores censitários de referência e permite nomear, no tooltip, setores em que o candidato não recebeu votos.
 
 O pipeline geográfico é:
 
@@ -170,8 +170,8 @@ As geometrias estaduais são simplificadas antes da conversão. O carregamento p
 Para o mapa intramunicipal, `territorial_mesh.municipality_mesh()` escolhe:
 
 1. bairros oficiais, se cobrirem ao menos 95% do município;
-2. áreas ponderadas, se houver pelo menos quatro unidades e cobertura mínima de 95%;
-3. todos os setores censitários do município nos demais casos.
+2. áreas ponderadas, se houver pelo menos duas unidades;
+3. todos os setores censitários quando o município possuir uma única área ponderada.
 
 Linhas eleitorais sem código territorial aproveitável podem ser associadas por latitude/longitude ao polígono que contém o local de votação, ou ao polígono mais próximo dentro da tolerância definida. O contorno municipal é desenhado por cima da subdivisão escolhida.
 
