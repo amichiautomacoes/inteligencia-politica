@@ -12,6 +12,21 @@ import plotly.graph_objects as go
 from eleitoral.maps.dna_geo_reference import load_geo_reference
 
 
+LOCAL_STRENGTH_COLORS = {
+    "Máquina eficiente": "#22C55E",
+    "Traição ou máquina inoperante": "#EF4444",
+    "Voto orgânico / opinião": "#3B82F6",
+    "Sem penetração": "#94A3B8",
+}
+
+LOCAL_STRENGTH_LEGEND = {
+    "Máquina eficiente": ("A força funcionou", "Nota alta + market share alto"),
+    "Traição ou máquina inoperante": ("A força falhou", "Nota alta + market share baixo"),
+    "Voto orgânico / opinião": ("Força própria", "Nota baixa + market share alto"),
+    "Sem penetração": ("Esperado", "Nota baixa + market share baixo"),
+}
+
+
 def _normalized_name(value: object) -> str:
     name = unicodedata.normalize("NFKD", str(value or "").strip().upper())
     return " ".join("".join(char for char in name if not unicodedata.combining(char)).split())
@@ -150,6 +165,177 @@ def territorial_map(votes: pd.DataFrame | None, kind: str):
         fig.update_traces(marker_line_color="rgba(255,255,255,0.92)", marker_line_width=1.0)
     _add_boundary(fig, boundaries.get("state", ([], [])), width=3.0)
     return fig
+
+
+def _territorial_code(values: pd.Series) -> pd.Series:
+    return values.astype("string").str.strip().str.replace(r"\.0$", "", regex=True)
+
+
+def local_political_strength_map(
+    capital_local: pd.DataFrame | None,
+    votes: pd.DataFrame | None,
+) -> tuple[go.Figure | None, float | None]:
+    """Classify the effectiveness of local political capital in each municipality."""
+    geojson, tse, municipalities, _ = load_geo_reference()
+    capital_required = {"cd_municipio", "nm_municipio", "capital_local_0a100"}
+    vote_required = {
+        "cd_municipio",
+        "qt_votos",
+        "qt_votos_validos_municipio",
+        "pct_market_share",
+    }
+    if (
+        not geojson
+        or tse is None
+        or municipalities is None
+        or municipalities.empty
+        or capital_local is None
+        or capital_local.empty
+        or votes is None
+        or votes.empty
+        or not capital_required.issubset(capital_local.columns)
+        or not vote_required.issubset(votes.columns)
+    ):
+        return None, None
+
+    capital = capital_local.copy()
+    capital["_codigo_tse"] = _territorial_code(capital["cd_municipio"])
+    capital["capital_local_0a100"] = pd.to_numeric(
+        capital["capital_local_0a100"], errors="coerce"
+    )
+    capital = (
+        capital.sort_values("capital_local_0a100", ascending=False)
+        .drop_duplicates("_codigo_tse")
+    )
+
+    municipal_votes = votes.copy()
+    if "nivel_territorial" in municipal_votes.columns:
+        levels = municipal_votes["nivel_territorial"].astype(str).str.strip().str.casefold()
+        if levels.eq("municipio").any():
+            municipal_votes = municipal_votes.loc[levels.eq("municipio")].copy()
+    municipal_votes["_codigo_tse"] = _territorial_code(municipal_votes["cd_municipio"])
+    for column in ("qt_votos", "qt_votos_validos_municipio", "pct_market_share"):
+        municipal_votes[column] = pd.to_numeric(municipal_votes[column], errors="coerce")
+    municipal_votes = municipal_votes.groupby("_codigo_tse", as_index=False).agg(
+        qt_votos=("qt_votos", "sum"),
+        qt_votos_validos_municipio=("qt_votos_validos_municipio", "max"),
+        pct_market_share=("pct_market_share", "first"),
+    )
+
+    valid_votes = float(municipal_votes["qt_votos_validos_municipio"].fillna(0).sum())
+    candidate_votes = float(municipal_votes["qt_votos"].fillna(0).sum())
+    if valid_votes > 0:
+        statewide_market_share = candidate_votes / valid_votes * 100
+    else:
+        available_shares = municipal_votes["pct_market_share"].dropna()
+        statewide_market_share = (
+            float(available_shares.median()) if not available_shares.empty else 0.0
+        )
+
+    code_reference = tse[["codigo_tse", "codigo_ibge"]].drop_duplicates().copy()
+    code_reference["codigo_tse"] = _territorial_code(code_reference["codigo_tse"])
+    code_reference["codigo_ibge"] = _territorial_code(code_reference["codigo_ibge"])
+    combined = capital.merge(municipal_votes, on="_codigo_tse", how="left")
+    combined = combined.merge(
+        code_reference,
+        left_on="_codigo_tse",
+        right_on="codigo_tse",
+        how="left",
+    )
+
+    municipality_reference = municipalities[["codigo_ibge", "nome"]].drop_duplicates(
+        "codigo_ibge"
+    ).copy()
+    municipality_reference["codigo_ibge"] = _territorial_code(
+        municipality_reference["codigo_ibge"]
+    )
+    name_to_code = dict(
+        zip(
+            municipality_reference["nome"].map(_normalized_name),
+            municipality_reference["codigo_ibge"],
+        )
+    )
+    combined["codigo_ibge"] = combined["codigo_ibge"].fillna(
+        combined["nm_municipio"].map(_normalized_name).map(name_to_code)
+    )
+    combined = combined.dropna(subset=["codigo_ibge"]).drop_duplicates("codigo_ibge")
+
+    frame = municipality_reference.rename(columns={"nome": "municipio"}).merge(
+        combined[[
+            "codigo_ibge",
+            "capital_local_0a100",
+            "pct_market_share",
+        ]],
+        on="codigo_ibge",
+        how="left",
+    )
+    frame["codigo_ibge_str"] = frame["codigo_ibge"].astype("string")
+    frame["municipio"] = frame["municipio"].fillna("Município")
+    frame["capital_local_0a100"] = pd.to_numeric(
+        frame["capital_local_0a100"], errors="coerce"
+    )
+    frame["pct_market_share"] = pd.to_numeric(
+        frame["pct_market_share"], errors="coerce"
+    )
+    note_high = frame["capital_local_0a100"].gt(50)
+    market_share_high = frame["pct_market_share"].ge(statewide_market_share)
+    valid_classification = (
+        frame["capital_local_0a100"].notna()
+        & frame["pct_market_share"].notna()
+    )
+    frame["classe_forca_local"] = np.select(
+        [
+            valid_classification & note_high & market_share_high,
+            valid_classification & note_high & ~market_share_high,
+            valid_classification & ~note_high & market_share_high,
+        ],
+        [
+            "Máquina eficiente",
+            "Traição ou máquina inoperante",
+            "Voto orgânico / opinião",
+        ],
+        default="Sem penetração",
+    )
+    frame["leitura_forca_local"] = frame["classe_forca_local"].map(
+        {key: value[0] for key, value in LOCAL_STRENGTH_LEGEND.items()}
+    )
+    frame["nota_label"] = frame["capital_local_0a100"].map(
+        lambda value: f"{value:.1f}/100" if pd.notna(value) else "Indisponível"
+    )
+    frame["market_share_label"] = frame["pct_market_share"].map(
+        lambda value: f"{value:.2f}%" if pd.notna(value) else "Indisponível"
+    )
+    frame["referencia_label"] = f"{statewide_market_share:.2f}%"
+
+    fig = categorical_choropleth(
+        frame,
+        geojson,
+        location="codigo_ibge_str",
+        category="classe_forca_local",
+        categories=list(LOCAL_STRENGTH_COLORS),
+        colors=list(LOCAL_STRENGTH_COLORS.values()),
+        hover_name="municipio",
+        custom_data=[
+            "classe_forca_local",
+            "leitura_forca_local",
+            "nota_label",
+            "market_share_label",
+            "referencia_label",
+        ],
+    )
+    fig.update_traces(
+        hovertemplate=(
+            "<b>%{hovertext}</b><br>%{customdata[0]} — %{customdata[1]}"
+            "<br>Capital local: %{customdata[2]}"
+            "<br>Market share municipal: %{customdata[3]}"
+            "<br>Referência estadual: %{customdata[4]}<extra></extra>"
+        ),
+        marker_line_color="rgba(255,255,255,0.92)",
+        marker_line_width=1.0,
+    )
+    fig.update_coloraxes(showscale=False)
+    _add_boundary(fig, geojson.get("regional_lines", {}).get("state", ([], [])), width=3.0)
+    return fig, statewide_market_share
 
 
 ACTION_COLORS = {

@@ -18,10 +18,10 @@ O percurso é vertical. Uma capa apresenta o candidato; faixas de seção delimi
 | Cabeçalho interno | Card azul mais leve, com título e subtítulo em duas linhas de hierarquia | Introduzir uma visualização dentro da seção |
 | Cards de conteúdo | Azul profundo translúcido, borda azul clara fina, sombra e leve blur | Agrupar informação sem esconder o fundo |
 | Gráficos Plotly | Fundo transparente, textos claros e grades discretas | Integrar gráfico e card |
-| Mapas | Coropléticos Plotly nas três páginas, sem mapa-base de ruas | Mostrar votos por intensidade, malhas neutras ou oportunidades por classe |
+| Mapas | Coropléticos Plotly nas três páginas, sem mapa-base de ruas | Mostrar votos por intensidade, força/atuação por classe, malhas neutras ou oportunidades |
 | Mensagens de ausência | Aviso ou informação textual dentro do espaço da visualização | Explicar falta de dados sem simular um resultado |
 
-A base cromática é `#eaf2ff` para texto, `#f8fbff` para títulos e números, `#b7c7e6` para descrição e legendas. Os cards usam gradientes próximos de `rgba(11,31,77,.76)` e `rgba(7,24,54,.68)`, com bordas azuis próximas de `rgba(59,130,246,.24)`. Azul claro (`#60a5fa`), azul médio (`#2563eb`) e azul profundo (`#0b1f4d`) expressam intensidade ou seleção; verde, amarelo, laranja e cinza têm significado específico nos mapas categóricos.
+A base cromática é `#eaf2ff` para texto, `#f8fbff` para títulos e números, `#b7c7e6` para descrição e legendas. Os cards usam gradientes próximos de `rgba(11,31,77,.76)` e `rgba(7,24,54,.68)`, com bordas azuis próximas de `rgba(59,130,246,.24)`. Azul claro (`#60a5fa`), azul médio (`#2563eb`) e azul profundo (`#0b1f4d`) expressam intensidade ou seleção; verde, vermelho, amarelo, laranja e cinza têm significado específico nos mapas categóricos.
 
 Os preenchimentos dos mapas são opacos e aparecem sobre fundo transparente, sem nomes de ruas sob os polígonos. Os tooltips usam fundo escuro e texto claro. Os 853 municípios de Minas Gerais compõem os mapas estaduais; os polígonos municipais são simplificados com tolerância pequena para preservar a leitura dos limites. O mapa detalhado usa bairros oficiais quando a malha cobre pelo menos 95% do município; caso contrário, tenta áreas ponderadas com ao menos quatro unidades e cobertura equivalente, e recorre à malha completa de setores censitários quando necessário.
 
@@ -43,7 +43,7 @@ No canto superior direito há uma cápsula de três opções: **Raio X Eleitoral
 
 ## 2. Página 1 — Raio X Eleitoral
 
-A página segue a ordem: **Mapa Territorial da Votação → Votação por Bairros dentro dos municípios → Força da política local → Concentração territorial dos votos → Mapa da atuação parlamentar → Eficiência por Custo do Voto**. A primeira parte oferece localização e volume; a segunda aproxima o município; a seção de política local reserva espaço para análise futura; as três seguintes interpretam dependência territorial, emendas e gastos.
+A página segue a ordem: **Mapa Territorial da Votação → Votação por Bairros dentro dos municípios → Força da política local → Concentração territorial dos votos → Mapa da atuação parlamentar → Eficiência por Custo do Voto**. A primeira parte oferece localização e volume; a segunda aproxima o município; a seção de política local confronta capital político e market share; as três seguintes interpretam dependência territorial, emendas e gastos.
 
 ### 2.1 Mapa Territorial da Votação
 
@@ -67,7 +67,11 @@ Esta seção apresenta seletores de mesorregião e município e a distribuição
 
 ### 2.3 Força da política local
 
-A faixa principal usa o título `Força da política local` e o subtítulo `Veja se vereadores e prefeitos das cidades foram decisivos na sua votação`. Logo abaixo há um card vazio de largura total, reservado para conteúdo futuro. A seção ainda não apresenta métricas nem conclusões.
+A faixa principal usa o título `Força da política local` e o subtítulo `Veja se vereadores e prefeitos das cidades foram decisivos na sua votação`. A leitura abre com quatro cards de legenda: **verde** para Máquina eficiente / A força funcionou, **vermelho** para Traição ou máquina inoperante / A força falhou, **azul** para Voto orgânico ou de opinião / Força própria e **cinza** para Sem penetração / Esperado.
+
+Logo abaixo, a estrutura repete a proporção 70/30 do Mapa Territorial da Votação. À esquerda há um card com o filtro territorial fixado em **Município** e a malha completa de Minas Gerais, com divisões municipais brancas e contorno estadual mais espesso. O mapa cruza `capital_local_0a100` com o market share municipal. Nota alta significa resultado acima de 50/100; market share alto significa resultado municipal igual ou superior à participação estadual do candidato. O hover mostra município, classe, leitura, nota, market share local e referência estadual.
+
+À direita ficam **quatro cards vazios**, empilhados e visualmente idênticos aos cards laterais do primeiro mapa. Eles reservam espaço para futuros indicadores; a conclusão disponível nesta etapa está apenas na classe e no tooltip do mapa.
 
 ### 2.4 Concentração territorial dos votos
 
@@ -167,6 +171,7 @@ O mapa municipal é um **coroplético Plotly** de largura total e cerca de **640
 | Cápsula Raio X / DNA / Expansão 2030 | Navegação | Opção ativa destacada no hero |
 | Filtro territorial Mesorregião / Município | Mapa estadual do Raio X e conteúdo da janela aberta por clique | Restrito ao primeiro mapa |
 | Mesorregião e município da votação por bairros | Malha intramunicipal e cinco cards laterais | Restrito à seção detalhada do Raio X |
+| Filtro Município da força política local | Mapa categórico dos quatro quadrantes em Minas Gerais | Única granularidade disponível nesta etapa |
 | Tipo de despesa no treemap | KPIs de custo e gráfico territorial | Botão restaura gasto total |
 | Município e dimensão da rosca DNA | Rosca e total do recorte | Restrito à seção de distribuição |
 | Mesorregião e município da Matriz DNA | Malha neutra exibida na preparação do potencial | Restrito à Matriz de Potencial |

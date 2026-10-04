@@ -14,7 +14,13 @@ import streamlit as st
 
 from hf_sync import data_files, file_by_kind, hf_filesystem, load_env, load_parquet, selected_deputado_files
 from eleitoral.maps.dna_geo_reference import load_geo_reference
-from eleitoral.maps.choropleth_maps import parliamentary_map, territorial_map
+from eleitoral.maps.choropleth_maps import (
+    LOCAL_STRENGTH_COLORS,
+    LOCAL_STRENGTH_LEGEND,
+    local_political_strength_map,
+    parliamentary_map,
+    territorial_map,
+)
 from eleitoral.maps.territorial_mesh import (
     mesoregion_options,
     municipality_mesh_map,
@@ -358,9 +364,6 @@ def _apply_visual_model() -> None:
         .raiox-map-side-cards {{
             display: grid;
             gap: 1rem;
-        }}
-        .raiox-local-politics-placeholder {{
-            min-height: 12rem;
         }}
         .raiox-map-side-card {{
             min-height: 9.25rem;
@@ -1198,6 +1201,90 @@ def _render_map_side_cards(df: pd.DataFrame | None) -> None:
             f"Considerando apenas os {_format_number(with_votes)} municípios com voto",
         ))
     st.markdown('<div class="raiox-map-side-cards">' + "".join(cards) + '</div>', unsafe_allow_html=True)
+
+
+def _render_empty_local_politics_cards() -> None:
+    st.markdown(
+        '<div class="raiox-map-side-cards" aria-label="Indicadores de força política local em preparação">'
+        + '<div class="raiox-map-side-card" aria-hidden="true"></div>' * 4
+        + '</div>',
+        unsafe_allow_html=True,
+    )
+
+
+def _render_local_politics_legend() -> None:
+    cards = "".join(
+        '<div class="raiox-local-strength-legend-item">'
+        f'<span style="background:{LOCAL_STRENGTH_COLORS[label]}"></span>'
+        '<div>'
+        f'<b>{html.escape(label)}</b>'
+        f'<strong>{html.escape(reading)}</strong>'
+        f'<small>{html.escape(criteria)}</small>'
+        '</div></div>'
+        for label, (reading, criteria) in LOCAL_STRENGTH_LEGEND.items()
+    )
+    st.html(
+        f"""
+        <style>
+        .raiox-local-strength-legend {{
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 0.65rem;
+            margin: 0.25rem 0 0.9rem;
+        }}
+        .raiox-local-strength-legend-item {{
+            display: flex;
+            gap: 0.7rem;
+            align-items: flex-start;
+            min-width: 0;
+            padding: 0.8rem;
+            border: 1px solid rgba(96,165,250,.22);
+            border-radius: 12px;
+            background: var(--raiox-card-bg);
+            color: #eaf2ff;
+        }}
+        .raiox-local-strength-legend-item > span {{
+            width: 0.82rem;
+            height: 0.82rem;
+            flex: 0 0 0.82rem;
+            margin-top: 0.2rem;
+            border-radius: 50%;
+        }}
+        .raiox-local-strength-legend-item b,
+        .raiox-local-strength-legend-item strong,
+        .raiox-local-strength-legend-item small {{
+            display: block;
+        }}
+        .raiox-local-strength-legend-item b {{
+            font-size: 0.78rem;
+            line-height: 1.25;
+        }}
+        .raiox-local-strength-legend-item strong {{
+            margin-top: 0.22rem;
+            color: #f8fbff;
+            font-size: 0.74rem;
+            text-transform: uppercase;
+        }}
+        .raiox-local-strength-legend-item small {{
+            margin-top: 0.28rem;
+            color: #b7c7e6;
+            font-size: 0.7rem;
+            line-height: 1.3;
+        }}
+        @media (max-width: 900px) {{
+            .raiox-local-strength-legend {{
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }}
+        }}
+        @media (max-width: 560px) {{
+            .raiox-local-strength-legend {{
+                grid-template-columns: 1fr;
+            }}
+        }}
+        </style>
+        <div class="raiox-local-strength-legend">{cards}</div>
+        """
+    )
 
 
 def _render_neighborhood_side_cards(df: pd.DataFrame | None, municipality_code: str | None) -> None:
@@ -2738,8 +2825,40 @@ _major_section_header(
     "Força da política local",
     "Veja se vereadores e prefeitos das cidades foram decisivos na sua votação",
 )
-with st.container(border=True):
-    st.markdown('<div class="raiox-local-politics-placeholder"></div>', unsafe_allow_html=True)
+capital_local_df = _read_selected_parquet("capital_local")
+local_politics_fig, statewide_market_share = local_political_strength_map(
+    capital_local_df,
+    votos_municipio_df,
+)
+_render_local_politics_legend()
+local_map_col, local_cards_col = st.columns([0.70, 0.30], gap="large")
+with local_map_col:
+    with st.container(border=True):
+        _, local_filter_col = st.columns([0.70, 0.30], gap="small")
+        with local_filter_col:
+            st.selectbox(
+                "Filtro territorial",
+                ["Município"],
+                key="pagina1_forca_politica_territorial_kind",
+            )
+        if local_politics_fig is None:
+            st.info("Mapa de força política local indisponível.")
+        else:
+            st.plotly_chart(
+                local_politics_fig,
+                width="stretch",
+                height=560,
+                key="pagina1_forca_politica_mapa_municipal",
+                config={"displayModeBar": False},
+            )
+            if statewide_market_share is not None:
+                st.caption(
+                    "Nota alta: capital local acima de 50/100. "
+                    "Market share alto: resultado municipal igual ou superior "
+                    f"à participação estadual do candidato ({statewide_market_share:.2f}%)."
+                )
+with local_cards_col:
+    _render_empty_local_politics_cards()
 
 _render_accumulated_concentration_section(votos_municipio_df)
 emendas_legislativa_df = _read_selected_parquet("emendas_legislativa")

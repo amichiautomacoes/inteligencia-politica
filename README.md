@@ -14,9 +14,9 @@ Este README é a referência técnica do projeto. A aparência, a hierarquia de 
 
 `app.py` registra as três rotas com `st.navigation`, descobre os deputados disponíveis no Hugging Face e mantém a seleção do candidato em `st.session_state`. A troca de página preserva o deputado selecionado.
 
-Dois blocos ainda são estruturais, sem análise final:
+Dois blocos seguem parcialmente implementados:
 
-- **Força da política local**, no Raio X, contém um card vazio reservado.
+- **Força da política local**, no Raio X, cruza o capital político local do stage 7a com o market share municipal, colore os quatro quadrantes estratégicos e mantém quatro cards laterais vazios.
 - **Matriz de Potencial Demográfico**, no DNA, exibe a malha intramunicipal em cor neutra e quatro cards vazios. A rotina analítica de compatibilidade existente em `pages/dna_eleitor.py` não é chamada pela rota atual.
 
 ## Arquitetura
@@ -119,6 +119,7 @@ deputados/{estaduais|federais}/{ano}/{slug_do_candidato}/...
 | Gastos | `gastos/gastos_territoriais_por_tipo.parquet` | Custo de referência por tipo e território |
 | Gastos | `gastos/gastos_territoriais.parquet` | Fallback com rateio territorial |
 | Emendas | `gastos/emendas_legislativa.parquet` | Mapa de atuação parlamentar e detalhamento |
+| Força local | `forca_local/stage07a_capital_local_municipios.parquet` | Quadrantes de efetividade da estrutura política municipal |
 | Censo | `IBGE/censo/genero_apond.parquet` | Cálculo da expansão |
 | Censo | `IBGE/censo/idade_apond.parquet` | Cálculo da expansão |
 | Censo | `IBGE/censo/escolaridade_apond.parquet` | Cálculo da expansão |
@@ -132,6 +133,12 @@ O app também reconhece CSV, JSON, JSONL, XLS/XLSX e imagens ao listar o bucket,
 Quando `gastos_territoriais_por_tipo.parquet` existe, cada linha municipal repete o total de campanha do tipo de despesa. O dashboard conta esse total uma vez e o divide pelos votos do território; o resultado é um **custo de referência**, não gasto observado naquele município.
 
 Sem esse arquivo, o app usa `gastos_territoriais.parquet`, aplica o rateio proporcional disponível e informa a limitação na interface.
+
+### Semântica da força política local
+
+O mapa cruza `capital_local_0a100`, do stage 7a, com `pct_market_share`, do stage 1a. A nota é considerada alta acima de 50/100, corte que coincide com a entrada na faixa alta dos dados atuais. O market share municipal é considerado alto quando alcança ou supera a participação estadual do próprio candidato, calculada pela soma dos votos dividida pela soma dos votos válidos municipais.
+
+`faixa_capital_local` não controla a cor porque possui três níveis (`baixa`, `media` e `alta`), enquanto a matriz visual exige dois eixos binários.
 
 ## Geografia e mapas
 
