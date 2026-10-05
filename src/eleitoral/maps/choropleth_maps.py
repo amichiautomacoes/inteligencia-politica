@@ -489,22 +489,5 @@ def parliamentary_map(action: pd.DataFrame):
         "<b>%{hovertext}</b><br>%{customdata[0]}<br>Votos: %{customdata[1]:,.0f}"
         "<br>Emendas: R$ %{customdata[2]:,.2f}<extra></extra>"
     ))
-    fig.update_geos(domain={"x": [0, 0.72], "y": [0, 1]})
-    fig.update_coloraxes(colorbar={
-        "title": {"text": "Leitura das cores", "side": "top", "font": {"size": 13, "color": "#f8fbff"}},
-        "tickvals": list(range(len(ACTION_COLORS))),
-        "ticktext": [
-            f"<b>{name}</b><br><span style='color:#b7c7e6'>{ACTION_LEGEND[name]}</span>"
-            for name in ACTION_COLORS
-        ],
-        "tickfont": {"size": 11, "color": "#eaf2ff"},
-        "ticklen": 0,
-        "thickness": 20,
-        "len": 0.86,
-        "x": 0.76,
-        "xanchor": "left",
-        "y": 0.5,
-        "outlinecolor": "rgba(177,211,255,0.35)",
-        "outlinewidth": 1,
-    })
+    fig.update_coloraxes(showscale=False)
     return fig

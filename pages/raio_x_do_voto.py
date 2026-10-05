@@ -14,6 +14,7 @@ import streamlit as st
 from hf_sync import data_files, file_by_kind, hf_filesystem, load_env, load_parquet, selected_deputado_files
 from eleitoral.maps.dna_geo_reference import load_geo_reference
 from eleitoral.maps.choropleth_maps import (
+    ACTION_COLORS,
     LOCAL_STRENGTH_COLORS,
     LOCAL_STRENGTH_ICONS,
     LOCAL_STRENGTH_LABELS,
@@ -892,6 +893,12 @@ def _format_currency(value: float | int | None) -> str:
     formatted = f"{float(value):,.2f}"
     formatted = formatted.replace(",", "X").replace(".", ",").replace("X", ".")
     return f"R$ {formatted}"
+
+
+def _format_currency_whole(value: float | int | None) -> str:
+    if value is None or pd.isna(value):
+        return "R$ 0"
+    return f"R$ {_format_number(round(float(value)))}"
 
 
 def _current_files() -> list[str]:
@@ -2642,6 +2649,26 @@ EXPENSE_TYPE_SHORT_LABELS = {
 }
 
 
+EXPENSE_TREEMAP_LABELS = {
+    "Atividades de militância e mobilização de rua": "MILITÂNCIA DE RUA",
+    "Publicidade por materiais impressos": "PUBLICIDADE E IMPRESSOS",
+    "Despesa com Impulsionamento de Conteúdos": "MKT DIGITAL",
+    "Publicidade por adesivos": "ADESIVOS",
+    "Correspondências e despesas postais": "DESPESAS POSTAIS",
+    "Serviços prestados por terceiros": "SERVIÇOS DE TERCEIROS",
+    "Cessão ou locação de veículos": "VEÍCULOS",
+    "Locação/cessão de bens móveis (exceto veículos)": "EQUIPAMENTOS",
+    "Locação/cessão de bens imóveis": "COMITÊS",
+    "Publicidade por jornais e revistas": "JORNAIS E REVISTAS",
+    "Comícios": "COMÍCIOS",
+    "Diversas a especificar": "OUTRAS DESPESAS",
+    "Despesas com pessoal": "EQUIPE E PESSOAL",
+    "Combustíveis e lubrificantes": "COMBUSTÍVEL",
+    "Produção de jingles, vinhetas e slogans": "JINGLES",
+    "Encargos financeiros, taxas bancárias e/ou op. cartão de crédito": "TAXAS BANCÁRIAS",
+}
+
+
 def _short_expense_type_label(expense_type: str) -> str:
     label = EXPENSE_TYPE_SHORT_LABELS.get(expense_type)
     if label:
@@ -2649,6 +2676,41 @@ def _short_expense_type_label(expense_type: str) -> str:
     if len(expense_type) <= 28:
         return expense_type
     return f"{expense_type[:25].rstrip()}..."
+
+
+def _expense_treemap_label(expense_type: str) -> str:
+    label = EXPENSE_TREEMAP_LABELS.get(expense_type)
+    if label:
+        return label
+    normalized = " ".join(str(expense_type or "Não informado").strip().split())
+    if len(normalized) <= 30:
+        return normalized.upper()
+    return f"{normalized[:27].rstrip()}...".upper()
+
+
+def _hex_to_rgb(color: str) -> tuple[int, int, int]:
+    color = color.lstrip("#")
+    return tuple(int(color[index:index + 2], 16) for index in (0, 2, 4))
+
+
+def _rgb_to_hex(rgb: tuple[int, int, int]) -> str:
+    return "#{:02x}{:02x}{:02x}".format(*rgb)
+
+
+def _interpolate_hex_color(start: str, end: str, amount: float) -> str:
+    amount = max(0.0, min(1.0, float(amount)))
+    start_rgb = _hex_to_rgb(start)
+    end_rgb = _hex_to_rgb(end)
+    return _rgb_to_hex(tuple(
+        round(start_channel + (end_channel - start_channel) * amount)
+        for start_channel, end_channel in zip(start_rgb, end_rgb)
+    ))
+
+
+def _text_color_for_background(color: str) -> str:
+    red, green, blue = _hex_to_rgb(color)
+    luminance = (0.2126 * red + 0.7152 * green + 0.0722 * blue) / 255
+    return "#0b1f4d" if luminance > 0.52 else "#f8fbff"
 
 
 def _expense_cost_by_type_frame(
@@ -2684,6 +2746,7 @@ def _expense_cost_by_type_frame(
     result["pct_gasto_acumulado"] = result["pct_gasto"].cumsum()
     result["rotulo_custo"] = result["custo_por_voto"].map(_format_currency)
     result["tipo_despesa_curto"] = result["tipo_despesa"].map(_short_expense_type_label)
+    result["tipo_despesa_treemap"] = result["tipo_despesa"].map(_expense_treemap_label)
     result["rotulo_acumulado"] = result["pct_gasto_acumulado"].map(lambda value: f"{value:.0%}")
     result["rotulo_pct_gasto"] = result["pct_gasto"].map(lambda value: f"{value:.0%}")
     return result
@@ -2761,22 +2824,59 @@ def _expense_cost_by_type_chart(chart_df: pd.DataFrame) -> go.Figure:
         return fig
 
     display_df = chart_df.sort_values("valor_total_despesa", ascending=False).copy()
-    fig = px.treemap(
-        display_df,
-        path=["tipo_despesa"],
-        values="valor_total_despesa",
-        custom_data=["tipo_despesa", "pct_gasto", "custo_por_voto"],
+    values = pd.to_numeric(display_df["valor_total_despesa"], errors="coerce").fillna(0)
+    min_value = float(values.min()) if not values.empty else 0.0
+    max_value = float(values.max()) if not values.empty else 0.0
+    if max_value > min_value:
+        normalized = (values - min_value) / (max_value - min_value)
+    else:
+        normalized = pd.Series(1.0, index=display_df.index)
+    display_df["treemap_color"] = normalized.map(
+        lambda value: _interpolate_hex_color("#0b1f4d", "#60a5fa", float(value))
     )
-    fig.update_traces(
-        texttemplate="%{label}<br>%{customdata[1]:.1%} do gasto",
-        textfont={"color": "#f8fbff", "size": 16},
+    display_df["treemap_text_color"] = display_df["treemap_color"].map(_text_color_for_background)
+    display_df["rotulo_pct_orcamento"] = display_df["pct_gasto"].map(_format_percent)
+    display_df["rotulo_valor_despesa"] = display_df["valor_total_despesa"].map(_format_currency_whole)
+    custom_data = np.stack(
+        [
+            display_df["tipo_despesa"],
+            display_df["rotulo_pct_orcamento"],
+            display_df["rotulo_valor_despesa"],
+            display_df["pct_gasto"],
+            display_df["custo_por_voto"],
+        ],
+        axis=-1,
+    )
+    fig = go.Figure(go.Treemap(
+        labels=display_df["tipo_despesa_treemap"],
+        parents=[""] * len(display_df),
+        values=display_df["valor_total_despesa"],
+        customdata=custom_data,
+        texttemplate=(
+            "<b>%{label}</b><br>"
+            "%{customdata[1]} do orçamento • %{customdata[2]}"
+        ),
+        textfont={
+            "color": display_df["treemap_text_color"].tolist(),
+            "size": 16,
+            "family": "Segoe UI, Inter, sans-serif",
+        },
+        marker={
+            "colors": display_df["treemap_color"].tolist(),
+            "line": {"color": "rgba(191,219,254,0.55)", "width": 1.3},
+        },
         hovertemplate=(
             "<b>%{customdata[0]}</b><br>"
-            "Total gasto: R$ %{value:,.2f}<br>"
-            "Participação no gasto: %{customdata[1]:.1%}<br>"
-            "Custo por voto: R$ %{customdata[2]:,.2f}<extra></extra>"
+            "Total gasto: %{customdata[2]}<br>"
+            "Participação no orçamento: %{customdata[3]:.1%}<br>"
+            "Custo por voto: R$ %{customdata[4]:,.2f}<extra></extra>"
         ),
-        marker={"line": {"color": "rgba(191,219,254,0.55)", "width": 1}},
+        branchvalues="total",
+        tiling={"pad": 2},
+    ))
+    fig.update_traces(
+        textposition="middle center",
+        pathbar={"visible": False},
     )
     fig.update_layout(
         height=600,
@@ -3277,6 +3377,141 @@ def _render_parliamentary_action_kpis(action_df: pd.DataFrame) -> None:
     )
 
 
+PARLIAMENTARY_LEGEND_COPY = {
+    "Reduto Atendido": {
+        "title": "🔵 BASE PRIORIZADA 🎯",
+        "description": (
+            "Municípios onde houve votação relevante e também emendas. "
+            "É a base eleitoral que recebeu retorno parlamentar."
+        ),
+    },
+    "Investimento": {
+        "title": "🟢 APOSTA POLÍTICA 🚀",
+        "description": (
+            "Municípios que receberam emendas mesmo sem serem grandes redutos. "
+            "Indicam aposta política ou construção de presença."
+        ),
+    },
+    "Reduto Desassistido": {
+        "title": "🟡 BASE EM RISCO ⚠️",
+        "description": (
+            "Municípios com votos importantes, mas pouca ou nenhuma emenda. "
+            "A base pode se sentir pouco atendida."
+        ),
+    },
+    "Sem Expressão": {
+        "title": "🟠 PRESENÇA PONTUAL 🔍",
+        "description": (
+            "Municípios com baixa expressão eleitoral e atuação parlamentar pontual. "
+            "Não são prioridade evidente nesse cruzamento."
+        ),
+    },
+    "Votos sem emendas": {
+        "title": "🔘 VOTAÇÃO ORGÂNICA 🤝",
+        "description": (
+            "Municípios onde houve votos para o candidato, mas nenhuma emenda registrada. "
+            "A votação apareceu sem retorno parlamentar."
+        ),
+    },
+    "Sem votos nem emendas": {
+        "title": "⚪ TERRITÓRIO NEUTRO 🏳️",
+        "description": (
+            "Municípios sem votos e sem emendas neste recorte. "
+            "Não há presença eleitoral nem atuação registrada."
+        ),
+    },
+}
+
+
+def _render_parliamentary_legend_cards(action_df: pd.DataFrame) -> None:
+    if action_df.empty or "categoria_coerencia" not in action_df.columns:
+        st.info("Legenda parlamentar indisponível.")
+        return
+
+    total_votes = float(pd.to_numeric(action_df.get("qt_votos", pd.Series(dtype=float)), errors="coerce").fillna(0).sum())
+    cards = []
+    for category, copy in PARLIAMENTARY_LEGEND_COPY.items():
+        color = ACTION_COLORS.get(category, "#64748B")
+        rows = action_df[action_df["categoria_coerencia"].astype(str).eq(category)].copy()
+        cities = int(len(rows))
+        votes = float(pd.to_numeric(rows.get("qt_votos", pd.Series(dtype=float)), errors="coerce").fillna(0).sum())
+        vote_share = votes / total_votes if total_votes > 0 else 0.0
+        cards.append(
+            f"""
+            <div class="raiox-parliament-card" style="
+                --parliament-color: {html.escape(color)};
+                background:
+                    radial-gradient(circle at 0% 0%, {html.escape(color)}45 0%, {html.escape(color)}1f 42%, transparent 72%),
+                    linear-gradient(145deg, {html.escape(color)}28 0%, rgba(7,24,54,.76) 58%, {html.escape(color)}0f 100%);
+                border-color: {html.escape(color)}66;
+            ">
+                <div class="raiox-parliament-card-title">{html.escape(copy["title"])}</div>
+                <div class="raiox-parliament-card-metric">
+                    {_format_number(cities)} cidades
+                    <span>{_format_percent(vote_share)} da votação</span>
+                </div>
+                <div class="raiox-parliament-card-description">{html.escape(copy["description"])}</div>
+            </div>
+            """
+        )
+
+    st.html(
+        """
+        <style>
+        .raiox-parliament-card-stack {
+            display: grid;
+            gap: .58rem;
+        }
+        .raiox-parliament-card {
+            min-height: 6rem;
+            padding: .68rem .78rem .72rem;
+            border: 1px solid;
+            border-radius: 16px;
+            color: #eaf2ff;
+            box-shadow: 0 12px 30px rgba(1, 8, 24, 0.22);
+            backdrop-filter: blur(7px);
+            -webkit-backdrop-filter: blur(7px);
+        }
+        .raiox-parliament-card-title {
+            display: inline-flex;
+            align-items: center;
+            max-width: 100%;
+            padding: .25rem .48rem;
+            border: 1px solid color-mix(in srgb, var(--parliament-color), white 25%);
+            border-radius: 999px;
+            background: color-mix(in srgb, var(--parliament-color), transparent 76%);
+            color: #f8fbff;
+            font-size: .68rem;
+            font-weight: 900;
+            line-height: 1.18;
+            letter-spacing: .03em;
+        }
+        .raiox-parliament-card-metric {
+            margin-top: .48rem;
+            color: #ffffff;
+            font-size: 1.06rem;
+            font-weight: 900;
+            line-height: 1.18;
+        }
+        .raiox-parliament-card-metric span {
+            display: block;
+            margin-top: .12rem;
+            color: #dbeafe;
+            font-size: .82rem;
+            font-weight: 750;
+        }
+        .raiox-parliament-card-description {
+            margin-top: .42rem;
+            color: #c8d7ef;
+            font-size: .74rem;
+            line-height: 1.32;
+        }
+        </style>
+        <div class="raiox-parliament-card-stack">
+        """ + "".join(cards) + "</div>"
+    )
+
+
 def _parliamentary_map_selection(event: object | None) -> dict[str, str]:
     if event is None:
         return {}
@@ -3358,21 +3593,25 @@ def _render_parliamentary_action_section(
     )
     action_df = _parliamentary_action_frame(votos_df, emendas_df)
     _render_parliamentary_action_kpis(action_df)
-    with st.container(border=True, key="parliamentary-map-container"):
-        fig = parliamentary_map(action_df)
-        if fig is not None:
-            revision = st.session_state.get("pagina1_parliamentary_map_revision", 0)
-            event = st.plotly_chart(
-                fig, width="stretch", height=610,
-                key=f"pagina1_parliamentary_action_map_{revision}",
-                on_select="rerun", selection_mode="points",
-            )
-            selection = _parliamentary_map_selection(event)
-            if selection:
-                st.session_state["pagina1_parliamentary_map_revision"] = revision + 1
-                _parliamentary_emendas_dialog(selection["codigo_ibge"], action_df, emendas_df)
-        else:
-            st.info("Mapa parlamentar indisponível.")
+    parliamentary_map_col, parliamentary_cards_col = st.columns([0.70, 0.30], gap="large")
+    with parliamentary_map_col:
+        with st.container(border=True, key="parliamentary-map-container"):
+            fig = parliamentary_map(action_df)
+            if fig is not None:
+                revision = st.session_state.get("pagina1_parliamentary_map_revision", 0)
+                event = st.plotly_chart(
+                    fig, width="stretch", height=610,
+                    key=f"pagina1_parliamentary_action_map_{revision}",
+                    on_select="rerun", selection_mode="points",
+                )
+                selection = _parliamentary_map_selection(event)
+                if selection:
+                    st.session_state["pagina1_parliamentary_map_revision"] = revision + 1
+                    _parliamentary_emendas_dialog(selection["codigo_ibge"], action_df, emendas_df)
+            else:
+                st.info("Mapa parlamentar indisponível.")
+    with parliamentary_cards_col:
+        _render_parliamentary_legend_cards(action_df)
 
 
 _apply_visual_model()
