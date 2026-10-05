@@ -1406,19 +1406,19 @@ def _render_local_strength_map_legend(statewide_market_share: float | None) -> N
     legend_items = [
         (
             "Máquina eficiente",
-            "🟢 Verde: Prefeito/vereadores entregaram votos",
+            "🟢 Prefeito/vereadores entregaram votos",
         ),
         (
             "Traição ou máquina inoperante",
-            "🔴 Vermelho: Prefeito/vereadores não entregaram votos",
+            "🔴 Prefeito/vereadores não entregaram votos",
         ),
         (
             "Voto orgânico / opinião",
-            "🔵 Azul: Votação própria (sem prefeito/vereadores)",
+            "🔵 Votação própria sem prefeito/vereadores",
         ),
         (
             "Sem penetração",
-            "⚪ Cinza: Sem prefeito/vereadores e sem votos",
+            "⚪ Sem prefeito/vereadores e sem votos",
         ),
     ]
     items_html = "".join(
@@ -1434,49 +1434,46 @@ def _render_local_strength_map_legend(statewide_market_share: float | None) -> N
         f"""
         <style>
         .st-key-pagina1_forca_local_map_card [data-testid="stVerticalBlockBorderWrapper"] {{
-            min-height: 44.25rem;
+            min-height: 50rem;
             padding: 0.92rem 1rem 1rem !important;
         }}
         .raiox-local-map-legend {{
-            margin-bottom: 0.35rem;
-            padding: 0.74rem 0.86rem;
-            border: 1px solid rgba(177, 211, 255, 0.26);
-            border-radius: 14px;
-            background:
-                radial-gradient(circle at 0% 0%, rgba(96, 165, 250, 0.16) 0%, transparent 40%),
-                rgba(7, 24, 54, 0.32);
+            margin: 0 0 0.6rem;
+            padding: 0.12rem 0 0.78rem;
+            border-bottom: 1px solid rgba(177, 211, 255, 0.16);
         }}
         .raiox-local-map-legend-title {{
-            color: #f8fbff;
-            font-size: 0.95rem;
-            font-weight: 850;
-            line-height: 1.2;
+            display: none;
         }}
         .raiox-local-map-legend-note {{
-            margin-top: 0.18rem;
-            color: #b7c7e6;
-            font-size: 0.76rem;
-            line-height: 1.32;
+            max-width: 60rem;
+            margin: 0 auto;
+            color: #f8fbff;
+            font-size: 0.86rem;
+            font-weight: 850;
+            line-height: 1.42;
+            text-align: center;
         }}
         .raiox-local-map-legend-grid {{
             display: grid;
             grid-template-columns: repeat(4, minmax(0, 1fr));
-            gap: 0.42rem;
-            margin-top: 0.58rem;
+            gap: 0.5rem;
+            margin-top: 0.64rem;
         }}
         .raiox-local-map-legend-item {{
             display: flex;
             align-items: center;
-            gap: 0.4rem;
-            min-height: 2.3rem;
-            padding: 0.34rem 0.48rem;
+            gap: 0.48rem;
+            min-height: 2.55rem;
+            padding: 0.4rem 0.66rem;
             border: 1px solid color-mix(in srgb, var(--local-color), transparent 36%);
             border-radius: 999px;
             background: color-mix(in srgb, var(--local-color), transparent 84%);
             color: #eaf2ff;
             font-size: 0.7rem;
             font-weight: 800;
-            line-height: 1.16;
+            line-height: 1.18;
+            letter-spacing: 0;
         }}
         .raiox-local-map-legend-swatch {{
             flex: 0 0 auto;
@@ -1499,12 +1496,11 @@ def _render_local_strength_map_legend(statewide_market_share: float | None) -> N
                 grid-template-columns: 1fr;
             }}
             .raiox-local-map-legend-item {{
-                border-radius: 12px;
+                border-radius: 14px;
             }}
         }}
         </style>
         <div class="raiox-local-map-legend">
-            <div class="raiox-local-map-legend-title">Por que cada município recebe essa cor?</div>
             <div class="raiox-local-map-legend-note">
                 Avalia a eficácia de prefeitos e vereadores aliados na transferência de votos.
                 Considera-se votação alta quando o seu percentual na cidade supera a sua média no estado ({html.escape(reference)}).
@@ -3899,7 +3895,7 @@ with local_map_col:
             local_map_event = st.plotly_chart(
                 local_politics_fig,
                 width="stretch",
-                height=590,
+                height=682,
                 key=f"pagina1_forca_politica_mapa_municipal_{local_map_revision}",
                 config={"displayModeBar": False},
                 on_select="rerun",
