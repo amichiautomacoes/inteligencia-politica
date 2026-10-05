@@ -1424,7 +1424,6 @@ def _render_local_strength_map_legend(statewide_market_share: float | None) -> N
     items_html = "".join(
         f"""
         <div class="raiox-local-map-legend-item" style="--local-color: {html.escape(LOCAL_STRENGTH_COLORS[classification])};">
-            <span class="raiox-local-map-legend-swatch"></span>
             <span>{html.escape(copy)}</span>
         </div>
         """
@@ -1463,7 +1462,7 @@ def _render_local_strength_map_legend(statewide_market_share: float | None) -> N
         .raiox-local-map-legend-item {{
             display: flex;
             align-items: center;
-            gap: 0.48rem;
+            justify-content: center;
             min-height: 2.55rem;
             padding: 0.4rem 0.66rem;
             border: 1px solid color-mix(in srgb, var(--local-color), transparent 36%);
@@ -1474,14 +1473,7 @@ def _render_local_strength_map_legend(statewide_market_share: float | None) -> N
             font-weight: 800;
             line-height: 1.18;
             letter-spacing: 0;
-        }}
-        .raiox-local-map-legend-swatch {{
-            flex: 0 0 auto;
-            width: 0.72rem;
-            height: 0.72rem;
-            border-radius: 50%;
-            background: var(--local-color);
-            box-shadow: 0 0 0 2px color-mix(in srgb, var(--local-color), white 34%);
+            text-align: center;
         }}
         @media (max-width: 900px) {{
             .st-key-pagina1_forca_local_map_card [data-testid="stVerticalBlockBorderWrapper"] {{
