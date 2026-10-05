@@ -33,31 +33,31 @@ A secao abre com a faixa principal padrao do projeto:
 - subtitulo: `Participação de cada tipo de despesa nos gastos totais da campanha.`;
 - mesma linguagem visual das demais faixas principais: fundo azul profundo, borda fina, brilho discreto e barra vertical clara a esquerda.
 
-Logo abaixo vem uma linha de **tres KPIs**, antes dos graficos:
+Logo abaixo vem uma linha de **tres KPIs nativos `st.metric`**, antes dos cards:
 
-- **Custo por voto (total geral)** ou **Custo por voto**, quando ha filtro;
-- **Total gasto** ou **Gasto no tipo selecionado**;
-- **Despesa líder** ou **Tipo de despesa selecionado**.
+- **Custo por Voto Total**;
+- **Total Gasto**;
+- **Despesa Líder**.
 
-Os KPIs usam a familia visual `.raiox-heatmap-kpi`: tres colunas, borda clara, fundo transparente, label pequeno em caixa alta, valor branco em destaque e caption discreta quando aplicavel.
+Cada KPI ocupa uma coluna com borda e usa `st.metric`. Valores monetarios seguem a formatacao brasileira `R$ X.XXX,XX`. Sem filtro, os tres resumem a campanha inteira. Ao selecionar um tipo no treemap, os KPIs e o grafico territorial atualizam para essa despesa; os rotulos dos indicadores passam a identificar o valor selecionado. A legenda mostra o valor e a participacao do tipo no gasto total.
 
 Abaixo dos KPIs, o conteudo principal se divide em **dois cards lado a lado** por `st.columns(2, gap="large")`:
 
 - card esquerdo: treemap `Gastos por tipo de despesa`;
-- card direito: dispersao `Matriz de eficiencia territorial · Gasto total` ou `Matriz de eficiencia territorial · {tipo selecionado}`.
+- card direito: barras espelhadas `Votos e custo por voto territorial · Gasto total` ou `Votos e custo por voto territorial · {tipo selecionado}`.
 
 Em telas estreitas, o empilhamento segue o comportamento padrao do Streamlit.
 
 ## 4. Card esquerdo - Gastos por tipo de despesa
 
-O card esquerdo mostra um treemap Plotly de aproximadamente **600 px** de altura.
+O card esquerdo mostra um treemap Plotly de aproximadamente **440 px** de altura, em uma proporção mais horizontal dentro do card.
 
 ### Aparencia
 
 - cada retangulo representa um tipo de despesa;
 - a area do retangulo corresponde a `valor_total_despesa`;
-- a paleta varia de azul profundo `#0b1f4d` a ciano `#60a5fa`;
-- quanto maior o valor da despesa, mais clara tende a ser a cor;
+- cada tipo de despesa usa uma cor categórica distinta;
+- a cor identifica o tipo, enquanto a área do retângulo representa o valor gasto;
 - as bordas internas usam linha clara fina `rgba(191,219,254,0.55)`;
 - o fundo do grafico e transparente;
 - a margem interna do Plotly e pequena (`8 px` em todos os lados);
@@ -70,12 +70,9 @@ TIPO DE DESPESA
 {percentual} do orçamento • {valor em reais}
 ```
 
-Os nomes longos sao encurtados para caber melhor no treemap. Ha dois mapas de rotulos:
+Os nomes longos sao encurtados para caber melhor no treemap. Os aliases gerais ficam em `EXPENSE_TYPE_ALIASES`; alguns rótulos recebem uma forma ainda mais compacta em `EXPENSE_TREEMAP_SHORT_LABELS`. Por exemplo, `Publicidade por jornais e revistas` aparece como `Publicidade Impressa`, `Serviços prestados por terceiros` como `Serviços de Terceiros` e `Serviços próprios prestados por terceiros` como `Terceiros Próprios` no treemap. Os aliases gerais continuam nos KPIs, no hover e na tag de filtro.
 
-- `EXPENSE_TYPE_SHORT_LABELS`, para rotulos curtos de apoio;
-- `EXPENSE_TREEMAP_LABELS`, para nomes em caixa alta exibidos no treemap.
-
-Quando nao ha mapeamento explicito, o nome e normalizado, convertido para caixa alta e truncado acima de 30 caracteres.
+Os rótulos do treemap são exibidos em caixa alta. Quando não há mapeamento explícito, o nome é normalizado, convertido para caixa alta e truncado acima de 30 caracteres. Textos que não cabem com tamanho mínimo legível são ocultados no bloco; o nome completo continua disponível no hover.
 
 Despesas pequenas que representam menos de 1,5% do orcamento cada sao agrupadas visualmente, depois dos quatro maiores tipos, no bloco **OUTRAS DESPESAS**. O agrupamento reduz a malha de micro-retangulos do treemap. Esse bloco mostra no hover quantos tipos foram agrupados e nao atua como filtro individual.
 
@@ -83,7 +80,7 @@ Despesas pequenas que representam menos de 1,5% do orcamento cada sao agrupadas 
 
 O hover do treemap mostra:
 
-- tipo de despesa completo;
+- alias de visualização do tipo de despesa;
 - total gasto;
 - participacao no orcamento;
 - custo por voto daquele tipo.
@@ -95,16 +92,16 @@ O clique em um bloco do treemap seleciona aquele tipo de despesa como filtro mes
 Quando existe selecao:
 
 - o titulo do card esquerdo muda para `Gastos por tipo de despesa · filtrando {tipo}`;
-- o tipo selecionado fica em `#60a5fa`;
-- os demais tipos ficam atenuados em `#1e3a5f`;
-- os tres KPIs passam a refletir apenas o tipo selecionado;
-- a matriz territorial a direita passa a usar o mesmo filtro e mostra uma tag com o nome do tipo selecionado.
+- o tipo selecionado clareia sua cor e recebe contorno claro;
+- as demais categorias mantêm suas cores próprias;
+- os tres KPIs passam a refletir o tipo selecionado;
+- as barras territoriais a direita passam a usar o mesmo filtro e mostram uma tag com o nome do tipo selecionado.
 
 O clique no mesmo item selecionado nao limpa o filtro. A limpeza acontece pelo botao **Mostrar gasto total**, exibido no card direito.
 
-## 5. Card direito - Matriz de eficiencia territorial
+## 5. Card direito - Votos e custo por voto territorial
 
-O card direito mostra um grafico de dispersao Plotly com aproximadamente **560 px** de altura. Ele cruza participacao territorial na votacao com custo por voto e usa o tamanho da bolha para representar volume de votos.
+O card direito mostra barras horizontais espelhadas Plotly com aproximadamente **560 px** de altura. O lado direito prioriza volume de votos e o lado esquerdo mostra uma barra comparativa de custo por voto em escala propria.
 
 ### Controles
 
@@ -116,35 +113,34 @@ Mostrar gasto total
 
 Esse botao remove `pagina1_tipo_despesa_selecionado`, incrementa a revisao do treemap e força novo render.
 
-Abaixo, ha um radio horizontal:
+Logo abaixo, ha um selectbox para escolher o ranking ou filtrar um municipio:
 
 ```text
-Agrupar por: Municípios / Mesorregiões
+Filtrar por municipio: Top 15 municipios por custo por voto / [municipios disponiveis]
 ```
 
-O controle usa a chave `pagina1_custo_territorio`.
+O primeiro item e o padrao. Cada municipio selecionado mostra somente aquele municipio. A chave usa o deputado ativo: `pagina1_custo_municipio_filtro_{candidate}`.
 
 ### Aparencia
 
-- bolhas em escala azul/ciano, com borda clara discreta;
-- eixo X com titulo `% da votacao do deputado`;
-- eixo Y com titulo `Custo por voto (R$/voto)`;
-- tamanho da bolha proporcional a `qt_votos`;
-- grade discreta em branco translucido nos dois eixos;
+- barras azuis a direita representam `qt_votos`;
+- barras amarelas espelhadas a esquerda representam `custo_por_voto`;
+- o eixo X usa titulo `R$/voto (esquerda) · Votos (direita)`;
+- os ticks do lado esquerdo sao formatados como moeda e os do lado direito como votos;
+- no padrao, mostra apenas os 15 municipios com maior custo por voto;
+- ao selecionar um municipio, mostra somente o municipio escolhido;
+- cada barra de votos recebe o rotulo `{valor}/voto` ao lado;
 - fundo transparente;
-- sem legenda;
-- rotula os principais territorios por votos para evitar excesso de texto;
-- linhas pontilhadas indicam as medianas de participacao e custo;
-- anotacoes ajudam a ler bases eficientes e redutos dispersos.
+- margens do Plotly: `l=10`, `r=10`, `t=30`, `b=10`, com ajuste automático para rótulos territoriais;
+- legenda horizontal identifica `R$/voto` e `Votos`.
 
-O quadrante inferior direito concentra bases eficientes: maior participacao na votacao e menor custo por voto. O superior esquerdo evidencia redutos dispersos: pouca participacao e custo teorico maior.
+No padrao, o ranking seleciona os 15 maiores valores de custo por voto e posiciona os maiores no topo. Com um municipio selecionado, o grafico fica restrito a essa linha.
 
 ### Hover
 
 O hover mostra:
 
 - territorio;
-- participacao nos votos do deputado;
 - custo por voto;
 - total usado no calculo;
 - votos.
@@ -255,20 +251,15 @@ Regras:
 
 ### 7.3 KPIs
 
-`_cost_efficiency_kpis(chart_df, selected_expense)`:
+`_cost_efficiency_kpis(chart_df)`:
 
-Sem selecao:
+Sem filtro, os tres KPIs resumem a campanha inteira:
 
-- custo por voto = soma de todas as despesas / votos totais;
-- total gasto = soma de todas as despesas;
-- despesa lider = maior `valor_total_despesa`.
+- **Custo por Voto Total** = soma de todas as despesas / votos totais;
+- **Total Gasto** = soma de todas as despesas;
+- **Despesa Líder** = tipo com maior `valor_total_despesa`.
 
-Com selecao:
-
-- custo por voto = gasto do tipo selecionado / votos totais;
-- total gasto = gasto do tipo selecionado;
-- tipo selecionado aparece como terceiro KPI;
-- caption mostra valor e percentual do gasto total.
+Quando o treemap tem uma despesa selecionada, custo por voto e total gasto passam a usar somente o valor daquele tipo; o terceiro KPI identifica a despesa selecionada. Os rótulos mudam para `Custo por Voto da Despesa`, `Gasto no Tipo Selecionado` e `Despesa Selecionada`. Sem filtro, preservam `Custo por Voto Total`, `Total Gasto` e `Despesa Líder`. A legenda informa o valor gasto e o percentual do total. Os valores monetários usam `_format_currency`, no formato `R$ X.XXX,XX`.
 
 Se `chart_df` estiver vazio:
 
@@ -285,9 +276,10 @@ Se `chart_df` estiver vazio:
 - usa `tipo_despesa_treemap` como `labels`;
 - passa dados completos em `customdata`;
 - define texto com percentual e valor inteiro;
-- calcula cor interpolada entre `#0b1f4d` e `#60a5fa`;
+- usa cores categóricas para separar visualmente os tipos de despesa;
 - calcula cor do texto por luminancia para manter contraste;
-- quando filtrado, destaca apenas o selecionado.
+- quando filtrado, clareia o tipo selecionado e reforça seu contorno;
+- oculta rótulos que não cabem com o tamanho mínimo de leitura.
 
 Se `chart_df` estiver vazio, retorna figura vazia com anotacao:
 
@@ -323,7 +315,7 @@ Depois chama `st.rerun()`.
 7. agrupa votos por municipio ou mesorregiao;
 8. define `gasto_atribuido = campaign_spend` para cada territorio;
 9. calcula `custo_por_voto = campaign_spend / qt_votos`;
-10. ordena por `qt_votos` decrescente.
+10. ordena por `qt_votos` decrescente para preservar a ordenacao de referencia antes da exibicao.
 
 Essa regra e intencionalmente uma comparacao de referencia: cada territorio e comparado contra o mesmo total de campanha, variando apenas pelos votos do territorio.
 
@@ -338,7 +330,7 @@ Essa regra e intencionalmente uma comparacao de referencia: cada territorio e co
 5. remove territorios sem votos;
 6. calcula `gasto_atribuido = valor_despesas_rateado * expense_share`;
 7. calcula `custo_por_voto = gasto_atribuido / qt_votos`;
-8. ordena por `qt_votos` decrescente.
+8. ordena por `qt_votos` decrescente para preservar a ordenacao de referencia antes da exibicao.
 
 Com filtro de tipo, `expense_share` e o percentual daquele tipo no gasto total. Sem filtro, `expense_share = 1.0`.
 
@@ -346,12 +338,15 @@ Com filtro de tipo, `expense_share` e o percentual daquele tipo no gasto total. 
 
 `_territorial_expense_cost_chart(frame, territory, campaign_total)`:
 
-- cria dispersao territorial;
-- usa `% da votacao do deputado` no eixo X;
-- usa `custo_por_voto` no eixo Y;
-- usa `qt_votos` no tamanho da bolha;
-- rotula os principais territorios por votos;
-- usa `customdata` com territorio, total usado e votos;
+- cria barras horizontais espelhadas;
+- usa `qt_votos` nas barras positivas a direita;
+- normaliza `custo_por_voto` para no máximo 36% do comprimento da maior barra de votos e desenha as barras à esquerda do zero;
+- mantém a escala de votos à direita e mostra ticks monetários próprios para o custo à esquerda;
+- no modo padrao, seleciona os 15 municipios com maior `custo_por_voto`;
+- quando um municipio e selecionado, exibe somente esse municipio;
+- rotula a barra de votos com o custo por voto;
+- usa `customdata` com territorio, total usado, votos e custo;
+- usa margens do Plotly `l=10`, `r=10`, `t=30`, `b=10`;
 - se o frame estiver vazio, mostra anotacao de indisponibilidade.
 
 ## 8. Estado e chaves de sessao
@@ -363,7 +358,7 @@ As chaves de estado da secao sao:
 | `pagina1_tipo_despesa_selecionado` | Tipo de despesa ativo no filtro mestre |
 | `pagina1_treemap_despesas` | Prefixo da chave do grafico Plotly |
 | `pagina1_treemap_despesas_revisao` | Revisao usada para recriar o treemap ao limpar selecao |
-| `pagina1_custo_territorio` | Radio `Municípios` / `Mesorregiões` |
+| `pagina1_custo_municipio_filtro_{candidate}` | Selectbox do ranking Top 15 ou de um municipio especifico |
 
 Se o deputado muda, ou se o tipo salvo nao existe no novo `chart_df`, a selecao e descartada:
 
@@ -381,9 +376,9 @@ Estados previstos:
 
 - sem votos totais validos: o frame de despesas fica vazio;
 - sem `despesas_campanha.parquet` valido: KPIs zerados e treemap com anotacao de indisponibilidade;
-- sem dados territoriais validos: grafico territorial com anotacao `Dados territoriais de gastos indisponíveis.`;
+- sem dados territoriais válidos para o recorte: o card mostra um `st.info` amigável explicando que o custo por voto não pode ser calculado e oculta o gráfico vazio;
 - sem `gastos_territoriais_por_tipo.parquet`: usa `gastos_territoriais.parquet` como fallback e mostra caption explicando o rateio;
-- sem ambos os arquivos territoriais: grafico territorial fica vazio, mantendo a estrutura da secao.
+- sem ambos os arquivos territoriais: o card mantém sua estrutura e mostra a mesma mensagem informativa de ausência de dados.
 
 Zero legitimo deve aparecer como valor quando os dados existem; ausencia de dado deve aparecer como mensagem ou caption explicativa.
 
@@ -448,10 +443,10 @@ Ao alterar essa secao, preservar:
 - faixa principal igual as demais secoes do Raio X;
 - KPIs antes dos graficos;
 - treemap a esquerda e custo territorial a direita;
-- cor azul/ciano para intensidade financeira no treemap;
-- destaque claro para o tipo selecionado;
+- cores categóricas distintas no treemap; a área, não a cor, codifica o valor financeiro;
+- aliases compactos no treemap e destaque claro para o tipo selecionado;
 - botao **Mostrar gasto total** apenas quando houver filtro ativo;
-- radio horizontal de agrupamento territorial;
+- selectbox para exibir o Top 15 por custo por voto ou filtrar um municipio;
 - fundo transparente dos graficos;
 - notas explicativas proximas ao grafico territorial;
 - diferenca textual entre **custo de referencia** e **gasto atribuido**.
@@ -486,11 +481,10 @@ Principais funcoes em `pages/raio_x_do_voto.py`:
 | `_render_cost_efficiency_section()` | Orquestra a secao inteira |
 | `_campaign_total_votes()` | Calcula votos totais da campanha |
 | `_expense_cost_by_type_frame()` | Agrega despesas por tipo |
-| `_cost_efficiency_kpis()` | Calcula textos dos KPIs |
-| `_render_cost_efficiency_kpis()` | Renderiza a linha de KPIs |
+| `_cost_efficiency_kpis()` | Calcula os KPIs gerais da campanha |
+| `_render_cost_efficiency_kpis()` | Renderiza os três KPIs com `st.metric` |
 | `_expense_cost_by_type_chart()` | Monta o treemap |
 | `_selected_expense_from_treemap()` | Extrai a despesa clicada |
 | `_territorial_expense_cost_by_type_frame()` | Calcula custo territorial com arquivo por tipo |
 | `_territorial_expense_cost_frame()` | Calcula fallback territorial rateado |
-| `_territorial_expense_cost_chart()` | Monta a matriz territorial de eficiencia |
-
+| `_territorial_expense_cost_chart()` | Monta as barras territoriais de votos e custo |
