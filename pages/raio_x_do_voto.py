@@ -1397,6 +1397,126 @@ def _render_local_politics_cards(
             st.rerun()
 
 
+def _render_local_strength_map_legend(statewide_market_share: float | None) -> None:
+    reference = (
+        f"{statewide_market_share:.2f}%"
+        if statewide_market_share is not None
+        else "a participação estadual"
+    )
+    legend_items = [
+        (
+            "Máquina eficiente",
+            "🟢 Verde: Prefeito/vereadores entregaram votos",
+        ),
+        (
+            "Traição ou máquina inoperante",
+            "🔴 Vermelho: Prefeito/vereadores não entregaram votos",
+        ),
+        (
+            "Voto orgânico / opinião",
+            "🔵 Azul: Votação própria (sem prefeito/vereadores)",
+        ),
+        (
+            "Sem penetração",
+            "⚪ Cinza: Sem prefeito/vereadores e sem votos",
+        ),
+    ]
+    items_html = "".join(
+        f"""
+        <div class="raiox-local-map-legend-item" style="--local-color: {html.escape(LOCAL_STRENGTH_COLORS[classification])};">
+            <span class="raiox-local-map-legend-swatch"></span>
+            <span>{html.escape(copy)}</span>
+        </div>
+        """
+        for classification, copy in legend_items
+    )
+    st.html(
+        f"""
+        <style>
+        .st-key-pagina1_forca_local_map_card [data-testid="stVerticalBlockBorderWrapper"] {{
+            min-height: 44.25rem;
+            padding: 0.92rem 1rem 1rem !important;
+        }}
+        .raiox-local-map-legend {{
+            margin-bottom: 0.35rem;
+            padding: 0.74rem 0.86rem;
+            border: 1px solid rgba(177, 211, 255, 0.26);
+            border-radius: 14px;
+            background:
+                radial-gradient(circle at 0% 0%, rgba(96, 165, 250, 0.16) 0%, transparent 40%),
+                rgba(7, 24, 54, 0.32);
+        }}
+        .raiox-local-map-legend-title {{
+            color: #f8fbff;
+            font-size: 0.95rem;
+            font-weight: 850;
+            line-height: 1.2;
+        }}
+        .raiox-local-map-legend-note {{
+            margin-top: 0.18rem;
+            color: #b7c7e6;
+            font-size: 0.76rem;
+            line-height: 1.32;
+        }}
+        .raiox-local-map-legend-grid {{
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 0.42rem;
+            margin-top: 0.58rem;
+        }}
+        .raiox-local-map-legend-item {{
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            min-height: 2.3rem;
+            padding: 0.34rem 0.48rem;
+            border: 1px solid color-mix(in srgb, var(--local-color), transparent 36%);
+            border-radius: 999px;
+            background: color-mix(in srgb, var(--local-color), transparent 84%);
+            color: #eaf2ff;
+            font-size: 0.7rem;
+            font-weight: 800;
+            line-height: 1.16;
+        }}
+        .raiox-local-map-legend-swatch {{
+            flex: 0 0 auto;
+            width: 0.72rem;
+            height: 0.72rem;
+            border-radius: 50%;
+            background: var(--local-color);
+            box-shadow: 0 0 0 2px color-mix(in srgb, var(--local-color), white 34%);
+        }}
+        @media (max-width: 900px) {{
+            .st-key-pagina1_forca_local_map_card [data-testid="stVerticalBlockBorderWrapper"] {{
+                min-height: 0;
+            }}
+            .raiox-local-map-legend-grid {{
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }}
+        }}
+        @media (max-width: 560px) {{
+            .raiox-local-map-legend-grid {{
+                grid-template-columns: 1fr;
+            }}
+            .raiox-local-map-legend-item {{
+                border-radius: 12px;
+            }}
+        }}
+        </style>
+        <div class="raiox-local-map-legend">
+            <div class="raiox-local-map-legend-title">Por que cada município recebe essa cor?</div>
+            <div class="raiox-local-map-legend-note">
+                Avalia a eficácia de prefeitos e vereadores aliados na transferência de votos.
+                Considera-se votação alta quando o seu percentual na cidade supera a sua média no estado ({html.escape(reference)}).
+            </div>
+            <div class="raiox-local-map-legend-grid">
+                {items_html}
+            </div>
+        </div>
+        """
+    )
+
+
 def _local_politics_map_selection(event: object | None) -> dict[str, str]:
     if event is None:
         return {}
@@ -1932,8 +2052,8 @@ def _accumulated_concentration_chart(concentration_df: pd.DataFrame, max_rank: i
 
     ref_df = _concentration_reference_rows(concentration_df)
     max_rank_value = int(chart_df["rank_municipio"].max())
+    x_axis_max = max(1.0, np.log10(max_rank_value) * 1.03)
     y_axis_max = 100
-    x_axis_padding = max(1.5, max_rank_value * 0.035)
     fig = go.Figure()
     fig.add_trace(
         go.Scatter(
@@ -1962,10 +2082,16 @@ def _accumulated_concentration_chart(concentration_df: pd.DataFrame, max_rank: i
     )
     if not ref_df.empty:
         marker_positions = []
-        for rank in ref_df["rank_municipio"]:
+        for rank, label in zip(ref_df["rank_municipio"], ref_df["referencia"]):
             if int(rank) == 1:
                 marker_positions.append("middle right")
+            elif int(rank) == 5:
+                marker_positions.append("bottom center")
+            elif int(rank) in (15, 20):
+                marker_positions.append("top center")
             elif int(rank) == max_rank_value:
+                marker_positions.append("middle left")
+            elif str(label) == "Todos":
                 marker_positions.append("middle left")
             else:
                 marker_positions.append("top center")
@@ -1986,8 +2112,7 @@ def _accumulated_concentration_chart(concentration_df: pd.DataFrame, max_rank: i
                 hovertemplate=(
                     "<b>%{text}</b><br>"
                     "%{customdata[0]:,.0f} votos acumulados<br>"
-                    "%{customdata[1]:.1%} da votação total<br>"
-                    "Clique para ver os municípios<extra></extra>"
+                    "%{customdata[1]:.1%} da votação total<extra></extra>"
                 ),
                 customdata=np.stack(
                     [ref_df["votos_acumulados"], ref_df["pct_acumulado"], ref_df["referencia_rank"]],
@@ -1996,6 +2121,10 @@ def _accumulated_concentration_chart(concentration_df: pd.DataFrame, max_rank: i
                 showlegend=False,
             )
         )
+    tick_values = []
+    for value in (1, 5, 15, 20, 50, 100, 250, 500, max_rank_value):
+        if value <= max_rank_value and value not in tick_values:
+            tick_values.append(value)
     fig.update_layout(
         height=430,
         margin={"l": 46, "r": 78, "t": 20, "b": 48},
@@ -2004,7 +2133,14 @@ def _accumulated_concentration_chart(concentration_df: pd.DataFrame, max_rank: i
         font={"color": "#eaf2ff", "family": "Segoe UI, Inter, sans-serif"},
         xaxis={
             "title": "Municípios acumulados",
-            "range": [0, max_rank_value + x_axis_padding],
+            "type": "log",
+            "range": [0, x_axis_max],
+            "tickmode": "array",
+            "tickvals": tick_values,
+            "ticktext": [
+                "Todos" if value == max_rank_value else str(value)
+                for value in tick_values
+            ],
             "gridcolor": "rgba(255,255,255,0.08)",
             "zeroline": False,
         },
@@ -2312,6 +2448,16 @@ def _render_accumulated_concentration_section(df: pd.DataFrame | None) -> None:
             '</p>',
             unsafe_allow_html=True,
         )
+        st.caption(
+            f"Curva acumulada até 100% da votação em {_format_number(len(concentration_df))} municípios."
+        )
+        curve_revision = st.session_state.get("pagina1_concentration_curve_revision", 0)
+        st.plotly_chart(
+            _accumulated_concentration_chart(concentration_df),
+            width="stretch",
+            key=f"pagina1_concentration_curve_{curve_revision}",
+            config={"displayModeBar": False},
+        )
         for rank in (5, 15, 20):
             with st.expander(f"Ver municípios do Top {rank}"):
                 city_items = "".join(
@@ -2326,21 +2472,6 @@ def _render_accumulated_concentration_section(df: pd.DataFrame | None) -> None:
                     f'<div class="raiox-concentration-city-list">{city_items}</div>',
                     unsafe_allow_html=True,
                 )
-        st.caption(
-            f"Curva acumulada até 100% da votação em {_format_number(len(concentration_df))} municípios."
-        )
-        curve_revision = st.session_state.get("pagina1_concentration_curve_revision", 0)
-        curve_event = st.plotly_chart(
-            _accumulated_concentration_chart(concentration_df),
-            width="stretch",
-            key=f"pagina1_concentration_curve_{curve_revision}",
-            on_select="rerun",
-            selection_mode="points",
-        )
-        selected_curve_rank = _concentration_chart_selection(curve_event)
-        if selected_curve_rank is not None:
-            st.session_state["pagina1_concentration_curve_revision"] = curve_revision + 1
-            _concentration_municipalities_dialog(concentration_df, selected_curve_rank)
 
 
 def _municipal_votes_frame(df: pd.DataFrame | None) -> pd.DataFrame | None:
@@ -2820,7 +2951,7 @@ def _render_cost_efficiency_kpis(chart_df: pd.DataFrame, selected_expense: str |
     )
 
 
-def _expense_cost_by_type_chart(chart_df: pd.DataFrame) -> go.Figure:
+def _expense_cost_by_type_chart(chart_df: pd.DataFrame, selected_expense: str | None = None) -> go.Figure:
     if chart_df.empty:
         fig = go.Figure()
         fig.add_annotation(
@@ -2846,6 +2977,10 @@ def _expense_cost_by_type_chart(chart_df: pd.DataFrame) -> go.Figure:
     display_df["treemap_color"] = normalized.map(
         lambda value: _interpolate_hex_color("#0b1f4d", "#60a5fa", float(value))
     )
+    if selected_expense:
+        is_selected = display_df["tipo_despesa"].eq(selected_expense)
+        display_df.loc[is_selected, "treemap_color"] = "#60a5fa"
+        display_df.loc[~is_selected, "treemap_color"] = "#1e3a5f"
     display_df["treemap_text_color"] = display_df["treemap_color"].map(_text_color_for_background)
     display_df["rotulo_pct_orcamento"] = display_df["pct_gasto"].map(_format_percent)
     display_df["rotulo_valor_despesa"] = display_df["valor_total_despesa"].map(_format_currency_whole)
@@ -2908,6 +3043,7 @@ def _expense_cost_by_type_chart(chart_df: pd.DataFrame) -> go.Figure:
 def _selected_expense_from_treemap(event: object | None, chart_df: pd.DataFrame) -> str | None:
     if not event:
         return None
+    valid_expenses = set(chart_df["tipo_despesa"].astype(str))
     selection = getattr(event, "selection", None)
     if selection is None and isinstance(event, dict):
         selection = event.get("selection", {})
@@ -2917,8 +3053,14 @@ def _selected_expense_from_treemap(event: object | None, chart_df: pd.DataFrame)
     for point in points or []:
         customdata = point.get("customdata") if isinstance(point, dict) else getattr(point, "customdata", None)
         expense_type = str(customdata[0]) if customdata is not None and len(customdata) else ""
-        if expense_type in chart_df["tipo_despesa"].values:
+        if expense_type in valid_expenses:
             return expense_type
+        label = point.get("label") if isinstance(point, dict) else getattr(point, "label", "")
+        label = str(label or "").strip()
+        if label:
+            matching = chart_df.loc[chart_df["tipo_despesa_treemap"].astype(str).eq(label), "tipo_despesa"]
+            if not matching.empty:
+                return str(matching.iloc[0])
     return None
 
 
@@ -3050,12 +3192,16 @@ def _render_cost_efficiency_section(
     treemap_col, territorial_col = st.columns(2, gap="large")
     with treemap_col:
         with st.container(border=True):
+            treemap_title = (
+                f"Gastos por tipo de despesa · filtrando {selected_expense}"
+                if selected_expense else "Gastos por tipo de despesa"
+            )
             st.markdown(
-                "<div class='raiox-chart-card-title'>Gastos por tipo de despesa</div>",
+                f"<div class='raiox-chart-card-title'>{html.escape(treemap_title)}</div>",
                 unsafe_allow_html=True,
             )
             treemap_event = st.plotly_chart(
-                _expense_cost_by_type_chart(chart_df),
+                _expense_cost_by_type_chart(chart_df, selected_expense),
                 width="stretch",
                 key=f"{EXPENSE_TREEMAP_KEY}_{st.session_state.get(EXPENSE_TREEMAP_REVISION_KEY, 0)}",
                 on_select="rerun",
@@ -3604,9 +3750,9 @@ def _render_parliamentary_action_section(
         "Índice de Retorno Parlamentar: valor total de emendas no município dividido pelos votos recebidos.",
     )
     action_df = _parliamentary_action_frame(votos_df, emendas_df)
-    _render_parliamentary_action_kpis(action_df)
     parliamentary_map_col, parliamentary_cards_col = st.columns([0.70, 0.30], gap="large")
     with parliamentary_map_col:
+        _render_parliamentary_action_kpis(action_df)
         with st.container(border=True, key="parliamentary-map-container"):
             fig = parliamentary_map(action_df)
             if fig is not None:
@@ -3741,10 +3887,11 @@ local_politics_fig, statewide_market_share, local_politics_summaries = local_pol
 )
 local_map_col, local_cards_col = st.columns([0.70, 0.30], gap="large")
 with local_map_col:
-    with st.container(border=True):
+    with st.container(border=True, key="pagina1_forca_local_map_card"):
         if local_politics_fig is None:
             st.info("Mapa de força política local indisponível.")
         else:
+            _render_local_strength_map_legend(statewide_market_share)
             local_map_revision = st.session_state.get(
                 LOCAL_STRENGTH_MAP_REVISION_KEY,
                 0,
@@ -3752,7 +3899,7 @@ with local_map_col:
             local_map_event = st.plotly_chart(
                 local_politics_fig,
                 width="stretch",
-                height=560,
+                height=590,
                 key=f"pagina1_forca_politica_mapa_municipal_{local_map_revision}",
                 config={"displayModeBar": False},
                 on_select="rerun",
@@ -3769,13 +3916,6 @@ with local_map_col:
                     votos_municipio_df,
                     local_elected_df,
                     statewide_market_share,
-                )
-            if statewide_market_share is not None:
-                st.caption(
-                    "Nota alta: capital local acima de 50/100. "
-                    "Market share alto: resultado municipal igual ou superior "
-                    f"à participação estadual do candidato ({statewide_market_share:.2f}%). "
-                    "Clique em um município para abrir o detalhamento da força local."
                 )
 with local_cards_col:
     _render_local_politics_cards(
