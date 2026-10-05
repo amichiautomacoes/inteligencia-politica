@@ -697,7 +697,7 @@ def _apply_visual_model() -> None:
             color: #d6e4f9;
             font-size: 0.95rem;
             line-height: 1.5;
-            margin: 0 0 0.7rem;
+            margin: 0.25rem 0 0.7rem;
         }}
         .raiox-concentration-reading strong {{
             color: #f8fbff;
@@ -2428,14 +2428,6 @@ def _render_accumulated_concentration_section(df: pd.DataFrame | None) -> None:
         selected_rank = st.session_state.pop("pagina1_concentration_selected_rank", None)
         if selected_rank in (1, 5, 15, 20):
             _concentration_breakdown_dialog(concentration_df, selected_rank)
-        st.markdown(
-            '<p class="raiox-concentration-reading">'
-            f'<strong>{html.escape(str(top1["nm_municipio"]).title())}</strong> lidera com '
-            f'<strong>{_format_percent(float(top1["pct_acumulado"]))}</strong>; '
-            f'os 15 principais municípios concentram <strong>{_format_percent(float(top15["pct_acumulado"]))}</strong> dos votos.'
-            '</p>',
-            unsafe_allow_html=True,
-        )
         st.caption(
             f"Curva acumulada até 100% da votação em {_format_number(len(concentration_df))} municípios."
         )
@@ -2445,6 +2437,14 @@ def _render_accumulated_concentration_section(df: pd.DataFrame | None) -> None:
             width="stretch",
             key=f"pagina1_concentration_curve_{curve_revision}",
             config={"displayModeBar": False},
+        )
+        st.markdown(
+            '<p class="raiox-concentration-reading">'
+            f'<strong>{html.escape(str(top1["nm_municipio"]).title())}</strong> lidera com '
+            f'<strong>{_format_percent(float(top1["pct_acumulado"]))}</strong>; '
+            f'os 15 principais municípios concentram <strong>{_format_percent(float(top15["pct_acumulado"]))}</strong> dos votos.'
+            '</p>',
+            unsafe_allow_html=True,
         )
         for rank in (5, 15, 20):
             with st.expander(f"Ver municípios do Top {rank}"):
@@ -3746,7 +3746,7 @@ def _render_parliamentary_action_section(
             if fig is not None:
                 revision = st.session_state.get("pagina1_parliamentary_map_revision", 0)
                 event = st.plotly_chart(
-                    fig, width="stretch", height=610,
+                    fig, width="stretch", height=720,
                     key=f"pagina1_parliamentary_action_map_{revision}",
                     on_select="rerun", selection_mode="points",
                 )
