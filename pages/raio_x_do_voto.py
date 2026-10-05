@@ -2163,6 +2163,19 @@ def _concentration_breakdown_dialog(concentration_df: pd.DataFrame, selected_ran
 
 
 def _concentration_chart_selection(event: object | None) -> int | None:
+    def customdata_item(customdata: object, position: int) -> object | None:
+        if customdata is None:
+            return None
+        if isinstance(customdata, dict):
+            for key in (position, str(position)):
+                if key in customdata:
+                    return customdata[key]
+            return None
+        try:
+            return list(customdata)[position]
+        except (TypeError, IndexError, KeyError):
+            return None
+
     if event is None:
         return None
     if hasattr(event, "selection"):
@@ -2180,10 +2193,9 @@ def _concentration_chart_selection(event: object | None) -> int | None:
         return None
     point = points[0]
     customdata = point.get("customdata") if isinstance(point, dict) else getattr(point, "customdata", None)
-    if customdata is None or len(customdata) < 3:
-        return None
+    rank_value = customdata_item(customdata, 2)
     try:
-        rank = int(float(customdata[2]))
+        rank = int(float(rank_value))
     except (TypeError, ValueError):
         return None
     return rank if rank > 0 else None
