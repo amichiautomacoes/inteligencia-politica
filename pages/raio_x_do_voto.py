@@ -542,6 +542,34 @@ def _apply_visual_model() -> None:
             margin: 0.12rem 0 0.78rem 0;
             text-align: center;
         }}
+        .raiox-cost-chart-heading {{
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 0.55rem;
+            margin: 0.12rem 0 0.78rem 0;
+            text-align: center;
+        }}
+        .raiox-cost-chart-heading .raiox-chart-card-title {{
+            margin: 0;
+        }}
+        .raiox-cost-filter-tag {{
+            display: inline-flex;
+            align-items: center;
+            max-width: 100%;
+            min-height: 1.8rem;
+            padding: 0.28rem 0.7rem;
+            border: 1px solid rgba(96, 165, 250, 0.45);
+            border-radius: 999px;
+            background: linear-gradient(145deg, rgba(96, 165, 250, 0.26), rgba(37, 99, 235, 0.18));
+            color: #f8fbff;
+            font-size: 0.78rem;
+            font-weight: 850;
+            line-height: 1.15;
+            text-transform: uppercase;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.13);
+        }}
         .raiox-neighborhood-kpis {{
             display: grid;
             gap: 0.45rem;
@@ -2819,6 +2847,50 @@ def _expense_treemap_label(expense_type: str) -> str:
     return f"{normalized[:27].rstrip()}...".upper()
 
 
+def _expense_treemap_display_frame(chart_df: pd.DataFrame) -> pd.DataFrame:
+    if chart_df.empty:
+        return chart_df
+
+    display_df = chart_df.sort_values("valor_total_despesa", ascending=False).copy()
+    display_df["_rank"] = np.arange(1, len(display_df) + 1)
+    small_share = pd.to_numeric(display_df["pct_gasto"], errors="coerce").fillna(0).lt(0.015)
+    tail_mask = small_share & display_df["_rank"].gt(4)
+    if not tail_mask.any():
+        return display_df.drop(columns=["_rank"])
+
+    visible = display_df.loc[~tail_mask].copy()
+    tail = display_df.loc[tail_mask].copy()
+    total_spend = float(pd.to_numeric(chart_df["valor_total_despesa"], errors="coerce").fillna(0).sum())
+    total_votes = float(pd.to_numeric(chart_df["qt_votos"], errors="coerce").fillna(0).max())
+    tail_spend = float(pd.to_numeric(tail["valor_total_despesa"], errors="coerce").fillna(0).sum())
+    tail_row = {
+        "tipo_despesa": "OUTRAS DESPESAS",
+        "valor_total_despesa": tail_spend,
+        "qt_votos": total_votes,
+        "custo_por_voto": tail_spend / total_votes if total_votes > 0 else 0.0,
+        "pct_gasto": tail_spend / total_spend if total_spend > 0 else 0.0,
+        "pct_gasto_acumulado": np.nan,
+        "rotulo_custo": _format_currency(tail_spend / total_votes if total_votes > 0 else 0.0),
+        "tipo_despesa_curto": "Outras Despesas",
+        "tipo_despesa_treemap": "OUTRAS DESPESAS",
+        "rotulo_acumulado": "",
+        "rotulo_pct_gasto": _format_percent(tail_spend / total_spend if total_spend > 0 else 0.0),
+        "is_grouped_tail": True,
+        "tail_count": f"{int(len(tail))} tipos agrupados:",
+        "tail_members": ", ".join(tail["tipo_despesa"].astype(str).head(6).tolist()),
+        "tail_hover": (
+            f"<br>{int(len(tail))} tipos agrupados: "
+            f"{', '.join(tail['tipo_despesa'].astype(str).head(6).tolist())}"
+        ),
+    }
+    visible["is_grouped_tail"] = False
+    visible["tail_count"] = ""
+    visible["tail_members"] = ""
+    visible["tail_hover"] = ""
+    result = pd.concat([visible, pd.DataFrame([tail_row])], ignore_index=True)
+    return result.sort_values("valor_total_despesa", ascending=False)
+
+
 def _hex_to_rgb(color: str) -> tuple[int, int, int]:
     color = color.lstrip("#")
     return tuple(int(color[index:index + 2], 16) for index in (0, 2, 4))
@@ -2954,7 +3026,7 @@ def _expense_cost_by_type_chart(chart_df: pd.DataFrame, selected_expense: str | 
         fig.update_layout(height=600, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
         return fig
 
-    display_df = chart_df.sort_values("valor_total_despesa", ascending=False).copy()
+    display_df = _expense_treemap_display_frame(chart_df)
     values = pd.to_numeric(display_df["valor_total_despesa"], errors="coerce").fillna(0)
     min_value = float(values.min()) if not values.empty else 0.0
     max_value = float(values.max()) if not values.empty else 0.0
@@ -2979,6 +3051,8 @@ def _expense_cost_by_type_chart(chart_df: pd.DataFrame, selected_expense: str | 
             display_df["rotulo_valor_despesa"],
             display_df["pct_gasto"],
             display_df["custo_por_voto"],
+            display_df.get("is_grouped_tail", pd.Series(False, index=display_df.index)),
+            display_df.get("tail_hover", pd.Series("", index=display_df.index)),
         ],
         axis=-1,
     )
@@ -3004,7 +3078,8 @@ def _expense_cost_by_type_chart(chart_df: pd.DataFrame, selected_expense: str | 
             "<b>%{customdata[0]}</b><br>"
             "Total gasto: %{customdata[2]}<br>"
             "Participação no orçamento: %{customdata[3]:.1%}<br>"
-            "Custo por voto: R$ %{customdata[4]:,.2f}<extra></extra>"
+            "Custo por voto: R$ %{customdata[4]:,.2f}"
+            "%{customdata[6]}<extra></extra>"
         ),
         branchvalues="total",
         tiling={"pad": 2},
@@ -3040,6 +3115,8 @@ def _selected_expense_from_treemap(event: object | None, chart_df: pd.DataFrame)
         points = selection.get("points", [])
     for point in points or []:
         customdata = point.get("customdata") if isinstance(point, dict) else getattr(point, "customdata", None)
+        if customdata is not None and len(customdata) > 5 and str(customdata[5]).lower() == "true":
+            continue
         expense_type = str(customdata[0]) if customdata is not None and len(customdata) else ""
         if expense_type in valid_expenses:
             return expense_type
@@ -3135,28 +3212,122 @@ def _territorial_expense_cost_chart(
         )
     else:
         label_col = "nm_municipio" if territory == "Municípios" else "nm_mesorregiao"
-        display = frame.head(15 if territory == "Municípios" else len(frame)).iloc[::-1]
-        fig.add_trace(go.Bar(
-            x=display["custo_por_voto"],
-            y=display[label_col],
-            orientation="h",
-            marker={"color": "#60a5fa"},
-            customdata=display[["gasto_atribuido", "qt_votos"]].to_numpy(),
+        display = frame.copy()
+        display["qt_votos"] = pd.to_numeric(display["qt_votos"], errors="coerce").fillna(0)
+        display["custo_por_voto"] = pd.to_numeric(display["custo_por_voto"], errors="coerce").fillna(0)
+        display["gasto_atribuido"] = pd.to_numeric(display["gasto_atribuido"], errors="coerce").fillna(0)
+        display = display[display["qt_votos"].gt(0)].copy()
+        if display.empty:
+            fig.add_annotation(
+                text="Dados territoriais de gastos indisponíveis.",
+                x=0.5, y=0.5, xref="paper", yref="paper", showarrow=False,
+                font={"color": "#eaf2ff", "size": 16},
+            )
+            fig.update_layout(
+                height=560,
+                margin={"l": 8, "r": 12, "t": 8, "b": 42},
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                font={"color": "#eaf2ff"},
+                xaxis={
+                    "title": "% da votação do deputado",
+                    "gridcolor": "rgba(255,255,255,0.10)",
+                    "ticksuffix": "%",
+                    "rangemode": "tozero",
+                },
+                yaxis={
+                    "title": "Custo por voto (R$/voto)",
+                    "gridcolor": "rgba(255,255,255,0.10)",
+                    "rangemode": "tozero",
+                },
+                showlegend=False,
+            )
+            return fig
+        total_votes = float(display["qt_votos"].sum())
+        display["pct_votos"] = display["qt_votos"] / total_votes if total_votes > 0 else 0.0
+        max_votes = float(display["qt_votos"].max()) if not display.empty else 0.0
+        sizeref = 2.0 * max_votes / (42 ** 2) if max_votes > 0 else 1.0
+        top_labels = set(
+            display.sort_values("qt_votos", ascending=False)
+            .head(8 if territory == "Municípios" else len(display))[label_col]
+            .astype(str)
+        )
+        display["territory_label"] = display[label_col].astype(str)
+        display["text_label"] = display["territory_label"].where(display["territory_label"].isin(top_labels), "")
+        median_x = float(display["pct_votos"].median() * 100) if not display.empty else 0.0
+        median_y = float(display["custo_por_voto"].median()) if not display.empty else 0.0
+        fig.add_trace(go.Scatter(
+            x=display["pct_votos"] * 100,
+            y=display["custo_por_voto"],
+            mode="markers+text",
+            text=display["text_label"],
+            textposition="top center",
+            textfont={"color": "#dbeafe", "size": 10},
+            marker={
+                "size": display["qt_votos"],
+                "sizemode": "area",
+                "sizeref": sizeref,
+                "sizemin": 7,
+                "color": display["pct_votos"] * 100,
+                "colorscale": [[0, "#1e3a5f"], [0.45, "#2563eb"], [1, "#60a5fa"]],
+                "line": {"color": "rgba(248,251,255,0.72)", "width": 0.9},
+                "opacity": 0.86,
+                "showscale": False,
+            },
+            customdata=display[["territory_label", "gasto_atribuido", "qt_votos"]].to_numpy(),
             hovertemplate=(
-                "<b>%{y}</b><br>Custo por voto: R$ %{x:,.2f}<br>"
-                f"{'Total da campanha' if campaign_total else 'Gasto atribuído'}: R$ %{{customdata[0]:,.2f}}<br>"
-                "Votos: %{customdata[1]:,.0f}<extra></extra>"
+                "<b>%{customdata[0]}</b><br>"
+                "Participação nos votos: %{x:.2f}%<br>"
+                "Custo por voto: R$ %{y:,.2f}<br>"
+                f"{'Total da campanha' if campaign_total else 'Gasto atribuído'}: R$ %{{customdata[1]:,.2f}}<br>"
+                "Votos: %{customdata[2]:,.0f}<extra></extra>"
             ),
         ))
+        if median_x > 0:
+            fig.add_vline(x=median_x, line_width=1, line_dash="dot", line_color="rgba(226,232,240,0.28)")
+        if median_y > 0:
+            fig.add_hline(y=median_y, line_width=1, line_dash="dot", line_color="rgba(226,232,240,0.28)")
+        fig.add_annotation(
+            x=0.99, y=0.02, xref="paper", yref="paper", showarrow=False,
+            text="Bases eficientes",
+            font={"color": "#bfdbfe", "size": 12},
+            align="right",
+            bgcolor="rgba(11,31,77,0.42)",
+            bordercolor="rgba(96,165,250,0.22)",
+            borderpad=4,
+        )
+        fig.add_annotation(
+            x=0.01, y=0.98, xref="paper", yref="paper", showarrow=False,
+            text="Redutos dispersos",
+            font={"color": "#bfdbfe", "size": 12},
+            align="left",
+            bgcolor="rgba(11,31,77,0.42)",
+            bordercolor="rgba(96,165,250,0.22)",
+            borderpad=4,
+        )
     fig.update_layout(
         height=560,
         margin={"l": 8, "r": 12, "t": 8, "b": 42},
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font={"color": "#eaf2ff"},
-        xaxis={"title": "R$ por voto", "gridcolor": "rgba(255,255,255,0.10)", "rangemode": "tozero"},
-        yaxis={"title": "", "automargin": True},
+        xaxis={
+            "title": "% da votação do deputado",
+            "gridcolor": "rgba(255,255,255,0.10)",
+            "ticksuffix": "%",
+            "rangemode": "tozero",
+        },
+        yaxis={
+            "title": "Custo por voto (R$/voto)",
+            "gridcolor": "rgba(255,255,255,0.10)",
+            "rangemode": "tozero",
+        },
         showlegend=False,
+        hoverlabel={
+            "bgcolor": "rgba(5,12,28,0.95)",
+            "font_color": "#EAF2FF",
+            "bordercolor": "rgba(147,197,253,0.55)",
+        },
     )
     return fig
 
@@ -3202,8 +3373,15 @@ def _render_cost_efficiency_section(
     with territorial_col:
         with st.container(border=True):
             title = selected_expense or "Gasto total"
+            filter_tag = (
+                f"<span class='raiox-cost-filter-tag'>{html.escape(selected_expense)}</span>"
+                if selected_expense else ""
+            )
             st.markdown(
-                f"<div class='raiox-chart-card-title'>Custo por voto territorial · {html.escape(title)}</div>",
+                "<div class='raiox-cost-chart-heading'>"
+                f"<div class='raiox-chart-card-title'>Matriz de eficiência territorial · {html.escape(title)}</div>"
+                f"{filter_tag}"
+                "</div>",
                 unsafe_allow_html=True,
             )
             if selected_expense and st.button("Mostrar gasto total", key="pagina1_reset_tipo_despesa"):
